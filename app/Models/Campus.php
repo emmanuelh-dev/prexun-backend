@@ -21,4 +21,8 @@ class Campus extends Model
     {
         return $this->belongsToMany(User::class, 'campus_user');
     }
+    public function physicalTransactions()
+    {
+        return $this->hasMany(PhysicalTransaction::class);
+    }
 }

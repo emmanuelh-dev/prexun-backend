@@ -16,11 +16,9 @@ class CampusController extends Controller
         $user = $request->user();
 
         if ($user->isSuperAdmin()) {
-            // Super admin can see all campuses
-            $campuses = Campus::all();
+            $campuses = Campus::with(['users:id,name,email,role'])->get();
         } else {
-            // Regular admin sees only their assigned campuses
-            $campuses = $user->campuses;
+            $campuses = $user->campuses()->with(['users:id,name,email,role'])->get();
         }
 
         return response()->json($campuses);
@@ -41,22 +39,33 @@ class CampusController extends Controller
             'code' => 'required|string|unique:campuses,code',
             'description' => 'nullable|string',
             'address' => 'nullable|string',
+            'is_active' => 'boolean|nullable',
             'admin_ids' => 'nullable|array',
             'admin_ids.*' => 'exists:users,id'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
+                'message' => 'Error de validación',
                 'errors' => $validator->errors()
             ], 422);
         }
 
-        $campus = Campus::create($validator->validated());
+        $campusData = [
+            'name' => $request->name,
+            'code' => $request->code,
+            'description' => $request->description,
+            'address' => $request->address,
+            'is_active' => $request->is_active ?? true,
+        ];
 
-        // Attach administrators if provided
-        if ($request->has('admin_ids')) {
-            $campus->users()->attach($request->input('admin_ids'));
+        $campus = Campus::create($campusData);
+
+        if ($request->has('admin_ids') && !empty($request->admin_ids)) {
+            $campus->users()->attach($request->admin_ids);
         }
+
+        $campus->load('users:id,name,email,role');
 
         return response()->json($campus, 201);
     }
@@ -92,6 +101,9 @@ class CampusController extends Controller
             $campus->users()->sync($request->input('admin_ids'));
         }
 
+        // Cargar las relaciones antes de devolver
+        $campus->load('users:id,name,email,role');
+
         return response()->json($campus);
     }
 
@@ -105,7 +117,7 @@ class CampusController extends Controller
 
     public function show($id)
     {
-        $campus = Campus::with('users')->findOrFail($id);
+        $campus = Campus::with('users:id,name,email,role')->findOrFail($id);
         return response()->json($campus);
     }
 }

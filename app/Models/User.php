@@ -51,6 +51,11 @@ class User extends Authenticatable
         return $this->belongsToMany(Campus::class, 'campus_user');
     }
 
+    public function userCampuses()
+    {
+        return $this->hasMany(UserCampus::class);
+    }
+
     public function isSuperAdmin()
     {
         return $this->role === 'super_admin';

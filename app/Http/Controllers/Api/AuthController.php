@@ -26,11 +26,13 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request)
     {
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $request->email)
+            ->with(['campuses', 'userCampuses'])
+            ->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json([
-                'message' => __('Invalid credentials.'),
+                'message' => __('Contraseña incorrecta.'),
             ], 401);
         }
 
@@ -39,7 +41,6 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user,
             'token' => $token,
-            'campuses' => $user->campuses,
         ]);
     }
 
