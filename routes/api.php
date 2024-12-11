@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampusController;
+use App\Http\Controllers\Api\ChargeController;
 use App\Http\Controllers\Api\PeriodController;
 use App\Http\Controllers\api\UsersController;
 use App\Http\Controllers\DashboardController;
@@ -60,4 +61,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/periods', [PeriodController::class, 'store']);
     Route::put('/periods/{id}', [PeriodController::class, 'update']);
     Route::delete('/periods/{id}', [PeriodController::class, 'destroy']);
+
+    // charges
+    Route::get('/charges', [ChargeController::class, 'index']);
+    Route::post('/charges', [ChargeController::class, 'store']);
+    Route::get('/charges/{id}', [ChargeController::class, 'show']);
+    Route::put('/charges/{id}', [ChargeController::class, 'update']);
+    Route::delete('/charges/{id}', [ChargeController::class, 'destroy']);
 });

@@ -39,12 +39,27 @@ class StudentController extends Controller
      */
     public function index($campus_id = null)
     {
+        $query = Student::with(['period', 'transactions']);
+        
         if ($campus_id) {
-            return response()->json(Student::where('campus_id', $campus_id)->get());
+            $query->where('campus_id', $campus_id);
         }
-        return response()->json(Student::get());
+        
+        $students = $query->get()->map(function ($student) {
+            $periodCost = $student->period ? $student->period->price : 0;
+            
+            $totalPaid = $student->transactions->sum('amount');
+            
+            $currentDebt = $periodCost - $totalPaid;
+            
+            $student = $student->toArray();
+            $student['current_debt'] = $currentDebt;
+            
+            return $student;
+        });
+    
+        return response()->json($students);
     }
-
     /**
      * Store a new student.
      */

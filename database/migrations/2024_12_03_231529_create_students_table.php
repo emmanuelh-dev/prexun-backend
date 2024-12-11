@@ -15,6 +15,7 @@ return new class extends Migration
     {
         Schema::create('students', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('period_id')->constrained();
             $table->string('username')->unique();
             $table->string('firstname')->nullable();
             $table->string('lastname')->nullable();
@@ -22,8 +23,8 @@ return new class extends Migration
             $table->string('phone')->nullable();
             $table->string('type')->nullable();
             $table->timestamps();
-            $table->softDeletes();
             $table->foreignId('campus_id')->constrained();
+            $table->softDeletes();
         });
     }
 

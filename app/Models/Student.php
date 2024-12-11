@@ -10,6 +10,7 @@ class Student extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'period_id',
         'username',
         'firstname',
         'lastname',
@@ -20,6 +21,15 @@ class Student extends Model
         'period_id'
     ];
 
+    public function period()
+    {
+        return $this->belongsTo(Period::class);
+    }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
     // public function campus()
     // {
     //     return $this->belongsTo(Campus::class);
