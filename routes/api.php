@@ -4,7 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampusController;
 use App\Http\Controllers\Api\ChargeController;
 use App\Http\Controllers\Api\PeriodController;
-use App\Http\Controllers\api\UsersController;
+use App\Http\Controllers\Api\UsersController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RegisterUserController;
 use App\Http\Controllers\StudentController;
