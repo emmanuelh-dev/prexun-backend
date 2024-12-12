@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampusController;
+use App\Http\Controllers\Api\CarreraController;
 use App\Http\Controllers\Api\ChargeController;
 use App\Http\Controllers\Api\FacultadController;
 use App\Http\Controllers\Api\MunicipioController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\PeriodController;
 use App\Http\Controllers\Api\PrepaController;
 use App\Http\Controllers\Api\UsersController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ModuloController;
 use App\Http\Controllers\RegisterUserController;
 use App\Http\Controllers\StudentController;
 use Illuminate\Http\Request;
@@ -89,4 +91,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/facultades', [FacultadController::class, 'store']);
     Route::put('/facultades/{id}', [FacultadController::class, 'update']); 
     Route::delete('/facultades/{id}', [FacultadController::class, 'destroy']);
+
+    // Carreras
+    Route::get('/carreras', [CarreraController::class, 'index']);
+    Route::post('/carreras', [CarreraController::class, 'store']);
+    Route::put('/carreras/{id}', [CarreraController::class, 'update']); 
+    Route::delete('/carreras/{id}', [CarreraController::class, 'destroy']);
+
+    // Modules
+    Route::get('/modulos', [ModuloController::class, 'index']);
+    Route::post('/modulos', [ModuloController::class, 'store']);
+    Route::put('/modulos/{id}', [ModuloController::class, 'update']); 
+    Route::delete('/modulos/{id}', [ModuloController::class, 'destroy']);
 });
