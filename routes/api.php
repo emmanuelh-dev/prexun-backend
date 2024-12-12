@@ -3,7 +3,10 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampusController;
 use App\Http\Controllers\Api\ChargeController;
+use App\Http\Controllers\Api\FacultadController;
+use App\Http\Controllers\Api\MunicipioController;
 use App\Http\Controllers\Api\PeriodController;
+use App\Http\Controllers\Api\PrepaController;
 use App\Http\Controllers\Api\UsersController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RegisterUserController;
@@ -68,4 +71,22 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/charges/{id}', [ChargeController::class, 'show']);
     Route::put('/charges/{id}', [ChargeController::class, 'update']);
     Route::delete('/charges/{id}', [ChargeController::class, 'destroy']);
+
+    // Municipios
+    Route::get('/municipios', [MunicipioController::class, 'index']);
+    Route::post('/municipios', [MunicipioController::class, 'store']);
+    Route::put('/municipios/{id}', [MunicipioController::class, 'update']);     
+    Route::delete('/municipios/{id}', [MunicipioController::class, 'destroy']);
+
+    // Prepas
+    Route::get('/prepas', [PrepaController::class, 'index']);
+    Route::post('/prepas', [PrepaController::class, 'store']);
+    Route::put('/prepas/{id}', [PrepaController::class, 'update']); 
+    Route::delete('/prepas/{id}', [PrepaController::class, 'destroy']);
+
+    // Facultades
+    Route::get('/facultades', [FacultadController::class, 'index']);
+    Route::post('/facultades', [FacultadController::class, 'store']);
+    Route::put('/facultades/{id}', [FacultadController::class, 'update']); 
+    Route::delete('/facultades/{id}', [FacultadController::class, 'destroy']);
 });
