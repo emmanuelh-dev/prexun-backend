@@ -14,4 +14,9 @@ class Carrera extends Model
     {
         return $this->belongsTo(Facultad::class);
     }
+    
+    public function modulos()
+    {
+        return $this->belongsToMany(Modulo::class, 'carrer_modulo', 'carrer_id', 'modulo_id');
+    }
 }

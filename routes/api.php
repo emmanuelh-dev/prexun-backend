@@ -98,6 +98,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/carreras/{id}', [CarreraController::class, 'update']); 
     Route::delete('/carreras/{id}', [CarreraController::class, 'destroy']);
 
+    Route::get('/carreras/{id}/modulos', [CarreraController::class, 'getModulos']);
+    Route::post('/carreras/{id}/modulos', [CarreraController::class, 'associateModulos']);
+    Route::delete('/carreras/{id}/modulos/{moduloId}', [CarreraController::class, 'dissociateModulo']);
+
     // Modules
     Route::get('/modulos', [ModuloController::class, 'index']);
     Route::post('/modulos', [ModuloController::class, 'store']);
