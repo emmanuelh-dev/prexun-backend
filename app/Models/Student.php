@@ -44,13 +44,24 @@ class Student extends Model
     {
         return $this->hasMany(Transaction::class);
     }
-    // public function campus()
-    // {
-    //     return $this->belongsTo(Campus::class);
-    // }
 
-    // public function transactions()
-    // {
-    //     return $this->hasMany(Transaction::class);
-    // }
+    public function municipio()
+    {
+        return $this->belongsTo(Municipio::class);
+    }
+
+    public function prepa()
+    {
+        return $this->belongsTo(Prepa::class);
+    }
+
+    public function facultad()
+    {
+        return $this->belongsTo(Facultad::class);
+    }
+
+    public function carrera()
+    {
+        return $this->belongsTo(Carrera::class, 'carrer_id');
+    }
 }

@@ -39,7 +39,7 @@ class StudentController extends Controller
      */
     public function index($campus_id = null)
     {
-        $query = Student::with(['period', 'transactions']);
+        $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera']);
         
         if ($campus_id) {
             $query->where('campus_id', $campus_id);
