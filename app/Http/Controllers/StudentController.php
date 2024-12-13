@@ -66,13 +66,13 @@ class StudentController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'username' => 'required|string|max:255',
             'firstname' => 'string|max:255',
             'lastname' => 'string|max:255',
             'email' => 'required|email|unique:students',
             'phone' => 'string|max:20',
             'type' => 'in:preparatoria,facultad',
             'campus_id' => 'required|exists:campuses,id',
+            
         ]);
 
         if ($validator->fails()) {
@@ -81,15 +81,8 @@ class StudentController extends Controller
 
         $student = Student::create($request->all());
 
-        return response()->json($student, 201);
-    }
 
-    /**
-     * Display the specified student.
-     */
-    public function show(Student $student)
-    {
-        return response()->json($student->load('cohort'));
+        return response()->json($student, 201);
     }
 
     /**
@@ -100,7 +93,6 @@ class StudentController extends Controller
         $student = Student::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'username' => 'string|max:255',
             'firstname' => 'string|max:255',
             'lastname' => 'string|max:255',
             'email' => ['email'],
@@ -114,7 +106,16 @@ class StudentController extends Controller
         }
 
         $student->update($request->all());
+
         return response()->json($student);
+    }
+
+    /**
+     * Display the specified student.
+     */
+    public function show(Student $student)
+    {
+        return response()->json($student->load('cohort'));
     }
 
     /**

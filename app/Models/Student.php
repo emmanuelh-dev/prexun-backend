@@ -18,7 +18,21 @@ class Student extends Model
         'phone',
         'type',
         'campus_id',
-        'period_id'
+        'period_id',
+        'carrer_id',
+        'facultad_id',
+        'prepa_id',
+        'municipio_id',
+        'tutor_name',
+        'tutor_phone',
+        'tutor_relationship',
+        'average',
+        'attempts',
+        'score',
+        'health_conditions',
+        'how_found_out',
+        'preferred_communication',
+        'status'
     ];
 
     public function period()
