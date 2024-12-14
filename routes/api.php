@@ -68,9 +68,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/periods/{id}', [PeriodController::class, 'destroy']);
 
     // charges
-    Route::get('/charges', [ChargeController::class, 'index']);
+    Route::get('/charges/{campus_id}', [ChargeController::class, 'index']);
     Route::post('/charges', [ChargeController::class, 'store']);
-    Route::get('/charges/{id}', [ChargeController::class, 'show']);
     Route::put('/charges/{id}', [ChargeController::class, 'update']);
     Route::delete('/charges/{id}', [ChargeController::class, 'destroy']);
 

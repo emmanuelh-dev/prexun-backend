@@ -9,9 +9,12 @@ use Illuminate\Validation\Rule;
 
 class ChargeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        
+        $campus_id = $request->campus_id;
         $charges = Transaction::with('student')
+            ->where('campus_id', $campus_id)
             ->latest()
             ->get();
         return response()->json($charges);
@@ -22,6 +25,7 @@ class ChargeController extends Controller
 
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
+            'campus_id' => 'required|exists:campuses,id',
             'amount' => 'required|numeric|min:0',
             'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
             'denominations' => 'required_if:payment_method,cash|array',
