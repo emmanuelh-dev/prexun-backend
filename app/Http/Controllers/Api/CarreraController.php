@@ -41,28 +41,28 @@ class CarreraController extends Controller
     public function update(Request $request, $id)
     {
         $carrera = Carrera::find($id);
-
+    
         $validatedData = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'facultad_id' => 'sometimes|required|exists:facultades,id',
-            'modulos' => 'sometimes|array',
-            'modulos.*.id' => 'exists:modulos,id',
+            'modulo_ids' => 'sometimes|array',
+            'modulo_ids.*' => 'exists:modulos,id',
         ]);
-
+    
         $carrera->update([
             'name' => $validatedData['name'] ?? $carrera->name,
             'facultad_id' => $validatedData['facultad_id'] ?? $carrera->facultad_id,
         ]);
-
-        if (isset($validatedData['modulos'])) {
-            $moduloIds = collect($validatedData['modulos'])->pluck('id')->toArray();
-            $carrera->modulos()->sync($moduloIds);
-        } elseif ($request->has('modulos')) {
+    
+        if (isset($validatedData['modulo_ids'])) {
+            $carrera->modulos()->sync($validatedData['modulo_ids']);
+        } elseif ($request->has('modulo_ids')) {
             $carrera->modulos()->sync([]);
         }
-
+    
         return response()->json($carrera->load('modulos'));
     }
+
     public function destroy($id)
     {
         $carrera = Carrera::find($id);
