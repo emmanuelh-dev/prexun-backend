@@ -25,16 +25,16 @@ class CarreraController extends Controller
             'modulo_ids' => 'sometimes|array',
             'modulo_ids.*' => 'exists:modulos,id',
         ]);
-    
+
         $carrera = Carrera::create([
             'name' => $validatedData['name'],
             'facultad_id' => $validatedData['facultad_id'],
         ]);
-    
+
         if (isset($validatedData['modulo_ids'])) {
             $carrera->modulos()->sync($validatedData['modulo_ids']);
         }
-    
+
         return response()->json($carrera->load('modulos'), 201);
     }
 
@@ -48,25 +48,31 @@ class CarreraController extends Controller
             'modulos' => 'sometimes|array',
             'modulos.*.id' => 'exists:modulos,id',
         ]);
-    
+
         $carrera->update([
             'name' => $validatedData['name'] ?? $carrera->name,
             'facultad_id' => $validatedData['facultad_id'] ?? $carrera->facultad_id,
         ]);
-    
+
         if (isset($validatedData['modulos'])) {
             $moduloIds = collect($validatedData['modulos'])->pluck('id')->toArray();
             $carrera->modulos()->sync($moduloIds);
         } elseif ($request->has('modulos')) {
             $carrera->modulos()->sync([]);
         }
-    
+
         return response()->json($carrera->load('modulos'));
     }
-    public function destroy(Carrera $carrera)
+    public function destroy($id)
     {
-        $carrera->delete();
-        return response()->json(['message' => 'Carrera eliminada correctamente']);
+        $carrera = Carrera::find($id);
+
+        if ($carrera) {
+            $carrera->delete();
+            return response()->json(['message' => 'Carrera eliminada correctamente']);
+        } else {
+            return response()->json(['message' => 'Carrera no encontrada'], 404);
+        }
     }
 
     public function getModulos(Carrera $carrera)
@@ -80,7 +86,7 @@ class CarreraController extends Controller
             'modulo_ids' => 'required|array',
             'modulo_ids.*' => 'exists:modulos,id',
         ]);
-    
+
         $carrera->modulos()->sync($validatedData['modulo_ids']);
         return response()->json($carrera->load('modulos'));
     }
