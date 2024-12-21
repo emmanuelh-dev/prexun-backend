@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CampusController;
 use App\Http\Controllers\Api\CarreraController;
 use App\Http\Controllers\Api\ChargeController;
 use App\Http\Controllers\Api\FacultadController;
+use App\Http\Controllers\Api\GastoController;
 use App\Http\Controllers\Api\GrupoController;
 use App\Http\Controllers\Api\MunicipioController;
 use App\Http\Controllers\Api\PeriodController;
@@ -131,4 +132,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/grupos', [GrupoController::class, 'store']);
     Route::put('/grupos/{id}', [GrupoController::class, 'update']);
     Route::delete('/grupos/{id}', [GrupoController::class, 'destroy']);
+
+    // Gastos
+    Route::get('/gastos', [GastoController::class, 'index']);
+    Route::post('/gastos', [GastoController::class, 'store']);
+    Route::get('/gastos/{id}', [GastoController::class, 'show']);
+    Route::put('/gastos/{id}', [GastoController::class, 'update']);
+    Route::delete('/gastos/{id}', [GastoController::class, 'destroy']);
 });
