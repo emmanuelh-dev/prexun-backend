@@ -39,7 +39,8 @@ class GastoController extends Controller
             'admin_id' => 'required|exists:users,id',
             'category' => 'required|string',
             'campus_id' => 'required',
-            'image' => 'nullable|image'
+            'image' => 'nullable|image',
+            'cash_cut_id' => 'nullable|exists:cash_cuts,id'
         ]);
         
         if ($request->hasFile('image')) {
@@ -78,7 +79,8 @@ class GastoController extends Controller
             'admin_id' => 'sometimes|exists:users,id',
             'category' => 'sometimes|string',
             'campus_id' => 'sometimes|exists:campus,id',
-            'image' => 'nullable|image'
+            'image' => 'nullable|image',
+            'cash_cut_id' => 'nullable|exists:cash_cuts,id'
         ]);
 
         if ($request->hasFile('image')) {

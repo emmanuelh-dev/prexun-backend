@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampusController;
 use App\Http\Controllers\Api\CarreraController;
+use App\Http\Controllers\Api\CashCutController;
 use App\Http\Controllers\Api\ChargeController;
 use App\Http\Controllers\Api\FacultadController;
 use App\Http\Controllers\Api\GastoController;
@@ -15,7 +16,6 @@ use App\Http\Controllers\Api\UsersController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ModuloController;
 use App\Http\Controllers\PromocionController;
-use App\Http\Controllers\RegisterUserController;
 use App\Http\Controllers\StudentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -32,16 +32,24 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout']);
 
+Route::get('/recibos', [ChargeController::class, 'all']);
+Route::get('/recibo/{id}', [ChargeController::class, 'show']);
+
 
 Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/user', function (Request $request) {
-        $user = User::find($request->user()->id)
-            ->with(['campuses', 'userCampuses'])
-            ->first();
 
-        return $user;
+        $user = auth()->user()->load(['campuses']);
+        return response()->json($user);
+
     });
+
+    // Route::get('/user', function (Request $request) {
+        
+    //     return $request->all();
+
+    // });
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'getData']);
 
@@ -139,4 +147,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/gastos/{id}', [GastoController::class, 'show']);
     Route::put('/gastos/{id}', [GastoController::class, 'update']);
     Route::delete('/gastos/{id}', [GastoController::class, 'destroy']);
+
+    // Cash Cuts
+    Route::get('/caja', [CashCutController::class, 'index']);
+    Route::post('/caja', [CashCutController::class, 'store']);
+    Route::get('/caja/{id}', [CashCutController::class, 'show']);
+    Route::put('/caja/{id}', [CashCutController::class, 'update']);
+    Route::delete('/caja/{id}', [CashCutController::class, 'destroy']);
 });

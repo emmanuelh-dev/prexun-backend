@@ -25,6 +25,8 @@ return new class extends Migration
             $table->foreign('admin_id')->references('id')->on('users');
             $table->unsignedBigInteger('user_id');
             $table->foreign('user_id')->references('id')->on('users');
+            $table->unsignedBigInteger('cash_cut_id')->nullable();
+            $table->foreign('cash_cut_id')->references('id')->on('cash_cuts');
             $table->timestamps();
         });
     }
