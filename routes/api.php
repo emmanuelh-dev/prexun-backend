@@ -45,11 +45,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     });
 
-    // Route::get('/user', function (Request $request) {
-        
-    //     return $request->all();
-
-    // });
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'getData']);
 
