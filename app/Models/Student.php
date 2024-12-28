@@ -32,7 +32,10 @@ class Student extends Model
         'health_conditions',
         'how_found_out',
         'preferred_communication',
-        'status'
+        'status',
+        'general_book',
+        'module_book',
+        'promo_id'
     ];
 
     public function period()
@@ -63,5 +66,15 @@ class Student extends Model
     public function carrera()
     {
         return $this->belongsTo(Carrera::class, 'carrer_id');
+    }
+
+    public function charges()
+    {
+        return $this->hasMany(Transaction::class, 'student_id');
+    }
+
+    public function promo()
+    {
+        return $this->belongsTo(Promocion::class, 'promo_id');
     }
 }

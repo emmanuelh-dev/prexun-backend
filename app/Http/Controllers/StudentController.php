@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Promocion;
 use App\Models\Student;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -72,19 +75,50 @@ class StudentController extends Controller
             'phone' => 'string|max:20',
             'type' => 'in:preparatoria,facultad',
             'campus_id' => 'required|exists:campuses,id',
-            
+            'promo_id' => 'required|exists:promociones,id'
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
-        $student = Student::create($request->all());
-
-
-        return response()->json($student, 201);
+    
+        try {
+            DB::beginTransaction();
+    
+            // Create student
+            $student = Student::create($request->all());
+    
+            // Get promotion
+            $promo = Promocion::findOrFail($request->promo_id);
+            
+            // Create charges based on promotion payments
+            foreach ($promo->pagos as $pago) {
+                Transaction::create([
+                    'campus_id' => $request->campus_id,
+                    'student_id' => $student->id,
+                    'promocion_id' => $promo->id,
+                    'amount' => $pago['amount'],
+                    'expiration_date' => $pago['date'],
+                    'status' => 'pending',
+                    'type' => 'payment_plan'
+                ]);
+            }
+    
+            DB::commit();
+    
+            // Load the student with their charges
+            $student->load('charges');
+            
+            return response()->json($student, 201);
+    
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error creating student and charges',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-
     /**
      * Update the specified student.
      */
@@ -115,7 +149,7 @@ class StudentController extends Controller
      */
     public function show(Student $student)
     {
-        return response()->json($student->load('cohort'));
+        return response()->json($student->load('transactions'));
     }
 
     /**

@@ -11,6 +11,9 @@ class Transaction extends Model
         'campus_id',
         'transaction_type',
         'amount',
+        'paid',
+        'payment_date',
+        'expiration_date',
         'payment_method',
         'denominations',
         'notes',
@@ -18,11 +21,11 @@ class Transaction extends Model
 
     public function campus()
     {
-        return $this->belongsTo(Campus::class);
+        return $this->belongsTo(Campus::class, 'campus_id');
     }
 
     public function student()
     {
-        return $this->belongsTo(Student::class);
+        return $this->belongsTo(Student::class, 'student_id');
     }
 }

@@ -32,8 +32,8 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout']);
 
-Route::get('/recibos', [ChargeController::class, 'all']);
-Route::get('/recibo/{id}', [ChargeController::class, 'show']);
+Route::get('/invoices', [ChargeController::class, 'all']);
+Route::get('/invoice/{id}', [ChargeController::class, 'show']);
 
 
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -69,6 +69,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/students/cohort/{cohort_id}', [StudentController::class, 'getByCohort']);
     Route::post('/students', [StudentController::class, 'store']);
     Route::put('/students/{id}', [StudentController::class, 'update']);
+    Route::get('/student/{student}', [StudentController::class, 'show']);
     Route::delete('/students/{id}', [StudentController::class, 'destroy']);
     Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
     Route::post('/students/import', [StudentController::class, 'import']);

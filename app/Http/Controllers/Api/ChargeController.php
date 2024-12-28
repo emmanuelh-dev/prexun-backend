@@ -42,13 +42,13 @@ class ChargeController extends Controller
     
     public function all()
     {
-        $charges = Transaction::with('student')->get();
+        $charges = Transaction::with('student', 'campus')->get();
         return response()->json($charges);
     }
 
     public function show($id)
     {
-        $charge = Transaction::find($id);
+        $charge = Transaction::with('student', 'campus')->findOrFail($id);
         return $charge;
     }
 
