@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 
 class ChargeController extends Controller
 {
@@ -15,7 +16,7 @@ class ChargeController extends Controller
         $campus_id = $request->campus_id;
         $charges = Transaction::with('student')
             ->where('campus_id', $campus_id)
-            ->latest()
+            ->with('student', 'campus')
             ->get();
         return response()->json($charges);
     }
@@ -33,8 +34,8 @@ class ChargeController extends Controller
         ]);
     
         $validated['denominations'] = json_encode($validated['denominations']);
-    
         $validated['transaction_type'] = 'payment';
+        $validated['uuid'] = Str::uuid();
         $transaction = Transaction::create($validated);
     
         return response()->json($transaction, 201);
@@ -42,14 +43,21 @@ class ChargeController extends Controller
     
     public function all()
     {
-        $charges = Transaction::with('student', 'campus')->get();
+        $charges = Transaction::with('student', 'campus', 'student.grupo')->get();
         return response()->json($charges);
     }
 
     public function show($id)
     {
-        $charge = Transaction::with('student', 'campus')->findOrFail($id);
+        $charge = Transaction::with('student', 'campus')->findOrFail($id)->load('student', 'campus', 'student.grupo');
         return $charge;
+    }
+
+    public function showByUuid($uuid)
+    {
+        return Transaction::with(['student', 'campus', 'student.grupo'])
+            ->where('uuid', $uuid)
+            ->firstOrFail();
     }
 
     public function update($id, Request $request)

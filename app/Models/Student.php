@@ -35,7 +35,8 @@ class Student extends Model
         'status',
         'general_book',
         'module_book',
-        'promo_id'
+        'promo_id',
+        'grupo_id'
     ];
 
     public function period()
@@ -76,5 +77,10 @@ class Student extends Model
     public function promo()
     {
         return $this->belongsTo(Promocion::class, 'promo_id');
+    }
+
+    public function grupo()
+    {
+        return $this->belongsTo(Grupo::class, 'grupo_id');
     }
 }

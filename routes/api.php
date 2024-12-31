@@ -34,6 +34,7 @@ Route::post('/logout', [AuthController::class, 'logout']);
 
 Route::get('/invoices', [ChargeController::class, 'all']);
 Route::get('/invoice/{id}', [ChargeController::class, 'show']);
+Route::get('/uuid_invoice/{uuid}', [ChargeController::class, 'showByUuid']);
 
 
 Route::middleware(['auth:sanctum'])->group(function () {

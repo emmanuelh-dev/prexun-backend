@@ -17,6 +17,7 @@ class Transaction extends Model
         'payment_method',
         'denominations',
         'notes',
+        'uuid'
     ];
 
     public function campus()

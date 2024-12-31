@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 
 /**
  * @group Student Management
@@ -100,7 +101,8 @@ class StudentController extends Controller
                     'amount' => $pago['amount'],
                     'expiration_date' => $pago['date'],
                     'status' => 'pending',
-                    'type' => 'payment_plan'
+                    'type' => 'payment_plan',
+                    'uuid' => Str::uuid()
                 ]);
             }
     
