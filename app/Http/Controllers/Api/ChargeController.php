@@ -16,7 +16,7 @@ class ChargeController extends Controller
         $campus_id = $request->campus_id;
         $charges = Transaction::with('student')
             ->where('campus_id', $campus_id)
-            ->with('student', 'campus')
+            ->with('student', 'campus', 'student.grupo')
             ->get();
         return response()->json($charges);
     }
