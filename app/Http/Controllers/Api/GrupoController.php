@@ -36,21 +36,29 @@ class GrupoController extends Controller
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'name' => 'string',
-            'type' => 'string',
-            'plantel_id' => 'integer|min:1',
-            'period_id' => 'integer|min:1', 
-            'capacity' => 'integer|min:1',
-            'frequency' => 'array',
-      
+            'name' => 'string|sometimes',
+            'type' => 'string|sometimes',
+            'plantel_id' => 'integer|min:1|sometimes',
+            'period_id' => 'integer|min:1|sometimes', 
+            'capacity' => 'integer|min:1|sometimes',
+            'frequency' => 'array|nullable',
         ]);
-
-        if (isset($validated['frequency'])) {
-            $validated['frequency'] = json_encode($validated['frequency']);
+    
+        $dataToUpdate = [];
+    
+        foreach(['name', 'type', 'plantel_id', 'period_id', 'capacity'] as $field) {
+            if (isset($validated[$field])) {
+                $dataToUpdate[$field] = $validated[$field];
+            }
         }
-
+    
+        if (isset($validated['frequency']) && !empty($validated['frequency'])) {
+            $dataToUpdate['frequency'] = json_encode($validated['frequency']);
+        }
+    
         $grupo = Grupo::findOrFail($id);
-        $grupo->update($validated);
+        $grupo->update($dataToUpdate);
+        
         return response()->json($grupo);
     }
 }
