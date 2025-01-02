@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\GrupoController;
 use App\Http\Controllers\Api\MunicipioController;
 use App\Http\Controllers\Api\PeriodController;
 use App\Http\Controllers\Api\PrepaController;
+use App\Http\Controllers\Api\ProductsController;
 use App\Http\Controllers\Api\RemisionController;
 use App\Http\Controllers\Api\UsersController;
 use App\Http\Controllers\DashboardController;
@@ -151,4 +152,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/caja/{id}', [CashCutController::class, 'show']);
     Route::put('/caja/{id}', [CashCutController::class, 'update']);
     Route::delete('/caja/{id}', [CashCutController::class, 'destroy']);
+
+    // Products
+    Route::get('/products', [ProductsController::class, 'index']);
+    Route::post('/products', [ProductsController::class, 'store']);
+    Route::put('/products/{product}', [ProductsController::class, 'update']);
+    Route::delete('/products/{product}', [ProductsController::class, 'destroy']);
 });
