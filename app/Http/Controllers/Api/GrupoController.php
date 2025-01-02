@@ -42,8 +42,7 @@ class GrupoController extends Controller
             'period_id' => 'integer|min:1', 
             'capacity' => 'integer|min:1',
             'frequency' => 'array',
-            'start_time' => 'date_format:H:i',
-            'end_time' => 'date_format:H:i'
+      
         ]);
 
         if (isset($validated['frequency'])) {
