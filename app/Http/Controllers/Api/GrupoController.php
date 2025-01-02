@@ -10,7 +10,8 @@ class GrupoController extends Controller
 {
     public function index()
     {
-        $grupos = Grupo::all();
+        $grupos = Grupo::with('period')->get();
+        
         return response()->json($grupos);
     }
 

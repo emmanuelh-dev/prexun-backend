@@ -14,4 +14,9 @@ class Period extends Model
         'price',
         'end_date'
     ];
+
+    public function grupos()
+    {
+        return $this->hasMany(Grupo::class);
+    }
 }
