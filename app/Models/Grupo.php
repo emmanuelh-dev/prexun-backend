@@ -12,8 +12,11 @@ class Grupo extends Model
     {
         return $this->belongsTo(Period::class);
     }
-
     public function student()
+    {
+        return $this->hasMany(Student::class);
+    }
+    public function students()
     {
         return $this->hasMany(Student::class);
     }

@@ -10,7 +10,15 @@ class GrupoController extends Controller
 {
     public function index()
     {
-        $grupos = Grupo::with('period')->get();
+        $grupos = Grupo::with('period')
+            ->withCount('students') // Esto añade students_count
+            ->get()
+            ->map(function ($grupo) {
+                $grupo->available_slots = $grupo->capacity - $grupo->students_count;
+                $grupo->is_almost_full = $grupo->available_slots <= 3; // Consideramos "casi lleno" si quedan 3 o menos espacios
+                $grupo->is_full = $grupo->available_slots <= 0;
+                return $grupo;
+            });
         
         return response()->json($grupos);
     }
