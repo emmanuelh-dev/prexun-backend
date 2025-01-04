@@ -86,29 +86,36 @@ class StudentController extends Controller
         try {
             DB::beginTransaction();
     
-            // Create student
             $student = Student::create($request->all());
-    
-            // Get promotion
             $promo = Promocion::findOrFail($request->promo_id);
             
-            // Create charges based on promotion payments
-            foreach ($promo->pagos as $pago) {
+            if (count($promo->pagos) > 0) {
+                foreach ($promo->pagos as $pago) {
+                    Transaction::create([
+                        'campus_id' => $request->campus_id,
+                        'student_id' => $student->id,
+                        'promocion_id' => $promo->id,
+                        'amount' => $pago['amount'],
+                        'expiration_date' => $pago['date'],
+                        'status' => 'pending',
+                        'type' => 'payment_plan',
+                        'uuid' => Str::uuid()
+                    ]);
+                }
+            } else {
                 Transaction::create([
                     'campus_id' => $request->campus_id,
                     'student_id' => $student->id,
                     'promocion_id' => $promo->id,
-                    'amount' => $pago['amount'],
-                    'expiration_date' => $pago['date'],
+                    'amount' => $promo->cost,
+                    'expiration_date' => null,
                     'status' => 'pending',
-                    'type' => 'payment_plan',
+                    'type' => 'single_payment',
                     'uuid' => Str::uuid()
                 ]);
             }
     
             DB::commit();
-    
-            // Load the student with their charges
             $student->load('charges');
             
             return response()->json($student, 201);
