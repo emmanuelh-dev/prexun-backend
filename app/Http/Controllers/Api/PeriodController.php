@@ -10,9 +10,9 @@ class PeriodController extends Controller
 {
     public function index()
     {
-        return Period::all()->sortByDesc('start_date');
+        return Period::all()->sortByDesc('start_date')->values()->all();
     }
-
+    
     public function store(Request $request)
     {
         $request->validate([
