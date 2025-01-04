@@ -34,7 +34,7 @@ class ChargeController extends Controller
             'paid' => 'required|boolean'
         ]);
 
-        $validated['denominations'] = json_encode($validated['denominations']);
+        $validated['denominations'] = $validated['denominations'] ? json_encode($validated['denominations']) : null;
         $validated['transaction_type'] = 'payment';
         $validated['uuid'] = Str::uuid();
         $transaction = Transaction::create($validated);

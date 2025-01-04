@@ -51,11 +51,13 @@ class GrupoController extends Controller
             'period_id' => 'integer|min:1|sometimes', 
             'capacity' => 'integer|min:1|sometimes',
             'frequency' => 'array|nullable',
+            'start_time' => 'sometimes|date_format:H:i',
+            'end_time' => 'sometimes|date_format:H:i',
         ]);
     
         $dataToUpdate = [];
     
-        foreach(['name', 'type', 'plantel_id', 'period_id', 'capacity'] as $field) {
+        foreach(['name', 'type', 'plantel_id', 'period_id', 'capacity', 'start_time', 'end_time'] as $field) {
             if (isset($validated[$field])) {
                 $dataToUpdate[$field] = $validated[$field];
             }
