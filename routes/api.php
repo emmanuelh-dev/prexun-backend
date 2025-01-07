@@ -42,9 +42,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/user', function (Request $request) {
 
-        $user = auth()->user()->load(['campuses']);
+        $user = auth()->user()->load(['campuses', 'campuses.caja']);
         return response()->json($user);
-
     });
 
     // Dashboard
@@ -146,16 +145,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/gastos/{id}', [GastoController::class, 'update']);
     Route::delete('/gastos/{id}', [GastoController::class, 'destroy']);
 
-    // Cash Cuts
-    Route::get('/caja', [CashCutController::class, 'index']);
-    Route::post('/caja', [CashCutController::class, 'store']);
-    Route::get('/caja/{id}', [CashCutController::class, 'show']);
-    Route::put('/caja/{id}', [CashCutController::class, 'update']);
-    Route::delete('/caja/{id}', [CashCutController::class, 'destroy']);
-
     // Products
     Route::get('/products', [ProductsController::class, 'index']);
     Route::post('/products', [ProductsController::class, 'store']);
     Route::put('/products/{product}', [ProductsController::class, 'update']);
     Route::delete('/products/{product}', [ProductsController::class, 'destroy']);
+
+
+    // CashCuts
+    Route::prefix('caja')->group(function () {
+        Route::get('/', [CashCutController::class, 'index']);
+        Route::post('/', [CashCutController::class, 'store']);
+        Route::get('/current/{campus}', [CashCutController::class, 'current']);
+        Route::put('/{cashRegister}', [CashCutController::class, 'update']);
+    });
 });

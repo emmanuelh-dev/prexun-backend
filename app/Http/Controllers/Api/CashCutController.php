@@ -3,55 +3,72 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CashCuts;
+use App\Models\Campus;
+use App\Models\CashRegister;
 use Illuminate\Http\Request;
 
 class CashCutController extends Controller
 {
-    public function index(){
-        $cashCuts = CashCuts::all();
-        return response()->json($cashCuts);
+    public function index(Request $request)
+    {
+        $cashRegisters = CashRegister::all();
+        return response()->json($cashRegisters);
     }
 
-    public function store(Request $request){
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'initial_amount' => 'required|numeric',
-            'final_amount' => 'required|numeric',
-            'real_amount' => 'required|numeric',
-            'reason' => 'required|string',
-            'date' => 'required|date',
-            'campus_id' => 'required|exists:campuses,id'
+    public function current(Request $request, Campus $campus)
+    {
+        $cashRegister = CashRegister::where('campus_id', $campus->id)
+            ->where('status', 'abierta')
+            ->first();
+
+        if (!$cashRegister) {
+            return response()->json(
+                ['message' => 'No hay registro de caja abierto en este campus'],
+                404
+            );
+        }
+
+        return response()->json($cashRegister);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'campus_id' => 'required|exists:campuses,id',
+            'initial_amount' => 'required|numeric|min:0',
+            'final_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string|max:255',
+            'status' => 'required|in:abierta,cerrada'
         ]);
 
-        $cashCut = CashCuts::create($request->all());
-        return response()->json($cashCut, 201);
-    }
-
-    public function show($id){
-        $cashCut = CashCuts::find($id);
-        return response()->json($cashCut);
-    }
-
-    public function update(Request $request, $id){
-        $cashCut = CashCuts::find($id);
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'initial_amount' => 'required|numeric',
-            'final_amount' => 'required|numeric',
-            'real_amount' => 'required|numeric',
-            'reason' => 'required|string',
-            'date' => 'required|date',
-            'campus_id' => 'required|exists:campuses,id'
+        $cashRegister = CashRegister::create([
+            'campus_id' => $validated['campus_id'],
+            'initial_amount' => $validated['initial_amount'],
+            'final_amount' => $validated['final_amount'] ?? 0,
+            'notes' => $validated['notes'],
+            'opened_at' => now(),
+            'status' => $validated['status'],
+            'closed_at' => $validated['status'] === 'cerrada' ? now() : null,
         ]);
 
-        $cashCut->update($request->all());
-        return response()->json($cashCut);
+        return response()->json($cashRegister, 201);
     }
 
-    public function destroy($id){
-        $cashCut = CashCuts::find($id);
-        $cashCut->delete();
-        return response()->json(['message' => 'Cash cut deleted successfully']);
+    public function update(Request $request, CashRegister $cashRegister)
+    {
+        $validated = $request->validate([
+            'final_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string|max:255',
+            'status' => 'required|in:abierta,cerrada'
+        ]);
+
+        $cashRegister->update([
+            'final_amount' => $validated['final_amount'] ?? $cashRegister->final_amount,
+            'notes' => $validated['notes'] ?? $cashRegister->notes,
+            'status' => $validated['status'],
+            'closed_at' => now(),
+        ]);
+
+        return response()->json($cashRegister, 200);
     }
 }
