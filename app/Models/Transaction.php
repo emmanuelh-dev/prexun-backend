@@ -10,6 +10,7 @@ class Transaction extends Model
         'student_id',
         'campus_id',
         'transaction_type',
+        'cash_registers_id',
         'amount',
         'paid',
         'payment_date',

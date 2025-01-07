@@ -41,10 +41,13 @@ Route::get('/uuid_invoice/{uuid}', [ChargeController::class, 'showByUuid']);
 Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/user', function (Request $request) {
-
-        $user = auth()->user()->load(['campuses', 'campuses.caja']);
+        $user = auth()->user()->load([
+            'campuses', 
+            'userCampuses.campus.latestCashRegister'
+        ]);
         return response()->json($user);
     });
+    
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'getData']);

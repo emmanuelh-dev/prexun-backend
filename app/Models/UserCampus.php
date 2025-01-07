@@ -19,4 +19,16 @@ class UserCampus extends Model
     {
         return $this->belongsTo(Campus::class);
     }
+
+    public function latestCashRegister()
+    {
+        return $this->hasOneThrough(
+            CashRegister::class,
+            Campus::class,
+            'id',
+            'campus_id',
+            'campus_id',
+            'id'
+        )->latest();
+    }
 }

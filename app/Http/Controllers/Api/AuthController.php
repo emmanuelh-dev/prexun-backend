@@ -27,17 +27,22 @@ class AuthController extends Controller
     public function login(LoginRequest $request)
     {
         $user = User::where('email', $request->email)
-            ->with(['campuses', 'userCampuses'])
+            ->with([
+                'campuses',
+                'userCampuses',
+                'userCampuses.campus',
+                'userCampuses.latestCashRegister'
+            ])
             ->first();
-
+    
         if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json([
                 'message' => __('Contraseña incorrecta.'),
             ], 401);
         }
-
+    
         $token = $user->createToken('API Token')->plainTextToken;
-
+    
         return response()->json([
             'user' => $user,
             'token' => $token,

@@ -14,16 +14,22 @@ class CampusController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-
+    
         if ($user->isSuperAdmin()) {
-            $campuses = Campus::with(['users:id,name,email,role'])->get();
+            $campuses = Campus::with([
+                'users:id,name,email,role',
+                'latestCashRegister'
+            ])->get();
         } else {
-            $campuses = $user->campuses()->with(['users:id,name,email,role'])->get();
+            $campuses = $user->campuses()->with([
+                'users:id,name,email,role',
+                'latestCashRegister'
+            ])->get();
         }
-
+    
         return response()->json($campuses);
     }
-
+    
     public function addAdmin(Request $request)
     {
         $user = $request->user();

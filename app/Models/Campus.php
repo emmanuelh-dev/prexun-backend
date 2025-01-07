@@ -21,8 +21,23 @@ class Campus extends Model
     {
         return $this->belongsToMany(User::class, 'campus_user');
     }
-    public function Transactions()
+
+    public function latestCashRegister()
     {
-        return $this->hasMany(PhysicalTransaction::class);
+        return $this->hasOne(CashRegister::class)
+                    ->where('status', 'abierta')
+                    ->latest();
+    }
+
+    public function cashRegisters()
+    {
+        return $this->hasMany(CashRegister::class);
+    }
+
+    public function caja()
+    {
+        return $this->hasOne(CashRegister::class)
+                    ->where('status', 'abierta')
+                    ->latest();
     }
 }
