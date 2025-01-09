@@ -112,7 +112,8 @@ class ChargeController extends Controller
             'payment_method' => ['nullable', Rule::in(['cash', 'transfer', 'card'])],
             'denominations' => 'nullable|array',
             'notes' => 'nullable|string|max:255',
-            'paid' => 'nullable|boolean'
+            'paid' => 'nullable|boolean',
+            'cash_register_id' => 'nullable|exists:cash_registers,id'
         ]);
     
         try {

@@ -11,7 +11,7 @@ class CashCutController extends Controller
 {
     public function index(Request $request)
     {
-        $cashRegisters = CashRegister::all();
+        $cashRegisters = CashRegister::with('transactions')->all();
         return response()->json($cashRegisters);
     }
 
@@ -19,6 +19,7 @@ class CashCutController extends Controller
     {
         $cashRegister = CashRegister::where('campus_id', $campus->id)
             ->where('status', 'abierta')
+            ->with('transactions')
             ->first();
 
         if (!$cashRegister) {

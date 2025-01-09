@@ -10,7 +10,7 @@ class Transaction extends Model
         'student_id',
         'campus_id',
         'transaction_type',
-        'cash_registers_id',
+        'cash_register_id',
         'amount',
         'paid',
         'payment_date',
@@ -34,5 +34,9 @@ class Transaction extends Model
     public function transactionDetails()
     {
         return $this->hasMany(TransactionDetail::class);
+    }
+    public function cashRegister()
+    {
+        return $this->belongsTo(CashRegister::class, 'cash_register_id');
     }
 }

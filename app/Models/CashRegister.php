@@ -25,7 +25,6 @@ class CashRegister extends Model
         'final_amount' => 'decimal:2',
     ];
 
-    // Relaciones
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);

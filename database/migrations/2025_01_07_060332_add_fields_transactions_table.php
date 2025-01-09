@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('transactions', function (Blueprint $table) {
-            $table->foreignId('cash_registers_id')
+            $table->foreignId('cash_register_id')
                   ->nullable()
                   ->constrained('cash_registers');
         });
@@ -24,8 +24,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('transactions', function (Blueprint $table) {
-            $table->dropForeign(['cash_registers_id']);
-            $table->dropColumn('cash_registers_id');
+            $table->dropForeign(['cash_register_id']);
+            $table->dropColumn('cash_register_id');
         });
     }
 };
