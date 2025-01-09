@@ -44,50 +44,66 @@ class GastoController extends Controller
                 'category' => 'required|string',
                 'campus_id' => 'required',
                 'image' => 'nullable|image',
-                'cash_register_id' => 'exists:cash_register_id,id',
+                'cash_register_id' => 'exists:cash_registers,id',
                 'denominations' => 'nullable'
             ]);
-    
+
             // Handle image upload
             if ($request->hasFile('image')) {
                 $path = $request->file('image')->store('gastos', 'public');
                 $validated['image'] = $path;
             }
-    
+
             // Create the gasto (expense)
             $gasto = Gasto::create($validated);
-            
-            // Handle cash payment denominations
-            if ($validated['method'] === 'Efectivo' && !empty($validated['denominations'])) {
-                foreach ($validated['denominations'] as $value => $quantity) {
-                    // Create or get denomination
-                    $denomination = Denomination::firstOrCreate(
-                        ['value' => $value],
-                        ['type' => $value >= 100 ? 'billete' : 'moneda']
-                    );
-    
-                    // Create gasto detail if quantity > 0
-                    if ($quantity > 0) {
-                        GastoDetail::create([
-                            'gasto_id' => $gasto->id,
-                            'denomination_id' => $denomination->id,
-                            'quantity' => $quantity
-                        ]);
+
+            if ($validated['method'] === 'Efectivo' && isset($validated['denominations'])) {
+                // Verificar si las denominaciones vienen como string "[object Object]"
+                if ($validated['denominations'] === '[object Object]') {
+                    throw new \Exception('El formato de las denominaciones es incorrecto');
+                }
+
+                // Asegurarse de que denominaciones sea un array asociativo
+                try {
+                    $denominationsData = is_string($validated['denominations'])
+                        ? json_decode($validated['denominations'], true)
+                        : (array)$validated['denominations'];
+
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new \Exception('Error al decodificar las denominaciones: ' . json_last_error_msg());
                     }
+
+
+                    foreach ($denominationsData as $value => $quantity) {
+                        if ($quantity > 0) {
+                            $denomination = Denomination::firstOrCreate(
+                                ['value' => $value],
+                                ['type' => $value >= 100 ? 'billete' : 'moneda']
+                            );
+
+                            GastoDetail::create([
+                                'gasto_id' => $gasto->id,
+                                'denomination_id' => $denomination->id,
+                                'quantity' => $quantity
+                            ]);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    throw $e;
                 }
             }
-    
+
+
             // Set full URL for image
             if ($gasto->image) {
                 $gasto->image = asset('storage/' . $gasto->image);
             }
-    
+
             // Return response with gasto and its details
             return response()->json(
                 $gasto->load('gastoDetails.denomination'),
                 201
             );
-    
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Error de validación',
@@ -97,12 +113,12 @@ class GastoController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al procesar el gasto',
-                'error' => $e->getMessage(),
+                'data_error' => $e->getMessage(),
                 'error' => $request->all()
             ], 500);
         }
     }
-    
+
 
     public function show($id)
     {
@@ -126,7 +142,7 @@ class GastoController extends Controller
             'category' => 'sometimes|string',
             'campus_id' => 'sometimes|exists:campus,id',
             'image' => 'nullable|image',
-            'cash_cut_id' => 'nullable|exists:cash_cuts,id'
+            'cash_register_id' => 'nullable|exists:cash_cuts,id'
         ]);
 
         if ($request->hasFile('image')) {
