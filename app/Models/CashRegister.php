@@ -30,6 +30,11 @@ class CashRegister extends Model
         return $this->hasMany(Transaction::class);
     }
 
+    public function gastos(): HasMany
+    {
+        return $this->hasMany(Gasto::class);
+    }
+
     public function capus(): BelongsTo
     {
         return $this->belongsTo(Campus::class);

@@ -18,7 +18,7 @@ class Gasto extends Model
         'campus_id',
         'admin_id',
         'user_id',
-        'cash_cut_id'
+        'cash_cut_id',
     ];
 
     public function campus()
@@ -31,9 +31,19 @@ class Gasto extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function gastoDetails()
+    {
+        return $this->hasMany(GastoDetail::class);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cashRegister()
+    {
+        return $this->belongsTo(CashRegister::class, 'cash_register_id');
     }
 
     public function scopeCampus($query, $campus_id)

@@ -19,7 +19,7 @@ class CashCutController extends Controller
     {
         $cashRegister = CashRegister::where('campus_id', $campus->id)
             ->where('status', 'abierta')
-            ->with('transactions')
+            ->with('transactions', 'gastos')
             ->first();
 
         if (!$cashRegister) {

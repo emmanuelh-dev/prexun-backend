@@ -43,7 +43,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/user', function (Request $request) {
         $user = auth()->user()->load([
             'campuses', 
-            'userCampuses.campus.latestCashRegister'
+            'campuses.latestCashRegister'
         ]);
         return response()->json($user);
     });

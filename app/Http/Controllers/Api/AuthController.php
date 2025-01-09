@@ -29,6 +29,7 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)
             ->with([
                 'campuses',
+                'campuses.latestCashRegister',
                 'userCampuses',
                 'userCampuses.campus',
                 'userCampuses.latestCashRegister'
