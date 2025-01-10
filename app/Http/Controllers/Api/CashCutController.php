@@ -101,23 +101,22 @@ class CashCutController extends Controller
             'final_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:255',
             'status' => 'required|in:abierta,cerrada',
-            'final_amount' => 'nullable|numeric|min:0',
             'final_amount_cash' => 'nullable|array',
         ]);
+    
         $finalAmountCash = isset($validated['final_amount_cash'])
             ? (object)$validated['final_amount_cash']
             : null;
+    
         $cashRegister->update([
             'next_day' => null,
             'final_amount' => $validated['final_amount'] ?? $cashRegister->final_amount,
             'notes' => $validated['notes'] ?? $cashRegister->notes,
-            'initial_amount_cash' => $finalAmountCash ? json_encode($finalAmountCash) : null,
-
-            'final_amount' => $validated['final_amount'] ?? 0,
+            'final_amount_cash' => $finalAmountCash ? json_encode($finalAmountCash) : null,
             'status' => $validated['status'],
-            'closed_at' => now(),
+            'closed_at' => $validated['status'] === 'cerrada' ? now() : null,
         ]);
-
-        return response()->json($cashRegister, 200);
+    
+        return response()->json($cashRegister->fresh(), 200);
     }
 }
