@@ -10,12 +10,15 @@ class CashRegister extends Model
 {
     protected $fillable = [
         'initial_amount',
+        'initial_amount_cash',
         'final_amount',
+        'final_amount_cash',
+        'next_day',
         'opened_at',
         'closed_at',
         'campus_id',
         'notes',
-        'status'
+        'status',
     ];
 
     protected $casts = [
