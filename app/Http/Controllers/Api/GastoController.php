@@ -34,7 +34,13 @@ class GastoController extends Controller
     public function store(Request $request)
     {
         try {
-            $validated = $request->validate([
+            $data = $request->all();
+
+            if (isset($data['image']) && !$request->hasFile('image')) {
+                $data['image'] = null;
+            }
+
+            $validated = validator($data, [
                 'concept' => 'required|string',
                 'amount' => 'required|numeric',
                 'date' => 'required|date',
@@ -42,79 +48,59 @@ class GastoController extends Controller
                 'user_id' => 'required|exists:users,id',
                 'admin_id' => 'required|exists:users,id',
                 'category' => 'required|string',
-                'campus_id' => 'required',
+                'campus_id' => 'required|exists:campuses,id',
                 'image' => 'nullable|image',
-                'cash_register_id' => 'exists:cash_registers,id',
-                'denominations' => 'nullable'
-            ]);
+                'cash_register_id' => 'nullable|exists:cash_registers,id',
+                'denominations' => 'nullable',
+            ])->validate();
 
-            // Handle image upload
             if ($request->hasFile('image')) {
-                $path = $request->file('image')->store('gastos', 'public');
-                $validated['image'] = $path;
+                $data['image'] = $request->file('image')->store('gastos', 'public');
+            } else {
+                $data['image'] = null;
             }
 
-            // Create the gasto (expense)
-            $gasto = Gasto::create($validated);
+            $gasto = Gasto::create(array_merge($validated, ['image' => $validated['image'] ?? null]));
 
-            if ($validated['method'] === 'Efectivo' && isset($validated['denominations'])) {
-                // Verificar si las denominaciones vienen como string "[object Object]"
-                if ($validated['denominations'] === '[object Object]') {
-                    throw new \Exception('El formato de las denominaciones es incorrecto');
+            if ($validated['method'] === 'Efectivo' && !empty($validated['denominations'])) {
+                $denominationsData = is_string($validated['denominations'])
+                    ? json_decode($validated['denominations'], true)
+                    : (array)$validated['denominations'];
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new \Exception('Error decoding denominations: ' . json_last_error_msg());
                 }
 
-                // Asegurarse de que denominaciones sea un array asociativo
-                try {
-                    $denominationsData = is_string($validated['denominations'])
-                        ? json_decode($validated['denominations'], true)
-                        : (array)$validated['denominations'];
+                foreach ($denominationsData as $value => $quantity) {
+                    if ($quantity > 0) {
+                        $denomination = Denomination::firstOrCreate(
+                            ['value' => $value],
+                            ['type' => $value >= 100 ? 'billete' : 'moneda']
+                        );
 
-                    if (json_last_error() !== JSON_ERROR_NONE) {
-                        throw new \Exception('Error al decodificar las denominaciones: ' . json_last_error_msg());
+                        GastoDetail::create([
+                            'gasto_id' => $gasto->id,
+                            'denomination_id' => $denomination->id,
+                            'quantity' => $quantity
+                        ]);
                     }
-
-
-                    foreach ($denominationsData as $value => $quantity) {
-                        if ($quantity > 0) {
-                            $denomination = Denomination::firstOrCreate(
-                                ['value' => $value],
-                                ['type' => $value >= 100 ? 'billete' : 'moneda']
-                            );
-
-                            GastoDetail::create([
-                                'gasto_id' => $gasto->id,
-                                'denomination_id' => $denomination->id,
-                                'quantity' => $quantity
-                            ]);
-                        }
-                    }
-                } catch (\Exception $e) {
-                    throw $e;
                 }
             }
 
-
-            // Set full URL for image
             if ($gasto->image) {
                 $gasto->image = asset('storage/' . $gasto->image);
             }
 
-            // Return response with gasto and its details
-            return response()->json(
-                $gasto->load('gastoDetails.denomination'),
-                201
-            );
+            return response()->json($gasto->load('gastoDetails.denomination'), 201);
         } catch (ValidationException $e) {
             return response()->json([
-                'message' => 'Error de validación',
+                'message' => 'Validation error',
                 'errors' => $e->errors(),
-                'error' => $request->all()
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Error al procesar el gasto',
-                'data_error' => $e->getMessage(),
-                'error' => $request->all()
+                'message' => 'Error processing expense',
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
