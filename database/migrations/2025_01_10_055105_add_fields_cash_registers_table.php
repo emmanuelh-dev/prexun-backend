@@ -14,7 +14,8 @@ return new class extends Migration
         Schema::table('cash_registers', function (Blueprint $table) {
             $table->json('initial_amount_cash')->nullable();
             $table->json('final_amount_cash')->nullable();
-            $table->json('next_day')->nullable();
+            $table->decimal('next_day', 10, 2)->nullable();
+            $table->json('next_day_cash')->nullable();
         });
     }
 
@@ -26,6 +27,7 @@ return new class extends Migration
         Schema::table('cash_registers', function (Blueprint $table) {
             $table->dropColumn('initial_amount_cash');
             $table->dropColumn('final_amount_cash');
+            $table->dropColumn('next_day_cash');
             $table->dropColumn('next_day');
         });
     }

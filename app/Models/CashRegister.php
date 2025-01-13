@@ -14,6 +14,7 @@ class CashRegister extends Model
         'final_amount',
         'final_amount_cash',
         'next_day',
+        'next_day_cash',
         'opened_at',
         'closed_at',
         'campus_id',
