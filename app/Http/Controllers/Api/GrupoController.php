@@ -33,7 +33,9 @@ class GrupoController extends Controller
             'capacity' => 'required|integer|min:1',
             'frequency' => 'required|array',
             'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i'
+            'end_time' => 'required|date_format:H:i',
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date' => 'required|date_format:Y-m-d'
         ]);
 
         $validated['frequency'] = json_encode($validated['frequency']);
@@ -53,11 +55,13 @@ class GrupoController extends Controller
             'frequency' => 'array|nullable',
             'start_time' => 'sometimes|date_format:H:i',
             'end_time' => 'sometimes|date_format:H:i',
+                        'start_date' => 'required|date_format:Y-m-d',
+            'end_date' => 'required|date_format:Y-m-d'
         ]);
     
         $dataToUpdate = [];
     
-        foreach(['name', 'type', 'plantel_id', 'period_id', 'capacity', 'start_time', 'end_time'] as $field) {
+        foreach(['name', 'type', 'plantel_id', 'period_id', 'capacity', 'start_time', 'end_time', 'start_date', 'end_date'] as $field) {
             if (isset($validated[$field])) {
                 $dataToUpdate[$field] = $validated[$field];
             }

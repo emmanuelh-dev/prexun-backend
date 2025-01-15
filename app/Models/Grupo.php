@@ -6,7 +6,18 @@ use Illuminate\Database\Eloquent\Model;
 
 class Grupo extends Model
 {
-    protected $fillable = ['name', 'type', 'plantel_id', 'period_id', 'capacity', 'frequency', 'start_time', 'end_time'];
+    protected $fillable = [
+        'name',
+        'type',
+        'plantel_id',
+        'period_id',
+        'capacity',
+        'frequency',
+        'start_time',
+        'end_time',
+        'start_date',
+        'end_date'
+    ];
 
     public function period()
     {
