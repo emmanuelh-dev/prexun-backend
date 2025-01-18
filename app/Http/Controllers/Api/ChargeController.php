@@ -110,7 +110,8 @@ class ChargeController extends Controller
             'denominations' => 'nullable|array',
             'notes' => 'nullable|string|max:255',
             'paid' => 'nullable|boolean',
-            'cash_register_id' => 'nullable|exists:cash_registers,id'
+            'cash_register_id' => 'nullable|exists:cash_registers,id',
+            'payment_date' => 'nullable|date_format:Y-m-d'
         ]);
 
         try {

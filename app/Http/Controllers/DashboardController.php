@@ -15,11 +15,12 @@ class DashboardController extends Controller
 {
     public function getData(Request $request)
     {
+        // Conteos básicos
         $campusesCount = Campus::count();
         $usersCount = User::count();
         $studentsCount = Student::count();
-        $gastosCount = Gasto::count();
         
+        // Configuración de fechas
         $startDate = $request->input('start_date') 
             ? Carbon::parse($request->input('start_date')) 
             : Carbon::now()->startOfMonth();
@@ -27,25 +28,25 @@ class DashboardController extends Controller
             ? Carbon::parse($request->input('end_date')) 
             : Carbon::now();
 
-        // Filtrar solo transacciones pagadas
+        // Transacciones pagadas
         $transactions = Transaction::where('paid', true)
-            ->whereBetween('created_at', [$startDate, $endDate]);
+            ->whereBetween('payment_date', [$startDate, $endDate]);
 
         $transactionsCount = $transactions->count();
         $totalAmount = $transactions->sum('amount');
 
-        // También agregar estadísticas de transacciones pendientes
+        // Transacciones pendientes
         $pendingTransactions = Transaction::where('paid', false)
-            ->whereBetween('created_at', [$startDate, $endDate]);
+            ->whereBetween('updated_at', [$startDate, $endDate]);
         
         $pendingCount = $pendingTransactions->count();
         $pendingAmount = $pendingTransactions->sum('amount');
 
-        // Transacciones diarias (solo pagadas)
+        // Transacciones diarias (pagadas)
         $dailyTransactions = Transaction::where('paid', true)
-            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereBetween('updated_at', [$startDate, $endDate])
             ->select(
-                DB::raw('DATE(created_at) as date'),
+                DB::raw('DATE(updated_at) as date'),
                 DB::raw('COUNT(*) as count'),
                 DB::raw('SUM(amount) as total')
             )
@@ -53,11 +54,11 @@ class DashboardController extends Controller
             ->orderBy('date')
             ->get();
 
-        // Transacciones mensuales (solo pagadas)
+        // Transacciones mensuales (pagadas)
         $monthlyTransactions = Transaction::where('paid', true)
-            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereBetween('updated_at', [$startDate, $endDate])
             ->select(
-                DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
+                DB::raw('DATE_FORMAT(updated_at, "%Y-%m") as month'),
                 DB::raw('COUNT(*) as count'),
                 DB::raw('SUM(amount) as total')
             )
@@ -65,12 +66,48 @@ class DashboardController extends Controller
             ->orderBy('month')
             ->get();
 
+      // En DashboardController.php
+
+// Gastos diarios
+$dailyGastos = Gasto::whereBetween('created_at', [$startDate, $endDate])
+->select(
+    DB::raw('DATE(created_at) as date'),
+    DB::raw('COUNT(*) as count'),
+    DB::raw('SUM(amount) as total')
+)
+->groupBy(DB::raw('DATE(created_at)')) // Cambiado aquí
+->orderBy('date')
+->get();
+
+// Gastos mensuales
+$monthlyGastos = Gasto::whereBetween('created_at', [$startDate, $endDate])
+->select(
+    DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
+    DB::raw('COUNT(*) as count'),
+    DB::raw('SUM(amount) as total')
+)
+->groupBy(DB::raw('DATE_FORMAT(created_at, "%Y-%m")')) // Cambiado aquí
+->orderBy('month')
+->get();
+
+
+        // Totales de gastos
+        $totalGastos = Gasto::whereBetween('created_at', [$startDate, $endDate]);
+        $gastosCount = $totalGastos->count();
+        $gastosTotalAmount = $totalGastos->sum('amount');
+
+        // Balance (Ingresos - Gastos)
+        $balance = $totalAmount - $gastosTotalAmount;
+
         return response()->json([
             'summary' => [
                 'campuses' => $campusesCount,
                 'users' => $usersCount,
                 'students' => $studentsCount,
-                'gastos' => $gastosCount,
+                'gastos' => [
+                    'count' => $gastosCount,
+                    'amount' => $gastosTotalAmount
+                ],
                 'transactions' => [
                     'paid' => [
                         'count' => $transactionsCount,
@@ -84,11 +121,18 @@ class DashboardController extends Controller
                         'count' => $transactionsCount + $pendingCount,
                         'amount' => $totalAmount + $pendingAmount
                     ]
-                ]
+                ],
+                'balance' => $balance
             ],
             'chartData' => [
-                'daily' => $dailyTransactions,
-                'monthly' => $monthlyTransactions
+                'transactions' => [
+                    'daily' => $dailyTransactions,
+                    'monthly' => $monthlyTransactions
+                ],
+                'gastos' => [
+                    'daily' => $dailyGastos,
+                    'monthly' => $monthlyGastos
+                ]
             ],
             'dateRange' => [
                 'start' => $startDate->format('Y-m-d'),
