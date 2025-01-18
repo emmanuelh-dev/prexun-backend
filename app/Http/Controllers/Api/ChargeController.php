@@ -21,7 +21,7 @@ class ChargeController extends Controller
         $charges = Transaction::with('student')
             ->where('campus_id', $campus_id)
             ->with('student', 'campus', 'student.grupo')
-            ->orderBy('updated_at', 'desc')
+            ->orderBy('payment_date', 'desc')
             ->get();
         return response()->json($charges);
     }
