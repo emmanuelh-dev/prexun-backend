@@ -164,9 +164,15 @@ class StudentController extends Controller
     /**
      * Remove the specified student.
      */
-    public function destroy($id)
+    public function destroy(Student $student, Request $request)
     {
-        $student = Student::findOrFail($id);
+
+        if ($request->boolean('permanent') === true){
+            $student->forceDelete();
+
+            return response()->json(['message' => 'Estudiante eliminado permanentemente']);
+        }
+
         $student->delete();
         return response()->json(['message' => 'Estudiante eliminado']);
     }
