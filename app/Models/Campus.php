@@ -14,12 +14,14 @@ class Campus extends Model
         'code', 
         'description', 
         'address', 
-        'is_active'
+        'is_active',
+        'folio_inicial'
     ];
 
     public function users()
     {
         return $this->belongsToMany(User::class, 'campus_user');
+
     }
 
     public function latestCashRegister()

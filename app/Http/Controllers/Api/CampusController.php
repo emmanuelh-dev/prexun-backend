@@ -47,7 +47,8 @@ class CampusController extends Controller
             'address' => 'nullable|string',
             'is_active' => 'boolean|nullable',
             'admin_ids' => 'nullable|array',
-            'admin_ids.*' => 'exists:users,id'
+            'admin_ids.*' => 'exists:users,id',
+            'folio_inicial' => 'nullable|integer'
         ]);
 
         if ($validator->fails()) {
@@ -63,6 +64,7 @@ class CampusController extends Controller
             'description' => $request->description,
             'address' => $request->address,
             'is_active' => $request->is_active ?? true,
+            'folio_inicial' => $request->folio_inicial ?? 1
         ];
 
         $campus = Campus::create($campusData);
@@ -91,7 +93,8 @@ class CampusController extends Controller
             'address' => 'nullable|string',
             'is_active' => 'sometimes|boolean',
             'admin_ids' => 'nullable|array',
-            'admin_ids.*' => 'exists:users,id'
+            'admin_ids.*' => 'exists:users,id',
+            'folio_inicial' => 'nullable|integer'
         ]);
 
         if ($validator->fails()) {
