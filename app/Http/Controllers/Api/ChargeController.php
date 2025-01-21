@@ -69,6 +69,9 @@ class ChargeController extends Controller
                     }
                 }
 
+                if ($transaction->image) {
+                    $transaction->image = asset('storage/' . $transaction->image);
+                }
                 return response()->json(
                     $transaction->load('transactionDetails.denomination'),
                     201
@@ -102,6 +105,7 @@ class ChargeController extends Controller
 
     public function update($id, Request $request)
     {
+        
         $validated = $request->validate([
             'student_id' => 'nullable|exists:students,id',
             'campus_id' => 'nullable|exists:campuses,id',
@@ -111,9 +115,13 @@ class ChargeController extends Controller
             'notes' => 'nullable|string|max:255',
             'paid' => 'nullable|boolean',
             'cash_register_id' => 'nullable|exists:cash_registers,id',
-            'payment_date' => 'nullable|date_format:Y-m-d'
+            'payment_date' => 'nullable|date_format:Y-m-d',
+            'image' => 'nullable|image'
         ]);
 
+        if ($request->hasFile('image')) {
+            $validated['image'] = $request->file('image')->store('transactions', 'public');
+        }
         try {
             return DB::transaction(function () use ($id, $validated) {
                 $transaction = Transaction::findOrFail($id);
@@ -143,6 +151,9 @@ class ChargeController extends Controller
                     }
                 }
 
+                if ($transaction->image) {
+                    $transaction->image = asset('storage/' . $transaction->image);
+                }
                 return response()->json(
                     $transaction->load('transactionDetails.denomination'),
                     200
