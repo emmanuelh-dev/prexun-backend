@@ -23,6 +23,12 @@ class ChargeController extends Controller
             ->with('student', 'campus', 'student.grupo')
             ->orderBy('payment_date', 'desc')
             ->get();
+        $charges->transform(function ($charge) {
+            if ($charge->image) {
+                $charge->image = asset('storage/' . $charge->image);
+            }
+            return $charge;
+        });
         return response()->json($charges);
     }
 
