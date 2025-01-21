@@ -19,6 +19,7 @@ class Transaction extends Model
         'denominations',
         'notes',
         'uuid',
+        'folio',
         'image'
     ];
 

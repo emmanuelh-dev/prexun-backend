@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Campus;
 use App\Models\Denomination;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -43,6 +44,7 @@ class ChargeController extends Controller
             'notes' => 'nullable|string|max:255',
             'paid' => 'required|boolean'
         ]);
+
 
         try {
             return DB::transaction(function () use ($validated) {
@@ -111,7 +113,7 @@ class ChargeController extends Controller
 
     public function update($id, Request $request)
     {
-        
+
         $validated = $request->validate([
             'student_id' => 'nullable|exists:students,id',
             'campus_id' => 'nullable|exists:campuses,id',
@@ -130,6 +132,13 @@ class ChargeController extends Controller
         }
         try {
             return DB::transaction(function () use ($id, $validated) {
+                $folio = Transaction::where('campus_id', $validated['campus_id'])
+                ->whereNotNull('folio')
+                ->max('folio') 
+                ?? Campus::find($validated['campus_id'])->folio_inicial;
+            
+                $validated['folio'] = $folio + 1;
+
                 $transaction = Transaction::findOrFail($id);
 
                 // Actualizar los campos de la transacción principal
