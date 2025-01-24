@@ -51,7 +51,6 @@ class GastoController extends Controller
                 'campus_id' => 'required|exists:campuses,id',
                 'image' => 'nullable|image',
                 'cash_register_id' => 'nullable|exists:cash_registers,id',
-                'denominations' => 'nullable',
             ])->validate();
 
             if ($request->hasFile('image')) {
@@ -61,31 +60,6 @@ class GastoController extends Controller
             }
 
             $gasto = Gasto::create(array_merge($validated, ['image' => $validated['image'] ?? null]));
-
-            if ($validated['method'] === 'Efectivo' && !empty($validated['denominations'])) {
-                $denominationsData = is_string($validated['denominations'])
-                    ? json_decode($validated['denominations'], true)
-                    : (array)$validated['denominations'];
-
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    throw new \Exception('Error decoding denominations: ' . json_last_error_msg());
-                }
-
-                foreach ($denominationsData as $value => $quantity) {
-                    if ($quantity > 0) {
-                        $denomination = Denomination::firstOrCreate(
-                            ['value' => $value],
-                            ['type' => $value >= 100 ? 'billete' : 'moneda']
-                        );
-
-                        GastoDetail::create([
-                            'gasto_id' => $gasto->id,
-                            'denomination_id' => $denomination->id,
-                            'quantity' => $quantity
-                        ]);
-                    }
-                }
-            }
 
             if ($gasto->image) {
                 $gasto->image = asset('storage/' . $gasto->image);
