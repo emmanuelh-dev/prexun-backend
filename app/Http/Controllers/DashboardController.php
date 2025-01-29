@@ -13,19 +13,63 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    // Función auxiliar para generar array de días
+    private function generateDailyArray($startDate, $endDate, $data) {
+        $dates = [];
+        $currentDate = Carbon::parse($startDate);
+        $lastDate = Carbon::parse($endDate);
+
+        while ($currentDate <= $lastDate) {
+            $dateStr = $currentDate->format('Y-m-d');
+            $dayData = $data->firstWhere('date', $dateStr);
+            
+            $dates[] = [
+                'date' => $dateStr,
+                'count' => $dayData ? $dayData->count : 0,
+                'total' => $dayData ? $dayData->total : 0
+            ];
+
+            $currentDate->addDay();
+        }
+
+        return $dates;
+    }
+
+    // Función auxiliar para generar array de meses
+    private function generateMonthlyArray($startDate, $endDate, $data) {
+        $months = [];
+        $currentDate = Carbon::parse($startDate)->startOfYear(); // Comenzar desde enero
+        $lastDate = Carbon::parse($endDate)->endOfYear(); // Terminar en diciembre
+
+        while ($currentDate <= $lastDate) {
+            $monthStr = $currentDate->format('Y-m');
+            $monthData = $data->firstWhere('month', $monthStr);
+            
+            $months[] = [
+                'month' => $monthStr,
+                'count' => $monthData ? $monthData->count : 0,
+                'total' => $monthData ? $monthData->total : 0
+            ];
+
+            $currentDate->addMonth();
+        }
+
+        return $months;
+    }
+
     public function getData(Request $request)
     {
         // Conteos básicos
         $campusesCount = Campus::count();
         $usersCount = User::count();
         $studentsCount = Student::count();
-        
+
         // Configuración de fechas
-        $startDate = $request->input('start_date') 
-            ? Carbon::parse($request->input('start_date')) 
+        $startDate = $request->input('start_date')
+            ? Carbon::parse($request->input('start_date'))
             : Carbon::now()->startOfMonth();
-        $endDate = $request->input('end_date') 
-            ? Carbon::parse($request->input('end_date')) 
+        $endDate = $request->input('end_date')
+            ? Carbon::parse($request->input('end_date'))
             : Carbon::now();
 
         // Transacciones pagadas
@@ -38,12 +82,12 @@ class DashboardController extends Controller
         // Transacciones pendientes
         $pendingTransactions = Transaction::where('paid', false)
             ->whereBetween('updated_at', [$startDate, $endDate]);
-        
+
         $pendingCount = $pendingTransactions->count();
         $pendingAmount = $pendingTransactions->sum('amount');
 
         // Transacciones diarias (pagadas)
-        $dailyTransactions = Transaction::where('paid', true)
+        $dailyTransactionsQuery = Transaction::where('paid', true)
             ->whereBetween('updated_at', [$startDate, $endDate])
             ->select(
                 DB::raw('DATE(updated_at) as date'),
@@ -54,9 +98,11 @@ class DashboardController extends Controller
             ->orderBy('date')
             ->get();
 
+        $dailyTransactions = $this->generateDailyArray($startDate, $endDate, $dailyTransactionsQuery);
+
         // Transacciones mensuales (pagadas)
-        $monthlyTransactions = Transaction::where('paid', true)
-            ->whereBetween('updated_at', [$startDate, $endDate])
+        $monthlyTransactionsQuery = Transaction::where('paid', true)
+            ->whereBetween('updated_at', [$startDate->startOfYear(), $endDate->endOfYear()])
             ->select(
                 DB::raw('DATE_FORMAT(updated_at, "%Y-%m") as month'),
                 DB::raw('COUNT(*) as count'),
@@ -66,30 +112,33 @@ class DashboardController extends Controller
             ->orderBy('month')
             ->get();
 
-      // En DashboardController.php
+        $monthlyTransactions = $this->generateMonthlyArray($startDate, $endDate, $monthlyTransactionsQuery);
 
-// Gastos diarios
-$dailyGastos = Gasto::whereBetween('created_at', [$startDate, $endDate])
-->select(
-    DB::raw('DATE(created_at) as date'),
-    DB::raw('COUNT(*) as count'),
-    DB::raw('SUM(amount) as total')
-)
-->groupBy(DB::raw('DATE(created_at)')) // Cambiado aquí
-->orderBy('date')
-->get();
+        // Gastos diarios
+        $dailyGastosQuery = Gasto::whereBetween('created_at', [$startDate, $endDate])
+            ->select(
+                DB::raw('DATE(created_at) as date'),
+                DB::raw('COUNT(*) as count'),
+                DB::raw('SUM(amount) as total')
+            )
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->orderBy('date')
+            ->get();
 
-// Gastos mensuales
-$monthlyGastos = Gasto::whereBetween('created_at', [$startDate, $endDate])
-->select(
-    DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
-    DB::raw('COUNT(*) as count'),
-    DB::raw('SUM(amount) as total')
-)
-->groupBy(DB::raw('DATE_FORMAT(created_at, "%Y-%m")')) // Cambiado aquí
-->orderBy('month')
-->get();
+        $dailyGastos = $this->generateDailyArray($startDate, $endDate, $dailyGastosQuery);
 
+        // Gastos mensuales
+        $monthlyGastosQuery = Gasto::whereBetween('created_at', [$startDate->startOfYear(), $endDate->endOfYear()])
+            ->select(
+                DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
+                DB::raw('COUNT(*) as count'),
+                DB::raw('SUM(amount) as total')
+            )
+            ->groupBy(DB::raw('DATE_FORMAT(created_at, "%Y-%m")'))
+            ->orderBy('month')
+            ->get();
+
+        $monthlyGastos = $this->generateMonthlyArray($startDate, $endDate, $monthlyGastosQuery);
 
         // Totales de gastos
         $totalGastos = Gasto::whereBetween('created_at', [$startDate, $endDate]);
