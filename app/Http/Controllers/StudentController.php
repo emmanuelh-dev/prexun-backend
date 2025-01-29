@@ -97,7 +97,7 @@ class StudentController extends Controller
                         'promocion_id' => $promo->id,
                         'amount' => $pago['amount'],
                         'expiration_date' => $pago['date'],
-                        'notes' => $pago['description'],
+                        'notes' => $pago['description'] ? $pago['description'] : null,
                         'status' => 'pending',
                         'type' => 'payment_plan',
                         'uuid' => Str::uuid()
