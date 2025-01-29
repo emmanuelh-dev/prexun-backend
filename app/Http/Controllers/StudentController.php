@@ -44,24 +44,24 @@ class StudentController extends Controller
     public function index($campus_id = null)
     {
         $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera']);
-        
+
         if ($campus_id) {
             $query->where('campus_id', $campus_id);
         }
-        
+
         $students = $query->get()->map(function ($student) {
             $periodCost = $student->period ? $student->period->price : 0;
-            
+
             $totalPaid = $student->transactions->sum('amount');
-            
+
             $currentDebt = $periodCost - $totalPaid;
-            
+
             $student = $student->toArray();
             $student['current_debt'] = $currentDebt;
-            
+
             return $student;
         });
-    
+
         return response()->json($students);
     }
     /**
@@ -78,17 +78,17 @@ class StudentController extends Controller
             'campus_id' => 'required|exists:campuses,id',
             'promo_id' => 'required|exists:promociones,id'
         ]);
-    
+
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-    
+
         try {
             DB::beginTransaction();
-    
+
             $student = Student::create($request->all());
             $promo = Promocion::findOrFail($request->promo_id);
-            
+
             if (count($promo->pagos) > 0) {
                 foreach ($promo->pagos as $pago) {
                     Transaction::create([
@@ -97,7 +97,7 @@ class StudentController extends Controller
                         'promocion_id' => $promo->id,
                         'amount' => $pago['amount'],
                         'expiration_date' => $pago['date'],
-                        'notes' => $pago['description'] ? $pago['description'] : null,
+                        'notes' => isset($pago['description']) ? $pago['description'] : "",
                         'status' => 'pending',
                         'type' => 'payment_plan',
                         'uuid' => Str::uuid()
@@ -115,12 +115,11 @@ class StudentController extends Controller
                     'uuid' => Str::uuid()
                 ]);
             }
-    
+
             DB::commit();
             $student->load('charges');
-            
+
             return response()->json($student, 201);
-    
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -168,7 +167,7 @@ class StudentController extends Controller
     public function destroy(Student $student, Request $request)
     {
 
-        if ($request->boolean('permanent') === true){
+        if ($request->boolean('permanent') === true) {
             $student->forceDelete();
 
             return response()->json(['message' => 'Estudiante eliminado permanentemente']);
@@ -220,12 +219,12 @@ class StudentController extends Controller
 
         $file = $request->file('file');
         $campus_id = $request->campus_id;
-        
+
         try {
             $students = [];
             $skippedRecords = [];
             $handle = fopen($file->getPathname(), 'r');
-            
+
             if (!$handle) {
                 throw new \Exception('No se pudo abrir el archivo');
             }
@@ -237,7 +236,7 @@ class StudentController extends Controller
             }
 
             $expectedHeaders = ['username', 'firstname', 'lastname', 'email', 'type'];
-            
+
             if ($headers !== $expectedHeaders) {
                 fclose($handle);
                 return response()->json([
@@ -303,12 +302,11 @@ class StudentController extends Controller
                 'skipped_count' => count($skippedRecords),
                 'skipped_records' => $skippedRecords
             ]);
-
         } catch (\Exception $e) {
             if (isset($handle) && is_resource($handle)) {
                 fclose($handle);
             }
-            
+
             return response()->json([
                 'message' => 'Error al importar estudiantes',
                 'error' => $e->getMessage(),
