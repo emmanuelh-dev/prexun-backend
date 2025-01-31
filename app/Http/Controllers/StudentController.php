@@ -307,17 +307,8 @@ class StudentController extends Controller
 
     public function syncMoodle(Request $request)
     {
-        // Validar la solicitud
-        $validator = Validator::make($request->all(), [
-            'period_id' => 'required|integer',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
-        }
-
         // Obtener estudiantes del periodo
-        $students = Student::where('period_id', $request->period_id)->get();
+        $students = Student::get();
 
         if ($students->isEmpty()) {
             return response()->json(['message' => 'No students found for this period.'], 404);
@@ -328,7 +319,7 @@ class StudentController extends Controller
 
         foreach ($students as $student) {
             $users["user_{$student->id}"] = [
-                "username" => $student->username,
+                "username" => $student->id,
                 "firstname" => strtoupper($student->firstname),
                 "lastname" => strtoupper($student->lastname),
                 "email" => $student->email,
