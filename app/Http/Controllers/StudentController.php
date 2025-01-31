@@ -304,19 +304,18 @@ class StudentController extends Controller
         }
     }
 
-
     public function syncMoodle(Request $request)
     {
         // Obtener estudiantes del periodo
         $students = Student::get();
-
+    
         if ($students->isEmpty()) {
             return response()->json(['message' => 'No students found for this period.'], 404);
         }
-
+    
         // Convertir datos al formato que requiere Moodle
         $users = [];
-
+    
         foreach ($students as $student) {
             $users["user_{$student->id}"] = [
                 "username" => $student->id,
@@ -331,16 +330,23 @@ class StudentController extends Controller
                 "timezone" => "America/Mexico_City"
             ];
         }
-
+    
+        // Procesar en lotes de 100 usuarios
+        $userChunks = array_chunk($users, 100, true);
+    
         try {
-            $response = $this->moodleService->createUser($users);
-            return response()->json($response, 200);
+            $responses = [];
+            foreach ($userChunks as $chunk) {
+                $response = $this->moodleService->createUser($chunk);
+                $responses[] = $response; // Puedes agregar los resultados de cada lote aquí
+            }
+            return response()->json($responses, 200);
         } catch (\Exception $e) {
             Log::error("Moodle Sync Error: " . $e->getMessage());
             return response()->json(['error' => 'Failed to sync with Moodle'], 500);
         }
     }
-
+    
 
     public function getActive()
     {
