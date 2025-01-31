@@ -5,39 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\Promocion;
 use App\Models\Student;
 use App\Models\Transaction;
+use App\Services\Moodle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
-/**
- * @group Student Management
- * 
- * APIs for managing students
- * 
- * Example request for creating a student (POST /api/students):
- * {
- *    "username": "john.doe",
- *    "firstname": "John",
- *    "lastname": "Doe", 
- *    "email": "john.doe@example.com",
- *    "phone": "1234567890",
- *    "type": "preparatoria",
- *    "campus_id": 1
- * }
- *
- * Example request for updating a student (PUT /api/students/{id}):
- * {
- *    "name": "John Smith",
- *    "email": "john.smith@example.com",
- *    "phone": "0987654321",
- *    "cohort_id": 1,
- *    "status": "active"
- * }
- */
 class StudentController extends Controller
 {
+
+    protected $moodleService;
+
+    public function __construct(Moodle $moodleService)
+    {
+        $this->moodleService = $moodleService;
+    }
     /**
      * Display a listing of students.
      */
@@ -321,9 +304,53 @@ class StudentController extends Controller
         }
     }
 
-    /**
-     * Get active students.
-     */
+
+    public function syncMoodle(Request $request)
+    {
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'period_id' => 'required|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 400);
+        }
+
+        // Obtener estudiantes del periodo
+        $students = Student::where('period_id', $request->period_id)->get();
+
+        if ($students->isEmpty()) {
+            return response()->json(['message' => 'No students found for this period.'], 404);
+        }
+
+        // Convertir datos al formato que requiere Moodle
+        $users = [];
+
+        foreach ($students as $student) {
+            $users["user_{$student->id}"] = [
+                "username" => $student->username,
+                "firstname" => strtoupper($student->firstname),
+                "lastname" => strtoupper($student->lastname),
+                "email" => $student->email,
+                "createpassword" => true,
+                "auth" => "manual",
+                "idnumber" => (string) $student->id,
+                "lang" => "es_mx",
+                "calendartype" => "gregorian",
+                "timezone" => "America/Mexico_City"
+            ];
+        }
+
+        try {
+            $response = $this->moodleService->createUser($users);
+            return response()->json($response, 200);
+        } catch (\Exception $e) {
+            Log::error("Moodle Sync Error: " . $e->getMessage());
+            return response()->json(['error' => 'Failed to sync with Moodle'], 500);
+        }
+    }
+
+
     public function getActive()
     {
         $students = Student::where('status', 'active')->with('cohort')->get();

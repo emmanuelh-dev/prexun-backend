@@ -69,6 +69,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/campuses/{id}', [CampusController::class, 'destroy']);
 
     // Students
+    Route::post('/students/sync-module', [StudentController::class, 'syncMoodle']);
     Route::get('/students/{campus_id}', [StudentController::class, 'index']);
     Route::get('/students/cohort/{cohort_id}', [StudentController::class, 'getByCohort']);
     Route::post('/students', [StudentController::class, 'store']);
@@ -77,6 +78,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/students/{student}', [StudentController::class, 'destroy']);
     Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
     Route::post('/students/import', [StudentController::class, 'import']);
+
 
     // Periods
     Route::get('/periods', [PeriodController::class, 'index']);
