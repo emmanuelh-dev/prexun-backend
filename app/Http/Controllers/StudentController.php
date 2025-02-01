@@ -69,10 +69,8 @@ class StudentController extends Controller
         try {
             DB::beginTransaction();
 
-            // Crear el estudiante
             $student = Student::create($request->all());
 
-            // Crear usuario en Moodle
             $moodleUser = [
                 "username" => $student->id,
                 "firstname" => strtoupper($student->firstname),
@@ -86,18 +84,11 @@ class StudentController extends Controller
                 "timezone" => "America/Mexico_City"
             ];
 
-            try {
-                $this->moodleService->createUser([$moodleUser]);
-            } catch (\Exception $e) {
-                Log::error("Moodle Sync Error: " . $e->getMessage());
-                throw new \Exception("Failed to sync student with Moodle.");
-            }
+            $this->moodleService->createUser([$moodleUser]);
 
-            // Obtener la promoción
             $promo = Promocion::findOrFail($request->promo_id);
 
-            // Crear transacciones según el plan de pagos
-            if ($promo->pagos->count() > 0) {
+            if (count($promo->pagos) > 0) {
                 foreach ($promo->pagos as $pago) {
                     Transaction::create([
                         'campus_id' => $request->campus_id,
@@ -105,7 +96,7 @@ class StudentController extends Controller
                         'promocion_id' => $promo->id,
                         'amount' => $pago['amount'],
                         'expiration_date' => $pago['date'],
-                        'notes' => $pago['description'] ?? "",
+                        'notes' => isset($pago['description']) ? $pago['description'] : "",
                         'status' => 'pending',
                         'type' => 'payment_plan',
                         'uuid' => Str::uuid()
@@ -130,15 +121,12 @@ class StudentController extends Controller
             return response()->json($student, 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("Error creating student or transactions: " . $e->getMessage());
-
             return response()->json([
                 'message' => 'Error creating student and charges',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
-
     /**
      * Update the specified student.
      */
@@ -336,14 +324,14 @@ class StudentController extends Controller
     {
         // Obtener estudiantes del periodo
         $students = Student::get();
-
+    
         if ($students->isEmpty()) {
             return response()->json(['message' => 'No students found for this period.'], 404);
         }
-
+    
         // Convertir datos al formato que requiere Moodle
         $users = [];
-
+    
         foreach ($students as $student) {
             $users["user_{$student->id}"] = [
                 "username" => $student->id,
@@ -358,10 +346,10 @@ class StudentController extends Controller
                 "timezone" => "America/Mexico_City"
             ];
         }
-
+    
         // Procesar en lotes de 100 usuarios
         $userChunks = array_chunk($users, 100, true);
-
+    
         try {
             $responses = [];
             foreach ($userChunks as $chunk) {
@@ -374,7 +362,7 @@ class StudentController extends Controller
             return response()->json(['error' => 'Failed to sync with Moodle'], 500);
         }
     }
-
+    
 
     public function getActive()
     {
