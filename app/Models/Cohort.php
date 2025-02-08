@@ -17,6 +17,7 @@ class Cohort extends Model
     protected $fillable = [
         'period_id',
         'group_id',
+        'name'
     ];
 
     /**
