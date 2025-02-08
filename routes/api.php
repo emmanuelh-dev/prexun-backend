@@ -87,7 +87,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/periods/{id}', [PeriodController::class, 'destroy']);
 
     // charges
-    Route::get('/charges/not-paid/{campus_id}', [ChargeController::class, 'notPaid']);
+    Route::get('/charges/not-paid', [ChargeController::class, 'notPaid']);
     Route::get('/charges/{campus_id}', [ChargeController::class, 'index']);
     Route::post('/charges', [ChargeController::class, 'store']);
     Route::put('/charges/{id}', [ChargeController::class, 'update']);

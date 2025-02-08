@@ -37,30 +37,34 @@ class ChargeController extends Controller
 
     public function notPaid(Request $request)
     {
-        $campus_id = $request->campus_id;
-        $expiration_date = $request->input('expiration_date');
-
+        $campus_id = $request->query('campus_id');
+        $expiration_date = $request->query('expiration_date');
+    
+        if (!$campus_id) {
+            return response()->json(['error' => 'campus_id is required'], 400);
+        }
+    
         $query = Transaction::with('student', 'campus', 'student.grupo')
             ->where('campus_id', $campus_id)
             ->where('paid', false)
-            ->orderBy('payment_date', 'desc');
-
-        if ($expiration_date) {
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiration_date)) {
-                return response()->json(['error' => 'Formato de fecha incorrecto (YYYY-MM-DD)'], 400);
+            ->orderBy('expiration_date', 'asc');
+    
+            if ($expiration_date) {
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiration_date)) {
+                    return response()->json(['error' => 'Invalid date format (YYYY-MM-DD)'], 400);
+                }
+                $query->whereDate('expiration_date', $expiration_date);
             }
-            $query->where('payment_date', $expiration_date);
-        }
-
+    
         $charges = $query->get();
-
+    
         $charges = $charges->map(function ($charge) {
             if ($charge->image) {
                 $charge->image = asset('storage/' . $charge->image);
             }
             return $charge;
         });
-
+    
         return response()->json($charges);
     }
 
