@@ -131,23 +131,23 @@ class CohortController extends Controller
     {
         try {
             $cohorts = Cohort::with(['period', 'group'])->get();
-    
+
             if ($cohorts->isEmpty()) {
                 Log::info('No cohorts found in database');
                 return response()->json(['message' => 'No cohorts found.'], 404);
             }
-    
+
             $moodleCohorts = [
                 'cohorts' => []
             ];
-            
+
             foreach ($cohorts as $cohort) {
                 // Validar que period existe
                 if (!$cohort->period) {
                     Log::warning("Cohort ID {$cohort->id} has no associated period");
                     continue;
                 }
-    
+
                 $cohortData = [
                     'categorytype' => [
                         'type' => 'string',
@@ -161,7 +161,7 @@ class CohortController extends Controller
                     'theme' => '',
                     'customfields' => []
                 ];
-    
+
                 // Solo añadir custom fields si group_id existe
                 if ($cohort->group_id) {
                     $cohortData['customfields'][] = [
@@ -169,13 +169,13 @@ class CohortController extends Controller
                         'value' => (string)$cohort->group_id
                     ];
                 }
-    
+
                 $moodleCohorts['cohorts'][] = $cohortData;
             }
 
-            
+
             $syncResult = $this->moodleService->createCohorts($moodleCohorts);
-    
+
             if ($syncResult['status'] === 'success') {
                 return response()->json([
                     'message' => 'Cohorts synchronized successfully',
