@@ -117,18 +117,18 @@ class Moodle
         if (isset($cohorts['cohorts'])) {
             return $cohorts; // Ya está en el formato correcto
         }
-    
+
         $formattedCohorts = [];
-    
+
         foreach ($cohorts as $cohort) {
             // Verificar si es un array o un objeto y si la clave existe
-            $categoryId = is_object($cohort) 
-                ? ($cohort->period->id ?? null) 
+            $categoryId = is_object($cohort)
+                ? ($cohort->period->id ?? null)
                 : ($cohort['period_id'] ?? null);
-    
+
             $name = is_object($cohort) ? ($cohort->name ?? '') : ($cohort['name'] ?? '');
             $id = is_object($cohort) ? ($cohort->id ?? '') : ($cohort['id'] ?? '');
-    
+
             $formattedCohorts[] = [
                 'categorytype' => [
                     'type' => 'string',
@@ -143,18 +143,19 @@ class Moodle
                 'customfields' => []
             ];
         }
-    
+
         return [
             'cohorts' => $formattedCohorts
         ];
     }
-    
+
 
     public function createCohorts($cohorts)
-    {Log::info('Datos originales recibidos para Moodle:', ['cohorts' => $cohorts]);
+    {
+        Log::info('Datos originales recibidos para Moodle:', ['cohorts' => $cohorts]);
         try {
             $formattedData = $this->formatCohorts($cohorts);
-            
+
             Log::info('Formatted cohorts data for Moodle:', [
                 'formatted_count' => count($formattedData['cohorts'])
             ]);
@@ -181,7 +182,6 @@ class Moodle
                 'data' => $body,
                 'moodle_cohort_ids' => array_column($body, 'id')
             ];
-
         } catch (RequestException $e) {
             Log::error('Moodle API Request Exception:', [
                 'message' => $e->getMessage(),
@@ -193,7 +193,6 @@ class Moodle
                 'message' => 'Failed to communicate with Moodle: ' . $e->getMessage(),
                 'code' => $e->getCode()
             ];
-
         } catch (\Exception $e) {
             Log::error('Unexpected error in createCohorts:', [
                 'message' => $e->getMessage(),
