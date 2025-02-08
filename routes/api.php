@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CampusController;
 use App\Http\Controllers\Api\CarreraController;
 use App\Http\Controllers\Api\CashCutController;
 use App\Http\Controllers\Api\ChargeController;
+use App\Http\Controllers\Api\CohortController;
 use App\Http\Controllers\Api\FacultadController;
 use App\Http\Controllers\Api\GastoController;
 use App\Http\Controllers\Api\GrupoController;
@@ -80,6 +81,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/students/import', [StudentController::class, 'import']);
 
 
+    Route::get('cohortes',[ CohortController::class, 'index']);
+    Route::post('/cohortes/generate', [CohortController::class, 'generate']);
+    Route::post('/cohorts/sync', [CohortController::class, 'syncWithMoodle']);
+    
     // Periods
     Route::get('/periods', [PeriodController::class, 'index']);
     Route::post('/periods', [PeriodController::class, 'store']);
