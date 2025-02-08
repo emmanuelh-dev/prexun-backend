@@ -21,6 +21,7 @@ class ChargeController extends Controller
         $campus_id = $request->campus_id;
         $charges = Transaction::with('student')
             ->where('campus_id', $campus_id)
+            ->where('paid', true)
             ->with('student', 'campus', 'student.grupo')
             ->orderBy('payment_date', 'desc')
             ->get();
@@ -30,6 +31,36 @@ class ChargeController extends Controller
             }
             return $charge;
         });
+        return response()->json($charges);
+    }
+
+
+    public function notPaid(Request $request)
+    {
+        $campus_id = $request->campus_id;
+        $expiration_date = $request->input('expiration_date');
+
+        $query = Transaction::with('student', 'campus', 'student.grupo')
+            ->where('campus_id', $campus_id)
+            ->where('paid', false)
+            ->orderBy('payment_date', 'desc');
+
+        if ($expiration_date) {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiration_date)) {
+                return response()->json(['error' => 'Formato de fecha incorrecto (YYYY-MM-DD)'], 400);
+            }
+            $query->where('payment_date', $expiration_date);
+        }
+
+        $charges = $query->get();
+
+        $charges = $charges->map(function ($charge) {
+            if ($charge->image) {
+                $charge->image = asset('storage/' . $charge->image);
+            }
+            return $charge;
+        });
+
         return response()->json($charges);
     }
 
@@ -133,10 +164,10 @@ class ChargeController extends Controller
         try {
             return DB::transaction(function () use ($id, $validated) {
                 $folio = Transaction::where('campus_id', $validated['campus_id'])
-                ->whereNotNull('folio')
-                ->max('folio') 
-                ?? Campus::find($validated['campus_id'])->folio_inicial;
-            
+                    ->whereNotNull('folio')
+                    ->max('folio')
+                    ?? Campus::find($validated['campus_id'])->folio_inicial;
+
                 $validated['folio'] = $folio + 1;
 
                 $transaction = Transaction::findOrFail($id);

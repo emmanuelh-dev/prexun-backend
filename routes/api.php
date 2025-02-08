@@ -42,12 +42,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/user', function (Request $request) {
         $user = auth()->user()->load([
-            'campuses', 
+            'campuses',
             'campuses.latestCashRegister'
         ]);
         return response()->json($user);
     });
-    
+
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'getData']);
@@ -87,6 +87,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/periods/{id}', [PeriodController::class, 'destroy']);
 
     // charges
+    Route::get('/charges/not-paid/{campus_id}', [ChargeController::class, 'notPaid']);
     Route::get('/charges/{campus_id}', [ChargeController::class, 'index']);
     Route::post('/charges', [ChargeController::class, 'store']);
     Route::put('/charges/{id}', [ChargeController::class, 'update']);
