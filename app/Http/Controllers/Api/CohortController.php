@@ -174,7 +174,7 @@ class CohortController extends Controller
             }
 
             
-            $syncResult = $this->moodleService->createCohorts($cohorts);
+            $syncResult = $this->moodleService->createCohorts($moodleCohorts);
     
             if ($syncResult['status'] === 'success') {
                 return response()->json([
