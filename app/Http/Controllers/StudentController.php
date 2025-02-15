@@ -376,7 +376,7 @@ class StudentController extends Controller
     
         $columns = ['Username', 'Grupo'];
     
-        $students = Student::with('grupo')->get(['username', 'grupo_id']);
+        $students = Student::with('grupo')->get(['id', 'grupo_id']);
     
         $callback = function () use ($students, $columns) {
             $file = fopen('php://output', 'w');
@@ -384,7 +384,7 @@ class StudentController extends Controller
     
             foreach ($students as $student) {
                 fputcsv($file, [
-                    $student->username,
+                    $student->id,
                     $student->grupo ? $student->grupo->name : 'Sin grupo'
                 ]);
             }
