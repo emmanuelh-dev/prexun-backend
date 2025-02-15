@@ -70,6 +70,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/campuses/{id}', [CampusController::class, 'destroy']);
 
     // Students
+    Route::get('/students/export-email-group', [StudentController::class, 'exportCsv']);
     Route::post('/students/sync-module', [StudentController::class, 'syncMoodle']);
     Route::get('/students/{campus_id}', [StudentController::class, 'index']);
     Route::get('/students/cohort/{cohort_id}', [StudentController::class, 'getByCohort']);
@@ -79,7 +80,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/students/{student}', [StudentController::class, 'destroy']);
     Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
     Route::post('/students/import', [StudentController::class, 'import']);
-
 
     Route::get('cohortes',[ CohortController::class, 'index']);
     Route::post('/cohortes/generate', [CohortController::class, 'generate']);

@@ -81,9 +81,9 @@ class CohortController extends Controller
                         $cohort->period_id = $period->id;
                         $cohort->grupo_id = $grupo->id;
 
-                        $errorMessage = null; // Variable para almacenar el mensaje de error específico
+                        $errorMessage = null;
 
-                        if ($period && $grupo) { // Verifica que ambos existan
+                        if ($period && $grupo) {
                             if ($period->name && $grupo->name) {
                                 $cohort->name = $period->name . $grupo->name;
                             } else {
@@ -97,9 +97,9 @@ class CohortController extends Controller
                             $failedCohorts[] = [
                                 'period_id' => $period->id,
                                 'grupo_id' => $grupo->id,
-                                'error' => $errorMessage, // Mensaje de error específico
+                                'error' => $errorMessage, 
                             ];
-                            continue; // Saltar a la siguiente iteración
+                            continue; 
                         }
 
                         $cohort->save();
@@ -110,9 +110,9 @@ class CohortController extends Controller
                         'period_id' => $period->id,
                         'grupo_id' => $grupo->id,
                         'error' => "Relation not found: " . $e->getMessage() .
-                            " in model: " . get_class($cohort) . // Modelo Cohort
-                            " for period: " . ($period ? get_class($period) : 'null') . // Modelo Period o null
-                            " and group: " . ($grupo ? get_class($grupo) : 'null'), // Modelo Grupo o null
+                            " in model: " . get_class($cohort) . 
+                            " for period: " . ($period ? get_class($period) : 'null') .
+                            " and group: " . ($grupo ? get_class($grupo) : 'null'),
                     ];
                     continue;
                     continue;
@@ -131,55 +131,55 @@ class CohortController extends Controller
     {
         try {
             $cohorts = Cohort::with(['period', 'group'])->get();
-
+    
             if ($cohorts->isEmpty()) {
                 Log::info('No cohorts found in database');
                 return response()->json(['message' => 'No cohorts found.'], 404);
             }
-
+    
             $moodleCohorts = [
                 'cohorts' => []
             ];
-
+    
             foreach ($cohorts as $cohort) {
-                // Validar que period existe
                 if (!$cohort->period) {
                     Log::warning("Cohort ID {$cohort->id} has no associated period");
                     continue;
                 }
-
+    
                 $cohortData = [
-                    'categorytype' => [
-                        'type' => 'string',
-                        'value' => (string)($cohort->period->id ?? '')
-                    ],
-                    'name' => $cohort->name ?? '',
-                    'idnumber' => (string)$cohort->id,
-                    'description' => 'Descripción del cohorte ' . ($cohort->name ?? ''),
-                    'descriptionformat' => 1,
-                    'visible' => 1,
-                    'theme' => '',
-                    'customfields' => []
+                    'contextid'        => 1,
+                    'name'             => 'Cohorte de Ejemplo',
+                    'idnumber'         => 'EX123',
+                    'description'      => 'Descripción de la cohorte de ejemplo',
+                    'descriptionformat'=> 1,
+                    'visible'          => 1,
+                    'theme'            => '',
+                    'customfields'     => [
+                        [
+                            'shortname' => 'group_id',
+                            'value'     => 'G123'
+                        ]
+                    ]
                 ];
-
-                // Solo añadir custom fields si group_id existe
+                
+    
                 if ($cohort->group_id) {
                     $cohortData['customfields'][] = [
                         'shortname' => 'group_id',
-                        'value' => (string)$cohort->group_id
+                        'value'     => (string)$cohort->group_id
                     ];
                 }
-
+    
                 $moodleCohorts['cohorts'][] = $cohortData;
             }
-
-
+    
             $syncResult = $this->moodleService->createCohorts($moodleCohorts);
-
+    
             if ($syncResult['status'] === 'success') {
                 return response()->json([
-                    'message' => 'Cohorts synchronized successfully',
-                    'data' => $syncResult['data'],
+                    'message'           => 'Cohorts synchronized successfully',
+                    'data'              => $syncResult['data'],
                     'moodle_cohort_ids' => $syncResult['moodle_cohort_ids'],
                 ], 200);
             } else {
@@ -188,11 +188,12 @@ class CohortController extends Controller
             }
         } catch (\Exception $e) {
             Log::error("Moodle Cohort Sync Error (Unexpected): " . $e->getMessage(), [
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
+                'file'  => $e->getFile(),
+                'line'  => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
             return response()->json(['error' => 'Failed to sync cohorts: ' . $e->getMessage()], 500);
         }
     }
+    
 }

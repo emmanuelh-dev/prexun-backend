@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Response;
 
 class StudentController extends Controller
 {
@@ -324,14 +325,14 @@ class StudentController extends Controller
     {
         // Obtener estudiantes del periodo
         $students = Student::get();
-    
+
         if ($students->isEmpty()) {
             return response()->json(['message' => 'No students found for this period.'], 404);
         }
-    
+
         // Convertir datos al formato que requiere Moodle
         $users = [];
-    
+
         foreach ($students as $student) {
             $users["user_{$student->id}"] = [
                 "username" => $student->id,
@@ -346,10 +347,10 @@ class StudentController extends Controller
                 "timezone" => "America/Mexico_City"
             ];
         }
-    
+
         // Procesar en lotes de 100 usuarios
         $userChunks = array_chunk($users, 100, true);
-    
+
         try {
             $responses = [];
             foreach ($userChunks as $chunk) {
@@ -362,8 +363,37 @@ class StudentController extends Controller
             return response()->json(['error' => 'Failed to sync with Moodle'], 500);
         }
     }
+    public function exportCsv()
+    {
+        $fileName = 'students.csv';
+        $headers = [
+            "Content-type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename=$fileName",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        ];
     
-
+        $columns = ['Username', 'Grupo'];
+    
+        $students = Student::with('grupo')->get(['username', 'grupo_id']);
+    
+        $callback = function () use ($students, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+    
+            foreach ($students as $student) {
+                fputcsv($file, [
+                    $student->username,
+                    $student->grupo ? $student->grupo->name : 'Sin grupo'
+                ]);
+            }
+    
+            fclose($file);
+        };
+    
+        return Response::stream($callback, 200, $headers);
+    }
     public function getActive()
     {
         $students = Student::where('status', 'active')->with('cohort')->get();

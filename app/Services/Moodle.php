@@ -111,98 +111,77 @@ class Moodle
             ];
         }
     }
-    private function formatCohorts($cohorts)
+
+    public function createCohorts(array $data)
     {
-        // Verificar si los cohorts ya están formateados
-        if (isset($cohorts['cohorts'])) {
-            return $cohorts; // Ya está en el formato correcto
-        }
+        $wsfunction = 'core_cohort_create_cohorts';
+        $endpoint = $this->url . '?wstoken=' . urlencode($this->token)
+            . '&wsfunction=' . urlencode($wsfunction)
+            . '&moodlewsrestformat=json';
 
-        $formattedCohorts = [];
-
-        foreach ($cohorts as $cohort) {
-            // Verificar si es un array o un objeto y si la clave existe
-            $categoryId = is_object($cohort)
-                ? ($cohort->period->id ?? null)
-                : ($cohort['period_id'] ?? null);
-
-            $name = is_object($cohort) ? ($cohort->name ?? '') : ($cohort['name'] ?? '');
-            $id = is_object($cohort) ? ($cohort->id ?? '') : ($cohort['id'] ?? '');
-
-            $formattedCohorts[] = [
-                'categorytype' => [
-                    'type' => 'string',
-                    'value' => (string)$categoryId
-                ],
-                'name' => (string)$name,
-                'idnumber' => (string)$id,
-                'description' => 'Descripción del cohorte ' . $name,
-                'descriptionformat' => 1,
-                'visible' => 1,
-                'theme' => '',
-                'customfields' => []
-            ];
-        }
-
-        return [
-            'cohorts' => $formattedCohorts
-        ];
-    }
-
-
-    public function createCohorts($cohorts)
-    {
-        Log::info('Datos originales recibidos para Moodle:', ['cohorts' => $cohorts]);
         try {
-            $formattedData = $this->formatCohorts($cohorts);
-
-            Log::info('Formatted cohorts data for Moodle:', [
-                'formatted_count' => count($formattedData['cohorts'])
+            $response = $this->client->post($endpoint, [
+                'form_params' => $data
             ]);
 
-            $requestData = [
-                'wstoken' => $this->token,
-                'wsfunction' => 'core_cohort_create_cohorts',
-                'moodlewsrestformat' => 'json',
-                'cohorts' => $formattedData['cohorts']
-            ];
-
-            $response = $this->client->post($this->url, [
-                'form_params' => $requestData
-            ]);
-
+            $statusCode = $response->getStatusCode();
             $body = json_decode($response->getBody(), true);
 
+            Log::info('Moodle API Response', [
+                'status_code' => $statusCode,
+                'body' => $body
+            ]);
+
+            if ($statusCode !== 200) {
+                Log::error('Moodle API error', ['status' => $statusCode, 'response' => $body]);
+                return [
+                    'status'  => 'error',
+                    'message' => 'Error en la respuesta de Moodle: ' . ($body['message'] ?? 'Desconocido'),
+                    'code'    => (int)$statusCode
+                ];
+            }
+
             if (isset($body['exception'])) {
-                throw new \Exception($body['message'] ?? 'Unknown Moodle API error');
+                Log::error('Moodle API exception', ['exception' => $body]);
+                return [
+                    'status'  => 'error',
+                    'message' => 'Excepción de Moodle: ' . $body['message'],
+                    'code'    => (int)$body['errorcode']
+                ];
+            }
+
+            // Extraer los IDs de los cohorts creados (si Moodle los retorna)
+            $moodleCohortIds = [];
+            if (is_array($body)) {
+                foreach ($body as $cohort) {
+                    if (isset($cohort['id'])) {
+                        $moodleCohortIds[] = $cohort['id'];
+                    }
+                }
             }
 
             return [
-                'status' => 'success',
-                'data' => $body,
-                'moodle_cohort_ids' => array_column($body, 'id')
+                'status'            => 'success',
+                'data'              => $body,
+                'moodle_cohort_ids' => $moodleCohortIds
             ];
         } catch (RequestException $e) {
-            Log::error('Moodle API Request Exception:', [
-                'message' => $e->getMessage(),
-                'response' => $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : null
+            Log::error('Moodle API RequestException', [
+                'exception' => $e->getMessage(),
+                'request'   => $e->getRequest(),
+                'response'  => $e->getResponse() ? $e->getResponse()->getBody()->getContents() : null
             ]);
-
             return [
-                'status' => 'error',
-                'message' => 'Failed to communicate with Moodle: ' . $e->getMessage(),
-                'code' => $e->getCode()
+                'status'  => 'error',
+                'message' => 'Error de conexión con Moodle: ' . $e->getMessage(),
+                'code'    => (int)$e->getCode()
             ];
         } catch (\Exception $e) {
-            Log::error('Unexpected error in createCohorts:', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
+            Log::error('Moodle API Exception', ['exception' => $e->getMessage()]);
             return [
-                'status' => 'error',
-                'message' => 'Unexpected error: ' . $e->getMessage(),
-                'code' => 500
+                'status'  => 'error',
+                'message' => 'Error inesperado: ' . $e->getMessage(),
+                'code'    => (int)$e->getCode()
             ];
         }
     }
