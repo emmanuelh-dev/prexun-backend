@@ -363,6 +363,7 @@ class StudentController extends Controller
             return response()->json(['error' => 'Failed to sync with Moodle'], 500);
         }
     }
+    
     public function exportCsv()
     {
         $fileName = 'students.csv';
@@ -394,6 +395,7 @@ class StudentController extends Controller
     
         return Response::stream($callback, 200, $headers);
     }
+    
     public function getActive()
     {
         $students = Student::where('status', 'active')->with('cohort')->get();
