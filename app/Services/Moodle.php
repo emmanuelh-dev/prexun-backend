@@ -99,14 +99,137 @@ class Moodle
         return $formattedUsers;
     }
 
+    public function getCohortIdByName($cohortName)
+    {
+        Log::info('Cohort name: ' . $cohortName);
+
+        try {
+            $response = $this->client->get($this->url, [
+                'query' => [
+                    'wstoken' => $this->token,
+                    'wsfunction' => 'core_cohort_get_cohorts',
+                    'moodlewsrestformat' => 'json'
+                ]
+            ]);
+    
+            $body = json_decode($response->getBody(), true);
+
+            // Log::info('Moodle API Response', ['wsfunction' => 'core_cohort_get_cohorts', 'status_code' => $response->getStatusCode(), 'body' => $body]);
+
+            foreach ($body as $cohort) {
+                if ($cohort['name'] === $cohortName) {
+                    return $cohort['id'];
+                }
+            }
+    
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Moodle API Exception', ['exception' => $e->getMessage()]);
+            return null;
+        }
+    }
+    
+    public function addUserToCohort($username, $cohortId) 
+    {
+        Log::info('Adding user to cohort', ['username' => $username, 'cohort_id' => $cohortId]);
+    
+        try {
+            $response = $this->client->post($this->url, [
+                'form_params' => [
+                    'wstoken' => $this->token,
+                    'wsfunction' => 'core_cohort_add_cohort_members',
+                    'moodlewsrestformat' => 'json',
+                    'members' => [
+                        [
+                            'cohorttype' => [
+                                'type' => 'id',
+                                'value' => $cohortId
+                            ],
+                            'usertype' => [
+                                'type' => 'username',
+                                'value' => $username
+                            ]
+                        ]
+                    ]
+                ]
+            ]);
+    
+            $body = json_decode($response->getBody(), true);
+            
+            Log::info('Moodle API Response' . json_encode($body));
+
+            if (isset($body['exception'])) {
+                return [
+                    'status' => 'error',
+                    'message' => $body['message']
+                ];
+            }
+    
+            return [
+                'status' => 'success',
+                'data' => $body
+            ];
+        } catch (\Exception $e) {
+            Log::error('Moodle API Exception', ['exception' => $e->getMessage()]);
+            return [
+                'status' => 'error',
+                'message' => 'Error adding user to cohort in Moodle'
+            ];
+        }
+    }
+    
+    
+
+    public function getUserByUsername($username)
+    {
+        try {
+            $response = $this->client->get($this->url, [
+                'query' => [
+                    'wstoken' => $this->token,
+                    'wsfunction' => 'core_user_get_users',
+                    'moodlewsrestformat' => 'json',
+                    'criteria[0][key]' => 'username',
+                    'criteria[0][value]' => $username
+                ]
+            ]);
+
+            $body = json_decode($response->getBody(), true);
+
+            if (isset($body['users'][0])) {
+                return $body['users'][0]; // Retornar el usuario encontrado
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Moodle API Exception', ['exception' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+
+
     /**
      * Crear usuarios en Moodle.
      */
     public function createUser(array $users)
     {
-        return $this->sendRequest('core_user_create_users', $this->formatUsers($users));
+        $response = $this->sendRequest('core_user_create_users', $this->formatUsers($users));
+    
+        if (is_array($response) && !empty($response) && isset($response[0]['id'])) {
+            return [
+                'status' => 'success',
+                'data' => $response,
+                'moodle_user_ids' => array_column($response, 'id')
+            ];
+        }
+    
+        return [
+            'status' => 'error',
+            'message' => 'Error creating user in Moodle',
+            'response' => $response
+        ];
     }
-
+    
     /**
      * Crear cohortes en Moodle.
      */
@@ -114,6 +237,4 @@ class Moodle
     {
         return $this->sendRequest('core_cohort_create_cohorts', ['cohorts' => $data]);
     }
-
-    
 }

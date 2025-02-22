@@ -70,25 +70,53 @@ class StudentController extends Controller
         try {
             DB::beginTransaction();
 
+            // 🔹 Crear el estudiante en la base de datos
             $student = Student::create($request->all());
+            $username = (string) $student->id;
 
+            // 🔹 Crear usuario en Moodle
             $moodleUser = [
-                "username" => $student->id,
+                "username" => $username,
                 "firstname" => strtoupper($student->firstname),
                 "lastname" => strtoupper($student->lastname),
                 "email" => $student->email,
                 "createpassword" => true,
                 "auth" => "manual",
-                "idnumber" => (string) $student->id,
+                "idnumber" => $username,
                 "lang" => "es_mx",
                 "calendartype" => "gregorian",
                 "timezone" => "America/Mexico_City"
             ];
 
-            $this->moodleService->createUser([$moodleUser]);
+            $moodeUser =  $this->moodleService->createUser([$moodleUser]);
+            Log::info('Moodle User Created', ['moodle_user' => $moodeUser]);
+            // 🔹 Esperar un poco para que Moodle registre el usuario
+            sleep(2);
 
+            // 🔹 Obtener el ID del cohort usando el nombre del grupo del estudiante
             $promo = Promocion::findOrFail($request->promo_id);
+            $cohortName = $student->period->name . $student->grupo->name;
+            $cohortId = $this->moodleService->getCohortIdByName($cohortName);
 
+            if (!$cohortId) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Cohort not found in Moodle'
+                ], 500);
+            }
+
+            // 🔹 Agregar usuario al cohort
+            $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
+
+            if ($cohortResponse['status'] !== 'success') {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Error adding user to cohort in Moodle',
+                    'error' => $cohortResponse['message']
+                ], 500);
+            }
+
+            // 🔹 Crear transacciones de pago
             if (count($promo->pagos) > 0) {
                 foreach ($promo->pagos as $pago) {
                     Transaction::create([
@@ -97,7 +125,7 @@ class StudentController extends Controller
                         'promocion_id' => $promo->id,
                         'amount' => $pago['amount'],
                         'expiration_date' => $pago['date'],
-                        'notes' => isset($pago['description']) ? $pago['description'] : "",
+                        'notes' => $pago['description'] ?? "",
                         'status' => 'pending',
                         'type' => 'payment_plan',
                         'uuid' => Str::uuid()
@@ -128,6 +156,9 @@ class StudentController extends Controller
             ], 500);
         }
     }
+
+
+
     /**
      * Update the specified student.
      */
@@ -355,7 +386,8 @@ class StudentController extends Controller
             $responses = [];
             foreach ($userChunks as $chunk) {
                 $response = $this->moodleService->createUser($chunk);
-                $responses[] = $response; // Puedes agregar los resultados de cada lote aquí
+
+                $responses[] = $response;
             }
             return response()->json($responses, 200);
         } catch (\Exception $e) {
@@ -363,7 +395,7 @@ class StudentController extends Controller
             return response()->json(['error' => 'Failed to sync with Moodle'], 500);
         }
     }
-    
+
     public function exportCsv()
     {
         $fileName = 'students.csv';
@@ -374,28 +406,28 @@ class StudentController extends Controller
             "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
             "Expires"             => "0"
         ];
-    
+
         $columns = ['Username', 'Grupo'];
-    
+
         $students = Student::with('grupo')->get(['id', 'grupo_id']);
-    
+
         $callback = function () use ($students, $columns) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
-    
+
             foreach ($students as $student) {
                 fputcsv($file, [
                     $student->id,
                     $student->grupo ? $student->grupo->name : 'Sin grupo'
                 ]);
             }
-    
+
             fclose($file);
         };
-    
+
         return Response::stream($callback, 200, $headers);
     }
-    
+
     public function getActive()
     {
         $students = Student::where('status', 'active')->with('cohort')->get();
