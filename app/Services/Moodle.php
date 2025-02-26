@@ -91,11 +91,13 @@ class Moodle
     private function formatUsers(array $users): array
     {
         $formattedUsers = [];
+        
         foreach ($users as $index => $user) {
             foreach ($user as $key => $value) {
                 $formattedUsers["users[{$index}][{$key}]"] = is_string($value) ? trim($value) : $value;
             }
         }
+
         return $formattedUsers;
     }
 
@@ -178,39 +180,56 @@ class Moodle
         }
     }
     
-    
-
     public function getUserByUsername($username)
     {
-        try {
-            $response = $this->client->get($this->url, [
-                'query' => [
-                    'wstoken' => $this->token,
-                    'wsfunction' => 'core_user_get_users',
-                    'moodlewsrestformat' => 'json',
-                    'criteria[0][key]' => 'username',
-                    'criteria[0][value]' => $username
+    
+        $data = [
+            'criteria' => [
+                [
+                    'key' => 'username',
+                    'value' => $username
                 ]
-            ]);
-
-            $body = json_decode($response->getBody(), true);
-
-            if (isset($body['users'][0])) {
-                return $body['users'][0]; // Retornar el usuario encontrado
-            }
-
-            return null;
-        } catch (\Exception $e) {
-            Log::error('Moodle API Exception', ['exception' => $e->getMessage()]);
-            return null;
+            ]
+        ];
+    
+        $response = $this->sendRequest('core_user_get_users', $data);
+    
+        if ($response['status'] === 'success' && isset($response['data']['users'][0])) {
+            return [
+                'status' => 'success',
+                'data' => $response['data']['users'][0]
+            ];
         }
+    
+        return [
+            'status' => 'error',
+            'message' => 'User not found or error occurred',
+            'response' => $response
+        ];
     }
-
-
-
     /**
      * Crear usuarios en Moodle.
      */
+
+    public function updateUser(array $users)
+    {
+        $response = $this->sendRequest('core_user_update_users', $this->formatUsers($users));
+
+        if (is_array($response) && !empty($response) && isset($response[0]['id'])) {
+            return [
+                'status' => 'success',
+                'data' => $response,
+                'moodle_user_ids' => array_column($response, 'id')
+            ];
+        }
+
+        return [
+            'status' => 'error',
+            'message' => 'Error updating user in Moodle',
+            'response' => $response
+        ];
+    }
+
     public function createUser(array $users)
     {
         $response = $this->sendRequest('core_user_create_users', $this->formatUsers($users));

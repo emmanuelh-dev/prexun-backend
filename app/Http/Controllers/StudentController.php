@@ -157,7 +157,38 @@ class StudentController extends Controller
         }
     }
 
+    public function hardUpdate(Request $request)
+    {
 
+        $validator = Validator::make($request->all(), [
+            'id' => 'required|exists:students,id',
+            'email' => 'required|email|unique:students,email,' . $request->id,
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $student = Student::findOrFail($request->id);
+
+        $student->update($request->only([
+            'email',
+        ]));
+        $result = $this->moodleService->getUserByUsername($student->id);
+        if ($result['status'] === 'success') {
+            $user = $result['data'];
+            $this->moodleService->updateUser([[
+                "id" => $user['id'],
+                "email" => $student->email,
+            ]]);
+        }
+
+        return response()->json([
+            'message' => 'Student updated successfully',
+            'student' => $student,
+        ]);
+        
+    }
 
     /**
      * Update the specified student.
