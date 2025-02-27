@@ -75,6 +75,7 @@ class ChargeController extends Controller
             'campus_id' => 'required|exists:campuses,id',
             'amount' => 'required|numeric|min:0',
             'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
+            'expiration_date' => 'required',
             'denominations' => 'required_if:payment_method,cash|array',
             'notes' => 'nullable|string|max:255',
             'paid' => 'required|boolean'
@@ -92,6 +93,7 @@ class ChargeController extends Controller
                     'notes' => $validated['notes'] ?? null,
                     'paid' => $validated['paid'],
                     'transaction_type' => 'payment',
+                    'expiration_date' => $validated['expiration_date'],
                     'uuid' => Str::uuid(),
                 ]);
 
