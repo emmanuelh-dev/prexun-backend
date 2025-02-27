@@ -117,6 +117,8 @@ class StudentController extends Controller
         $validator = Validator::make($request->all(), [
             'id' => 'required|exists:students,id',
             'email' => 'required|email|unique:students,email,' . $request->id,
+            'firstname' => 'sometimes|string|max:255',
+            'lastname' => 'sometimes|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -124,7 +126,7 @@ class StudentController extends Controller
         }
 
         $student = Student::findOrFail($request->id);
-        $student->update($request->only(['email']));
+        $student->update($request->only(['email', 'firstname', 'lastname']));
         
         $this->syncMoodleUserEmail($student);
 
@@ -284,7 +286,6 @@ class StudentController extends Controller
             'phone' => 'string|max:20',
             'type' => 'in:preparatoria,facultad',
             'campus_id' => 'required|exists:campuses,id',
-            'promo_id' => 'required|exists:promociones,id'
         ]);
     }
 
@@ -333,6 +334,8 @@ class StudentController extends Controller
             $this->moodleService->updateUser([[
                 "id" => $user['id'],
                 "email" => $student->email,
+                "firstname" => $student->firstname,
+                "lastname" => $student->lastname
             ]]);
         }
         
