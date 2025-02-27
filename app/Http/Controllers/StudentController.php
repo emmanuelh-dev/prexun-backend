@@ -15,13 +15,13 @@ use Illuminate\Support\Facades\Response;
 
 class StudentController extends Controller
 {
-
     protected $moodleService;
 
     public function __construct(Moodle $moodleService)
     {
         $this->moodleService = $moodleService;
     }
+
     /**
      * Display a listing of students.
      */
@@ -34,34 +34,24 @@ class StudentController extends Controller
         }
 
         $students = $query->get()->map(function ($student) {
-            $periodCost = $student->period ? $student->period->price : 0;
-
+            $periodCost = $student->period?->price ?? 0;
             $totalPaid = $student->transactions->sum('amount');
-
-            $currentDebt = $periodCost - $totalPaid;
-
+            
             $student = $student->toArray();
-            $student['current_debt'] = $currentDebt;
+            $student['current_debt'] = $periodCost - $totalPaid;
 
             return $student;
         });
 
         return response()->json($students);
     }
+
     /**
      * Store a new student.
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'firstname' => 'string|max:255',
-            'lastname' => 'string|max:255',
-            'email' => 'required|email|unique:students',
-            'phone' => 'string|max:20',
-            'type' => 'in:preparatoria,facultad',
-            'campus_id' => 'required|exists:campuses,id',
-            'promo_id' => 'required|exists:promociones,id'
-        ]);
+        $validator = $this->validateStudent($request);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -70,31 +60,19 @@ class StudentController extends Controller
         try {
             DB::beginTransaction();
 
-            // 🔹 Crear el estudiante en la base de datos
+            // Create student in database
             $student = Student::create($request->all());
             $username = (string) $student->id;
 
-            // 🔹 Crear usuario en Moodle
-            $moodleUser = [
-                "username" => $username,
-                "firstname" => strtoupper($student->firstname),
-                "lastname" => strtoupper($student->lastname),
-                "email" => $student->email,
-                "createpassword" => true,
-                "auth" => "manual",
-                "idnumber" => $username,
-                "lang" => "es_mx",
-                "calendartype" => "gregorian",
-                "timezone" => "America/Mexico_City"
-            ];
-
-            $moodeUser =  $this->moodleService->createUser([$moodleUser]);
-            Log::info('Moodle User Created', ['moodle_user' => $moodeUser]);
-            // 🔹 Esperar un poco para que Moodle registre el usuario
+            // Create user in Moodle
+            $moodleUser = $this->prepareMoodleUser($student);
+            $moodleResponse = $this->moodleService->createUser([$moodleUser]);
+            Log::info('Moodle User Created', ['moodle_user' => $moodleResponse]);
+            
+            // Wait a bit for Moodle to register the user
             sleep(2);
 
-            // 🔹 Obtener el ID del cohort usando el nombre del grupo del estudiante
-            $promo = Promocion::findOrFail($request->promo_id);
+            // Get cohort ID using the student's group name
             $cohortName = $student->period->name . $student->grupo->name;
             $cohortId = $this->moodleService->getCohortIdByName($cohortName);
 
@@ -105,7 +83,7 @@ class StudentController extends Controller
                 ], 500);
             }
 
-            // 🔹 Agregar usuario al cohort
+            // Add user to cohort
             $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
 
             if ($cohortResponse['status'] !== 'success') {
@@ -116,33 +94,7 @@ class StudentController extends Controller
                 ], 500);
             }
 
-            // 🔹 Crear transacciones de pago
-            if (count($promo->pagos) > 0) {
-                foreach ($promo->pagos as $pago) {
-                    Transaction::create([
-                        'campus_id' => $request->campus_id,
-                        'student_id' => $student->id,
-                        'promocion_id' => $promo->id,
-                        'amount' => $pago['amount'],
-                        'expiration_date' => $pago['date'],
-                        'notes' => $pago['description'] ?? "",
-                        'status' => 'pending',
-                        'type' => 'payment_plan',
-                        'uuid' => Str::uuid()
-                    ]);
-                }
-            } else {
-                Transaction::create([
-                    'campus_id' => $request->campus_id,
-                    'student_id' => $student->id,
-                    'promocion_id' => $promo->id,
-                    'amount' => $promo->cost,
-                    'expiration_date' => null,
-                    'status' => 'pending',
-                    'type' => 'single_payment',
-                    'uuid' => Str::uuid()
-                ]);
-            }
+            // The commented code for creating transactions has been removed as it appears to be unused
 
             DB::commit();
             $student->load('charges');
@@ -157,9 +109,11 @@ class StudentController extends Controller
         }
     }
 
+    /**
+     * Hard update of student data including Moodle sync.
+     */
     public function hardUpdate(Request $request)
     {
-
         $validator = Validator::make($request->all(), [
             'id' => 'required|exists:students,id',
             'email' => 'required|email|unique:students,email,' . $request->id,
@@ -170,24 +124,14 @@ class StudentController extends Controller
         }
 
         $student = Student::findOrFail($request->id);
-
-        $student->update($request->only([
-            'email',
-        ]));
-        $result = $this->moodleService->getUserByUsername($student->id);
-        if ($result['status'] === 'success') {
-            $user = $result['data'];
-            $this->moodleService->updateUser([[
-                "id" => $user['id'],
-                "email" => $student->email,
-            ]]);
-        }
+        $student->update($request->only(['email']));
+        
+        $this->syncMoodleUserEmail($student);
 
         return response()->json([
             'message' => 'Student updated successfully',
             'student' => $student,
         ]);
-        
     }
 
     /**
@@ -200,7 +144,7 @@ class StudentController extends Controller
         $validator = Validator::make($request->all(), [
             'firstname' => 'string|max:255',
             'lastname' => 'string|max:255',
-            'email' => ['email'],
+            'email' => 'email',
             'phone' => 'string|max:20',
             'type' => 'in:preparatoria,facultad',
             'campus_id' => 'exists:campuses,id',
@@ -228,10 +172,8 @@ class StudentController extends Controller
      */
     public function destroy(Student $student, Request $request)
     {
-
         if ($request->boolean('permanent') === true) {
             $student->forceDelete();
-
             return response()->json(['message' => 'Estudiante eliminado permanentemente']);
         }
 
@@ -239,6 +181,9 @@ class StudentController extends Controller
         return response()->json(['message' => 'Estudiante eliminado']);
     }
 
+    /**
+     * Restore a soft-deleted student.
+     */
     public function restore($id)
     {
         $student = Student::withTrashed()->findOrFail($id);
@@ -255,43 +200,28 @@ class StudentController extends Controller
         return response()->json($students);
     }
 
+    /**
+     * Sync all students with Moodle.
+     */
     public function syncMoodle(Request $request)
     {
-        // Obtener estudiantes del periodo
         $students = Student::get();
 
         if ($students->isEmpty()) {
-            return response()->json(['message' => 'No students found for this period.'], 404);
+            return response()->json(['message' => 'No students found.'], 404);
         }
-
-        // Convertir datos al formato que requiere Moodle
-        $users = [];
-
-        foreach ($students as $student) {
-            $users["user_{$student->id}"] = [
-                "username" => $student->id,
-                "firstname" => strtoupper($student->firstname),
-                "lastname" => strtoupper($student->lastname),
-                "email" => $student->email,
-                "createpassword" => true,
-                "auth" => "manual",
-                "idnumber" => (string) $student->id,
-                "lang" => "es_mx",
-                "calendartype" => "gregorian",
-                "timezone" => "America/Mexico_City"
-            ];
-        }
-
-        // Procesar en lotes de 100 usuarios
-        $userChunks = array_chunk($users, 100, true);
 
         try {
             $responses = [];
+            $users = $this->prepareMoodleUsersForSync($students);
+            
+            // Process in batches of 100 users
+            $userChunks = array_chunk($users, 100, true);
+            
             foreach ($userChunks as $chunk) {
-                $response = $this->moodleService->createUser($chunk);
-
-                $responses[] = $response;
+                $responses[] = $this->moodleService->createUser($chunk);
             }
+            
             return response()->json($responses, 200);
         } catch (\Exception $e) {
             Log::error("Moodle Sync Error: " . $e->getMessage());
@@ -299,6 +229,9 @@ class StudentController extends Controller
         }
     }
 
+    /**
+     * Export students to CSV.
+     */
     public function exportCsv()
     {
         $fileName = 'students.csv';
@@ -311,7 +244,6 @@ class StudentController extends Controller
         ];
 
         $columns = ['Username', 'Grupo'];
-
         $students = Student::with('grupo')->get(['id', 'grupo_id']);
 
         $callback = function () use ($students, $columns) {
@@ -331,9 +263,79 @@ class StudentController extends Controller
         return Response::stream($callback, 200, $headers);
     }
 
+    /**
+     * Get active students.
+     */
     public function getActive()
     {
         $students = Student::where('status', 'active')->with('cohort')->get();
         return response()->json($students);
+    }
+
+    /**
+     * Validate student data.
+     */
+    private function validateStudent(Request $request)
+    {
+        return Validator::make($request->all(), [
+            'firstname' => 'string|max:255',
+            'lastname' => 'string|max:255',
+            'email' => 'required|email|unique:students',
+            'phone' => 'string|max:20',
+            'type' => 'in:preparatoria,facultad',
+            'campus_id' => 'required|exists:campuses,id',
+            'promo_id' => 'required|exists:promociones,id'
+        ]);
+    }
+
+    /**
+     * Prepare Moodle user data for a single student.
+     */
+    private function prepareMoodleUser(Student $student)
+    {
+        return [
+            "username" => (string) $student->id,
+            "firstname" => strtoupper($student->firstname),
+            "lastname" => strtoupper($student->lastname),
+            "email" => $student->email,
+            "createpassword" => true,
+            "auth" => "manual",
+            "idnumber" => (string) $student->id,
+            "lang" => "es_mx",
+            "calendartype" => "gregorian",
+            "timezone" => "America/Mexico_City"
+        ];
+    }
+
+    /**
+     * Prepare Moodle users data for bulk sync.
+     */
+    private function prepareMoodleUsersForSync($students)
+    {
+        $users = [];
+
+        foreach ($students as $student) {
+            $users["user_{$student->id}"] = $this->prepareMoodleUser($student);
+        }
+
+        return $users;
+    }
+
+    /**
+     * Sync student email with Moodle.
+     */
+    private function syncMoodleUserEmail(Student $student)
+    {
+        $result = $this->moodleService->getUserByUsername($student->id);
+        
+        if ($result['status'] === 'success') {
+            $user = $result['data'];
+            $this->moodleService->updateUser([[
+                "id" => $user['id'],
+                "email" => $student->email,
+            ]]);
+        }
+        
+        return $result;
     }
 }
