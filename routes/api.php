@@ -79,7 +79,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/student/{student}', [StudentController::class, 'show']);
     Route::delete('/students/{student}', [StudentController::class, 'destroy']);
     Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
-    Route::post('/students/import', [StudentController::class, 'import']);
     Route::patch('/students/hard-update', [StudentController::class, 'hardUpdate']);
     Route::get('cohortes',[ CohortController::class, 'index']);
     Route::post('/cohortes/generate', [CohortController::class, 'generate']);
