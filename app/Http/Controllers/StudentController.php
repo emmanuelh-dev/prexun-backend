@@ -245,8 +245,8 @@ class StudentController extends Controller
             "Expires"             => "0"
         ];
 
-        $columns = ['Username', 'Grupo'];
-        $students = Student::with('grupo')->get(['id', 'grupo_id']);
+        $columns = ['username', 'email', 'grupo'];
+        $students = Student::with('grupo')->get(['id', 'email', 'grupo_id']);
 
         $callback = function () use ($students, $columns) {
             $file = fopen('php://output', 'w');
@@ -255,6 +255,7 @@ class StudentController extends Controller
             foreach ($students as $student) {
                 fputcsv($file, [
                     $student->id,
+                    $student->email,
                     $student->grupo ? $student->grupo->name : 'Sin grupo'
                 ]);
             }
