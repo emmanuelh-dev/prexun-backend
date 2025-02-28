@@ -23,7 +23,7 @@ class ChargeController extends Controller
             ->where('campus_id', $campus_id)
             ->where('paid', true)
             ->with('student', 'campus', 'student.grupo')
-            ->orderBy('payment_date', 'desc')
+            ->orderBy('folio', 'desc')
             ->get();
         $charges->transform(function ($charge) {
             if ($charge->image) {
@@ -170,7 +170,7 @@ class ChargeController extends Controller
 
         try {
             return DB::transaction(function () use ($id, $validated) {
-                
+
                 $campus = Campus::find($validated['campus_id']);
                 $folioCampus = $campus->folio_inicial;
                 $folioActual = Transaction::where('campus_id', $validated['campus_id'])
