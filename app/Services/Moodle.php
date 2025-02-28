@@ -91,7 +91,7 @@ class Moodle
     private function formatUsers(array $users): array
     {
         $formattedUsers = [];
-        
+
         foreach ($users as $index => $user) {
             foreach ($user as $key => $value) {
                 $formattedUsers["users[{$index}][{$key}]"] = is_string($value) ? trim($value) : $value;
@@ -113,7 +113,7 @@ class Moodle
                     'moodlewsrestformat' => 'json'
                 ]
             ]);
-    
+
             $body = json_decode($response->getBody(), true);
 
             // Log::info('Moodle API Response', ['wsfunction' => 'core_cohort_get_cohorts', 'status_code' => $response->getStatusCode(), 'body' => $body]);
@@ -123,18 +123,18 @@ class Moodle
                     return $cohort['id'];
                 }
             }
-    
+
             return null;
         } catch (\Exception $e) {
             Log::error('Moodle API Exception', ['exception' => $e->getMessage()]);
             return null;
         }
     }
-    
-    public function addUserToCohort($username, $cohortId) 
+
+    public function addUserToCohort($username, $cohortId)
     {
         Log::info('Adding user to cohort', ['username' => $username, 'cohort_id' => $cohortId]);
-    
+
         try {
             $response = $this->client->post($this->url, [
                 'form_params' => [
@@ -155,9 +155,9 @@ class Moodle
                     ]
                 ]
             ]);
-    
+
             $body = json_decode($response->getBody(), true);
-            
+
             Log::info('Moodle API Response' . json_encode($body));
 
             if (isset($body['exception'])) {
@@ -166,7 +166,7 @@ class Moodle
                     'message' => $body['message']
                 ];
             }
-    
+
             return [
                 'status' => 'success',
                 'data' => $body
@@ -180,9 +180,20 @@ class Moodle
         }
     }
     
+    public function deleteUser($userId)
+    {
+        Log::info('Deleting user from Moodle', ['moodle_user_id' => $userId]);
+
+        $data = [
+            'userids' => [$userId]
+        ];
+
+        return $this->sendRequest('core_user_delete_users', $data);
+    }
+
     public function getUserByUsername($username)
     {
-    
+
         $data = [
             'criteria' => [
                 [
@@ -191,16 +202,16 @@ class Moodle
                 ]
             ]
         ];
-    
+
         $response = $this->sendRequest('core_user_get_users', $data);
-    
+
         if ($response['status'] === 'success' && isset($response['data']['users'][0])) {
             return [
                 'status' => 'success',
                 'data' => $response['data']['users'][0]
             ];
         }
-    
+
         return [
             'status' => 'error',
             'message' => 'User not found or error occurred',
@@ -233,7 +244,7 @@ class Moodle
     public function createUser(array $users)
     {
         $response = $this->sendRequest('core_user_create_users', $this->formatUsers($users));
-    
+
         if (is_array($response) && !empty($response) && isset($response[0]['id'])) {
             return [
                 'status' => 'success',
@@ -241,14 +252,14 @@ class Moodle
                 'moodle_user_ids' => array_column($response, 'id')
             ];
         }
-    
+
         return [
             'status' => 'error',
             'message' => 'Error creating user in Moodle',
             'response' => $response
         ];
     }
-    
+
     /**
      * Crear cohortes en Moodle.
      */

@@ -36,7 +36,7 @@ class StudentController extends Controller
         $students = $query->get()->map(function ($student) {
             $periodCost = $student->period?->price ?? 0;
             $totalPaid = $student->transactions->sum('amount');
-            
+
             $student = $student->toArray();
             $student['current_debt'] = $periodCost - $totalPaid;
 
@@ -68,7 +68,7 @@ class StudentController extends Controller
             $moodleUser = $this->prepareMoodleUser($student);
             $moodleResponse = $this->moodleService->createUser([$moodleUser]);
             Log::info('Moodle User Created', ['moodle_user' => $moodleResponse]);
-            
+
             // Wait a bit for Moodle to register the user
             sleep(2);
 
@@ -127,7 +127,7 @@ class StudentController extends Controller
 
         $student = Student::findOrFail($request->id);
         $student->update($request->only(['email', 'firstname', 'lastname']));
-        
+
         $this->syncMoodleUserEmail($student);
 
         return response()->json([
@@ -172,15 +172,43 @@ class StudentController extends Controller
     /**
      * Remove the specified student.
      */
+    /**
+     * Remove the specified student and optionally delete from Moodle.
+     */
     public function destroy(Student $student, Request $request)
     {
-        if ($request->boolean('permanent') === true) {
-            $student->forceDelete();
-            return response()->json(['message' => 'Estudiante eliminado permanentemente']);
-        }
+        try {
+            // Attempt to delete user from Moodle
+            $username = (string) $student->id;
+            $moodleUser = $this->moodleService->getUserByUsername($username);
 
-        $student->delete();
-        return response()->json(['message' => 'Estudiante eliminado']);
+            if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
+                $userId = $moodleUser['data']['id'];
+                $this->moodleService->deleteUser($userId);
+                Log::info('Moodle user deleted', ['student_id' => $student->id, 'moodle_id' => $userId]);
+            } else {
+                Log::warning('Moodle user not found for deletion', ['student_id' => $student->id]);
+            }
+
+            // Delete from database
+            if ($request->boolean('permanent') === true) {
+                $student->forceDelete();
+                return response()->json(['message' => 'Estudiante eliminado permanentemente y sincronizado con Moodle']);
+            }
+
+            $student->delete();
+            return response()->json(['message' => 'Estudiante eliminado y sincronizado con Moodle']);
+        } catch (\Exception $e) {
+            Log::error('Error deleting student from Moodle', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'El estudiante fue eliminado de la base de datos, pero ocurrió un error al sincronizar con Moodle',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -216,14 +244,14 @@ class StudentController extends Controller
         try {
             $responses = [];
             $users = $this->prepareMoodleUsersForSync($students);
-            
+
             // Process in batches of 100 users
             $userChunks = array_chunk($users, 100, true);
-            
+
             foreach ($userChunks as $chunk) {
                 $responses[] = $this->moodleService->createUser($chunk);
             }
-            
+
             return response()->json($responses, 200);
         } catch (\Exception $e) {
             Log::error("Moodle Sync Error: " . $e->getMessage());
@@ -329,7 +357,7 @@ class StudentController extends Controller
     private function syncMoodleUserEmail(Student $student)
     {
         $result = $this->moodleService->getUserByUsername($student->id);
-        
+
         if ($result['status'] === 'success') {
             $user = $result['data'];
             $this->moodleService->updateUser([[
@@ -339,7 +367,7 @@ class StudentController extends Controller
                 "lastname" => $student->lastname
             ]]);
         }
-        
+
         return $result;
     }
 }
