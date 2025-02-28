@@ -167,13 +167,17 @@ class ChargeController extends Controller
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('transactions', 'public');
         }
+
         try {
             return DB::transaction(function () use ($id, $validated) {
-                $folio = Transaction::where('campus_id', $validated['campus_id'])
+                
+                $campus = Campus::find($validated['campus_id']);
+                $folioCampus = $campus->folio_inicial;
+                $folioActual = Transaction::where('campus_id', $validated['campus_id'])
                     ->whereNotNull('folio')
-                    ->max('folio')
-                    ?? Campus::find($validated['campus_id'])->folio_inicial;
-
+                    ->max('folio');           
+                $folio = max($folioCampus, $folioActual ?: 0);
+                
                 $validated['folio'] = $folio + 1;
 
                 $transaction = Transaction::findOrFail($id);
