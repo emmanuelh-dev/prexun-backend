@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampusController;
+use App\Http\Controllers\Api\CardController;
 use App\Http\Controllers\Api\CarreraController;
 use App\Http\Controllers\Api\CashCutController;
 use App\Http\Controllers\Api\ChargeController;
@@ -160,6 +161,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/products', [ProductsController::class, 'store']);
     Route::put('/products/{product}', [ProductsController::class, 'update']);
     Route::delete('/products/{product}', [ProductsController::class, 'destroy']);
+
+    // Cards
+    Route::get('/cards', [CardController::class, 'index']);
+    Route::post('/cards', [CardController::class, 'apiStore']);
+    Route::put('/cards/{card}', [CardController::class, 'apiUpdate']);
+    Route::delete('/cards/{card}', [CardController::class, 'apiDestroy']);
 
 
     // CashCuts

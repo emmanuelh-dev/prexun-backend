@@ -48,7 +48,8 @@ class CampusController extends Controller
             'is_active' => 'boolean|nullable',
             'admin_ids' => 'nullable|array',
             'admin_ids.*' => 'exists:users,id',
-            'folio_inicial' => 'nullable|integer'
+            'folio_inicial' => 'nullable|integer',
+            'titular' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -94,7 +95,8 @@ class CampusController extends Controller
             'is_active' => 'sometimes|boolean',
             'admin_ids' => 'nullable|array',
             'admin_ids.*' => 'exists:users,id',
-            'folio_inicial' => 'nullable|integer'
+            'folio_inicial' => 'nullable|integer',
+            'titular' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
