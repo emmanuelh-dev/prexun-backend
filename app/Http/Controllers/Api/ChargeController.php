@@ -161,7 +161,8 @@ class ChargeController extends Controller
             'paid' => 'nullable|boolean',
             'cash_register_id' => 'nullable|exists:cash_registers,id',
             'payment_date' => 'nullable|date_format:Y-m-d',
-            'image' => 'nullable|image'
+            'image' => 'nullable|image',
+            'card_id' => 'nullable|exists:cards,id'
         ]);
 
         if ($request->hasFile('image')) {

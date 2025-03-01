@@ -20,8 +20,10 @@ class Transaction extends Model
         'notes',
         'uuid',
         'folio',
-        'image'
+        'image',
+        'card_id'
     ];
+
 
     public function campus()
     {
