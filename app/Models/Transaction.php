@@ -30,6 +30,11 @@ class Transaction extends Model
         return $this->belongsTo(Campus::class, 'campus_id');
     }
 
+    public function card()
+    {
+        return $this->belongsTo(Card::class, 'card_id');
+    }
+
     public function student()
     {
         return $this->belongsTo(Student::class, 'student_id');

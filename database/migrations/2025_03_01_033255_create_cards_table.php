@@ -13,8 +13,10 @@ return new class extends Migration
     {
         Schema::create('cards', function (Blueprint $table) {
             $table->id();
-            $table->string('number')->unique();
             $table->string('name');
+            $table->string('number')->unique();
+            $table->string('clabe');
+            $table->boolean('sat')->default(true);
             $table->foreignId('campus_id')->constrained('campuses');
             $table->timestamps();
         });

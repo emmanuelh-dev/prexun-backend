@@ -143,7 +143,7 @@ class ChargeController extends Controller
 
     public function showByUuid($uuid)
     {
-        return Transaction::with(['student', 'campus', 'student.grupo'])
+        return Transaction::with(['student', 'campus', 'student.grupo', 'card'])
             ->where('uuid', $uuid)
             ->firstOrFail();
     }

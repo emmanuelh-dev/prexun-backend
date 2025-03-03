@@ -36,6 +36,7 @@ class CardController extends Controller
         $validator = Validator::make($request->all(), [
             'number' => 'required|string|unique:cards,number',
             'name' => 'required|string|max:255',
+
             'campus_id' => 'required|exists:campuses,id',
         ]);
 
@@ -110,6 +111,8 @@ class CardController extends Controller
         $validator = Validator::make($request->all(), [
             'number' => 'required|string|unique:cards,number',
             'name' => 'required|string|max:255',
+            'clabe' => 'required|string|max:255',
+            'sat' => 'sometimes|boolean',
             'campus_id' => 'required|exists:campuses,id',
         ]);
 

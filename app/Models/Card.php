@@ -24,6 +24,8 @@ class Card extends Model
     protected $fillable = [
         'number',
         'name',
+        'clabe',
+        'sat',
         'campus_id',
     ];
 
