@@ -13,12 +13,13 @@ class CardController extends Controller
     /**
      * Display a listing of the cards.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $cards = Card::get();
+        $campus_id = $request->get('campus_id');
+
+        $cards = Card::where('campus_id', $campus_id)->get();
         return response()->json($cards);
     }
-
     /**
      * Show the form for creating a new card.
      */
