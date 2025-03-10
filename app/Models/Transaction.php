@@ -21,7 +21,9 @@ class Transaction extends Model
         'uuid',
         'folio',
         'image',
-        'card_id'
+        'card_id',
+        'sat',
+        'folio_sat'
     ];
 
 

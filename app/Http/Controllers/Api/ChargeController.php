@@ -17,20 +17,21 @@ class ChargeController extends Controller
 
     public function index(Request $request)
     {
-
         $campus_id = $request->campus_id;
         $charges = Transaction::with('student')
             ->where('campus_id', $campus_id)
             ->where('paid', true)
             ->with('student', 'campus', 'student.grupo')
             ->orderBy('folio', 'desc')
-            ->get();
-        $charges->transform(function ($charge) {
+            ->paginate(200);
+        
+        $charges->getCollection()->transform(function ($charge) {
             if ($charge->image) {
                 $charge->image = asset('storage/' . $charge->image);
             }
             return $charge;
         });
+        
         return response()->json($charges);
     }
 
@@ -39,32 +40,32 @@ class ChargeController extends Controller
     {
         $campus_id = $request->query('campus_id');
         $expiration_date = $request->query('expiration_date');
-    
+
         if (!$campus_id) {
             return response()->json(['error' => 'campus_id is required'], 400);
         }
-    
+
         $query = Transaction::with('student', 'campus', 'student.grupo')
             ->where('campus_id', $campus_id)
             ->where('paid', false)
             ->orderBy('expiration_date', 'asc');
-    
-            if ($expiration_date) {
-                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiration_date)) {
-                    return response()->json(['error' => 'Invalid date format (YYYY-MM-DD)'], 400);
-                }
-                $query->whereDate('expiration_date', $expiration_date);
+
+        if ($expiration_date) {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiration_date)) {
+                return response()->json(['error' => 'Invalid date format (YYYY-MM-DD)'], 400);
             }
-    
+            $query->whereDate('expiration_date', $expiration_date);
+        }
+
         $charges = $query->get();
-    
+
         $charges = $charges->map(function ($charge) {
             if ($charge->image) {
                 $charge->image = asset('storage/' . $charge->image);
             }
             return $charge;
         });
-    
+
         return response()->json($charges);
     }
 
@@ -76,7 +77,6 @@ class ChargeController extends Controller
             'amount' => 'required|numeric|min:0',
             'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
             'expiration_date' => 'required',
-            'denominations' => 'required_if:payment_method,cash|array',
             'notes' => 'nullable|string|max:255',
             'paid' => 'required|boolean'
         ]);
@@ -150,7 +150,6 @@ class ChargeController extends Controller
 
     public function update($id, Request $request)
     {
-
         $validated = $request->validate([
             'student_id' => 'nullable|exists:students,id',
             'campus_id' => 'nullable|exists:campuses,id',
@@ -162,7 +161,8 @@ class ChargeController extends Controller
             'cash_register_id' => 'nullable|exists:cash_registers,id',
             'payment_date' => 'nullable|date_format:Y-m-d',
             'image' => 'nullable|image',
-            'card_id' => 'nullable|exists:cards,id'
+            'card_id' => 'nullable|exists:cards,id',
+            'sat' => 'nullable|boolean'
         ]);
 
         if ($request->hasFile('image')) {
@@ -171,27 +171,42 @@ class ChargeController extends Controller
 
         try {
             return DB::transaction(function () use ($id, $validated) {
-
-                $campus = Campus::find($validated['campus_id']);
-                $folioCampus = $campus->folio_inicial;
-                $folioActual = Transaction::where('campus_id', $validated['campus_id'])
-                    ->whereNotNull('folio')
-                    ->max('folio');           
-                $folio = max($folioCampus, $folioActual ?: 0);
-                
-                $validated['folio'] = $folio + 1;
-
                 $transaction = Transaction::findOrFail($id);
+                $satValue = $validated['sat'] ?? true;
 
-                // Actualizar los campos de la transacción principal
+                if (
+                    isset($validated['paid']) && $validated['paid'] == true &&
+                    $satValue == true &&
+                    empty($transaction->folio_new)
+                ) {
+                    $campus = Campus::find($validated['campus_id'] ?? $transaction->campus_id);
+                    $folioCampus = $campus->folio_inicial;
+
+                    $folioActual = Transaction::where('campus_id', $campus->id)
+                        ->whereNotNull('folio')
+                        ->max('folio');
+                    
+                    $folio = max($folioCampus, $folioActual ?: 0) + 1;
+
+                    
+                    $folioActualSat = Transaction::where('campus_id', $campus->id)
+                        ->whereNotNull('folio_sat')
+                        ->max('folio_sat');
+                    
+                    $folioSat = max($folioCampus, $folioActualSat ?: 0) + 1;
+
+                    $folioNew = $this->generateFolioNew($campus->id);
+
+                    $validated['folio'] = $folio;
+                    $validated['folio_sat'] = $folioSat;
+                    $validated['folio_new'] = $folioNew;
+                }
+
                 $transaction->update($validated);
 
-                // Si se actualiza el pago como efectivo y hay denominaciones, procesarlas
                 if (isset($validated['payment_method']) && $validated['payment_method'] === 'cash' && isset($validated['denominations'])) {
-                    // Eliminar detalles existentes relacionados con denominaciones
                     $transaction->transactionDetails()->delete();
 
-                    // Guardar nuevas denominaciones
                     foreach ($validated['denominations'] as $value => $quantity) {
                         if ($quantity > 0) {
                             $denomination = Denomination::firstOrCreate(
@@ -211,6 +226,7 @@ class ChargeController extends Controller
                 if ($transaction->image) {
                     $transaction->image = asset('storage/' . $transaction->image);
                 }
+
                 return response()->json(
                     $transaction->load('transactionDetails.denomination'),
                     200
@@ -223,7 +239,16 @@ class ChargeController extends Controller
             ], 500);
         }
     }
+    
+    private function generateFolioNew($campus_id)
+    {
+        $today = now()->format('dmY'); // Día, mes, año
+        $count = Transaction::where('campus_id', $campus_id)
+            ->whereDate('created_at', now()->toDateString()) // Filtra las transacciones del día actual
+            ->count() + 1; // Sumar 1 para el nuevo folio
 
+        return $today . str_pad($count, 3, '0', STR_PAD_LEFT);
+    }
 
     public function destroy($id)
     {
