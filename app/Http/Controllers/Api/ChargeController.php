@@ -17,28 +17,27 @@ class ChargeController extends Controller
 
     public function index(Request $request)
     {
-        $campus_id = $request->campus_id;
-        $perPage = $request->per_page;
-        $page = $request->page;
-        
-        $charges = Transaction::with('student')
+        $campus_id = $request->campus_id; 
+        $perPage = (int) $request->query('per_page', 10);
+        $page = (int) $request->query('page', 1);
+    
+        $charges = Transaction::with(['student', 'campus', 'student.grupo'])
             ->where('campus_id', $campus_id)
             ->where('paid', true)
-            ->with('student', 'campus', 'student.grupo')
             ->orderBy('folio', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
-        
-        $charges->getCollection()->transform(function ($charge) {
+    
+        $charges->getCollection()->each(function ($charge) {
             if ($charge->image) {
                 $charge->image = asset('storage/' . $charge->image);
             }
-            return $charge;
         });
-        
-        return response()->json($charges);
+    
+        return response()->json($charges, 200);
     }
-
-
+    
+    
+    
     public function notPaid(Request $request)
     {
         $campus_id = $request->query('campus_id');
