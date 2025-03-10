@@ -18,14 +18,15 @@ class ChargeController extends Controller
     public function index(Request $request)
     {
         $campus_id = $request->campus_id;
-        $perPage = $request->per_page ? (int)$request->per_page : 200;
+        $perPage = $request->per_page;
+        $page = $request->page;
         
         $charges = Transaction::with('student')
             ->where('campus_id', $campus_id)
             ->where('paid', true)
             ->with('student', 'campus', 'student.grupo')
             ->orderBy('folio', 'desc')
-            ->paginate($perPage);
+            ->paginate($perPage, ['*'], 'page', $page);
         
         $charges->getCollection()->transform(function ($charge) {
             if ($charge->image) {
