@@ -97,6 +97,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/charges', [ChargeController::class, 'store']);
     Route::put('/charges/{id}', [ChargeController::class, 'update']);
     Route::delete('/charges/{id}', [ChargeController::class, 'destroy']);
+    Route::post('/charges/import-folios', [ChargeController::class, 'importFolios']);
 
     // Municipios
     Route::get('/municipios', [MunicipioController::class, 'index']);

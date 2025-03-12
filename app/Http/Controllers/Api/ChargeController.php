@@ -258,4 +258,101 @@ class ChargeController extends Controller
         $charge->delete();
         return response()->json(['message' => 'Charge deleted successfully']);
     }
+
+    public function importFolios(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt',
+            'campus_id' => 'required|exists:campuses,id'
+        ]);
+
+        $file = $request->file('file');
+        $campus_id = $request->input('campus_id');
+        
+        if (!$file->isValid()) {
+            return response()->json(['error' => 'Invalid file upload'], 400);
+        }
+
+        $path = $file->getRealPath();
+        $records = array_map('str_getcsv', file($path));
+        
+        // Remove header row if exists
+        if (isset($records[0]) && is_array($records[0]) && count($records[0]) >= 3) {
+            // Check if first row looks like a header
+            if (!is_numeric($records[0][0])) {
+                array_shift($records);
+            }
+        }
+
+        $errors = [];
+        $updated = 0;
+        $notFound = 0;
+
+        try {
+            DB::beginTransaction();
+            
+            foreach ($records as $index => $record) {
+                $rowNum = $index + 1; // For error reporting
+                
+                // Validate record structure
+                if (count($record) < 3) {
+                    $errors[] = "Row {$rowNum}: Invalid format, expected 3 columns";
+                    continue;
+                }
+                
+                $oldFolio = trim($record[0]);
+                $recordCampusId = trim($record[1]);
+                $newFolio = trim($record[2]);
+                
+                // Validate data
+                if (empty($oldFolio) || empty($recordCampusId) || empty($newFolio)) {
+                    $errors[] = "Row {$rowNum}: Empty values not allowed";
+                    continue;
+                }
+                
+                if (!is_numeric($recordCampusId)) {
+                    $errors[] = "Row {$rowNum}: Campus ID must be numeric";
+                    continue;
+                }
+                
+                // Only process records for the selected campus
+                if ((int)$recordCampusId !== (int)$campus_id) {
+                    $errors[] = "Row {$rowNum}: Campus ID {$recordCampusId} doesn't match selected campus {$campus_id}";
+                    continue;
+                }
+                
+                // Find and update the transaction
+                $transaction = Transaction::where('folio', $oldFolio)
+                    ->where('campus_id', $campus_id)
+                    ->first();
+                
+                if (!$transaction) {
+                    $notFound++;
+                    $errors[] = "Row {$rowNum}: Transaction with folio {$oldFolio} not found in campus {$campus_id}";
+                    continue;
+                }
+                
+                $transaction->folio = $newFolio;
+                $transaction->save();
+                $updated++;
+            }
+            
+            DB::commit();
+            
+            return response()->json([
+                'message' => 'Import completed',
+                'updated' => $updated,
+                'not_found' => $notFound,
+                'errors' => $errors
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error processing CSV file',
+                'error' => $e->getMessage(),
+                'errors' => $errors
+            ], 500);
+        }
+    }
 }
