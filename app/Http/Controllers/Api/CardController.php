@@ -16,10 +16,14 @@ class CardController extends Controller
     public function index(Request $request)
     {
         $campus_id = $request->get('campus_id');
-
-        $cards = Card::where('campus_id', $campus_id)->get();
+    
+        $cards = isset($campus_id) 
+            ? Card::where('campus_id', $campus_id)->get()
+            : Card::all();
+    
         return response()->json($cards);
     }
+    
     /**
      * Show the form for creating a new card.
      */
