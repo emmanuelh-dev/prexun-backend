@@ -42,6 +42,8 @@ class ChargeController extends Controller
     {
         $campus_id = $request->query('campus_id');
         $expiration_date = $request->query('expiration_date');
+        $perPage = (int) $request->query('per_page', 10);
+        $page = (int) $request->query('page', 1);
 
         if (!$campus_id) {
             return response()->json(['error' => 'campus_id is required'], 400);
@@ -59,9 +61,9 @@ class ChargeController extends Controller
             $query->whereDate('expiration_date', $expiration_date);
         }
 
-        $charges = $query->get();
+        $charges = $query->paginate($perPage, ['*'], 'page', $page);
 
-        $charges = $charges->map(function ($charge) {
+        $charges->getCollection()->transform(function ($charge) {
             if ($charge->image) {
                 $charge->image = asset('storage/' . $charge->image);
             }
