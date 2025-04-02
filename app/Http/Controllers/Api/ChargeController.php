@@ -151,6 +151,35 @@ class ChargeController extends Controller
             ->where('uuid', $uuid)
             ->firstOrFail();
     }
+    
+    public function updateFolio(Request $request, $id)
+    {
+        // Verificar si el usuario es super_admin
+        if (auth()->user()->role !== 'super_admin') {
+            return response()->json(['error' => 'No tienes permisos para realizar esta acción'], 403);
+        }
+
+        $request->validate([
+            'folio' => 'required|integer|min:1',
+        ]);
+
+        $transaction = Transaction::findOrFail($id);
+
+        // Verificar si el folio ya existe para este campus
+        $existingFolio = Transaction::where('campus_id', $transaction->campus_id)
+            ->where('folio', $request->folio)
+            ->where('id', '!=', $id)
+            ->first();
+
+        if ($existingFolio) {
+            return response()->json(['error' => 'El folio ya existe para este plantel'], 422);
+        }
+
+        $transaction->folio = $request->folio;
+        $transaction->save();
+
+        return response()->json($transaction, 200);
+    }
 
     public function update($id, Request $request)
     {
