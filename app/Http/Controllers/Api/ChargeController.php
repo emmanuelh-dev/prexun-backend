@@ -8,6 +8,7 @@ use App\Models\Denomination;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
@@ -24,6 +25,7 @@ class ChargeController extends Controller
         $charges = Transaction::with(['student', 'campus', 'student.grupo'])
             ->where('campus_id', $campus_id)
             ->where('paid', true)
+            ->orderBy('payment_date', 'desc')
             ->orderBy('folio', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
     
@@ -154,26 +156,11 @@ class ChargeController extends Controller
     
     public function updateFolio(Request $request, $id)
     {
-        // Verificar si el usuario es super_admin
-        if (auth()->user()->role !== 'super_admin') {
-            return response()->json(['error' => 'No tienes permisos para realizar esta acción'], 403);
-        }
-
         $request->validate([
             'folio' => 'required|integer|min:1',
         ]);
 
         $transaction = Transaction::findOrFail($id);
-
-        // Verificar si el folio ya existe para este campus
-        $existingFolio = Transaction::where('campus_id', $transaction->campus_id)
-            ->where('folio', $request->folio)
-            ->where('id', '!=', $id)
-            ->first();
-
-        if ($existingFolio) {
-            return response()->json(['error' => 'El folio ya existe para este plantel'], 422);
-        }
 
         $transaction->folio = $request->folio;
         $transaction->save();
@@ -197,56 +184,29 @@ class ChargeController extends Controller
             'card_id' => 'nullable|exists:cards,id',
             'sat' => 'nullable|boolean'
         ]);
-
+    
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('transactions', 'public');
         }
-
+    
         try {
             return DB::transaction(function () use ($id, $validated) {
                 $transaction = Transaction::findOrFail($id);
-                $satValue = $validated['sat'] ?? true;
-
-                if (
-                    isset($validated['paid']) && $validated['paid'] == true &&
-                    $satValue == true &&
-                    empty($transaction->folio_new)
-                ) {
-                    $campus = Campus::find($validated['campus_id'] ?? $transaction->campus_id);
-                    $folioCampus = $campus->folio_inicial;
-
-                    $folioActual = Transaction::where('campus_id', $campus->id)
-                        ->whereNotNull('folio')
-                        ->max('folio');
-                    
-                    $folio = max($folioCampus, $folioActual ?: 0) + 1;
-
-                    
-                    $folioActualSat = Transaction::where('campus_id', $campus->id)
-                        ->whereNotNull('folio_sat')
-                        ->max('folio_sat');
-                    
-                    $folioSat = max($folioCampus, $folioActualSat ?: 0) + 1;
-
-                    $folioNew = $this->generateFolioNew($campus->id);
-
-                    $validated['folio'] = $folio;
-                    $validated['folio_sat'] = $folioSat;
-                    $validated['folio_new'] = $folioNew;
-                }
-
+    
+                $transaction->folio = $this->generateMonthlyFolio($validated['campus_id']);
+    
                 $transaction->update($validated);
-
+    
                 if (isset($validated['payment_method']) && $validated['payment_method'] === 'cash' && isset($validated['denominations'])) {
                     $transaction->transactionDetails()->delete();
-
+    
                     foreach ($validated['denominations'] as $value => $quantity) {
                         if ($quantity > 0) {
                             $denomination = Denomination::firstOrCreate(
                                 ['value' => $value],
                                 ['type' => $value >= 100 ? 'billete' : 'moneda']
                             );
-
+    
                             TransactionDetail::create([
                                 'transaction_id' => $transaction->id,
                                 'denomination_id' => $denomination->id,
@@ -255,11 +215,11 @@ class ChargeController extends Controller
                         }
                     }
                 }
-
+    
                 if ($transaction->image) {
                     $transaction->image = asset('storage/' . $transaction->image);
                 }
-
+    
                 return response()->json(
                     $transaction->load('transactionDetails.denomination'),
                     200
@@ -273,15 +233,46 @@ class ChargeController extends Controller
         }
     }
     
-    private function generateFolioNew($campus_id)
+    /**
+     * Genera un folio con reinicio mensual
+     */
+    private function generateMonthlyFolio($campusId)
     {
-        $today = now()->format('dmY'); // Día, mes, año
-        $count = Transaction::where('campus_id', $campus_id)
-            ->whereDate('created_at', now()->toDateString()) // Filtra las transacciones del día actual
-            ->count() + 1; // Sumar 1 para el nuevo folio
-
-        return $today . str_pad($count, 3, '0', STR_PAD_LEFT);
+        // Obtenemos la fecha actual
+        $now = now();
+        $currentMonth = $now->month;
+        $currentYear = $now->year;
+        
+        // Buscamos el último folio para este campus
+        $lastTransaction = Transaction::where('campus_id', $campusId)
+            ->whereNotNull('folio')
+            ->whereMonth('payment_date', $currentMonth)
+            ->whereYear('payment_date', $currentYear)
+            ->orderBy('payment_date', 'desc')
+            ->orderBy('folio', 'desc')
+            ->first();
+        
+        if (!$lastTransaction) {
+            return 1;
+        }
+        
+        // Retornamos el siguiente folio
+        return $lastTransaction->folio + 1;
     }
+    
+    /**
+     * Mantiene la generación de folio_new por compatibilidad
+     */
+    private function generateFolioNew($campusId)
+    {
+        // Simplemente incrementamos el último valor
+        $currentMaxFolioNew = Transaction::where('campus_id', $campusId)
+            ->whereNotNull('folio_new')
+            ->max('folio_new');
+        
+        return ($currentMaxFolioNew ?: 0) + 1;
+    }
+    
 
     public function destroy($id)
     {
