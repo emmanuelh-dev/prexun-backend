@@ -169,69 +169,76 @@ class ChargeController extends Controller
     }
 
     public function update($id, Request $request)
-    {
-        $validated = $request->validate([
-            'student_id' => 'nullable|exists:students,id',
-            'campus_id' => 'nullable|exists:campuses,id',
-            'amount' => 'nullable|numeric|min:0',
-            'payment_method' => ['nullable', Rule::in(['cash', 'transfer', 'card'])],
-            'denominations' => 'nullable|array',
-            'notes' => 'nullable|string|max:255',
-            'paid' => 'nullable|boolean',
-            'cash_register_id' => 'nullable|exists:cash_registers,id',
-            'payment_date' => 'nullable|date_format:Y-m-d',
-            'image' => 'nullable|image',
-            'card_id' => 'nullable|exists:cards,id',
-            'sat' => 'nullable|boolean'
-        ]);
-    
-        if ($request->hasFile('image')) {
-            $validated['image'] = $request->file('image')->store('transactions', 'public');
-        }
-    
-        try {
-            return DB::transaction(function () use ($id, $validated) {
-                $transaction = Transaction::findOrFail($id);
-    
-                $transaction->folio = $this->generateMonthlyFolio($validated['campus_id']);
-    
-                $transaction->update($validated);
-    
-                if (isset($validated['payment_method']) && $validated['payment_method'] === 'cash' && isset($validated['denominations'])) {
-                    $transaction->transactionDetails()->delete();
-    
-                    foreach ($validated['denominations'] as $value => $quantity) {
-                        if ($quantity > 0) {
-                            $denomination = Denomination::firstOrCreate(
-                                ['value' => $value],
-                                ['type' => $value >= 100 ? 'billete' : 'moneda']
-                            );
-    
-                            TransactionDetail::create([
-                                'transaction_id' => $transaction->id,
-                                'denomination_id' => $denomination->id,
-                                'quantity' => $quantity
-                            ]);
-                        }
+{
+    $validated = $request->validate([
+        'student_id' => 'nullable|exists:students,id',
+        'campus_id' => 'nullable|exists:campuses,id',
+        'amount' => 'nullable|numeric|min:0',
+        'payment_method' => ['nullable', Rule::in(['cash', 'transfer', 'card'])],
+        'denominations' => 'nullable|array',
+        'notes' => 'nullable|string|max:255',
+        'paid' => 'nullable|boolean',
+        'cash_register_id' => 'nullable|exists:cash_registers,id',
+        'payment_date' => 'nullable|date_format:Y-m-d',
+        'image' => 'nullable|image',
+        'card_id' => 'nullable|exists:cards,id',
+        'sat' => 'nullable|boolean'
+    ]);
+
+    if ($request->hasFile('image')) {
+        $validated['image'] = $request->file('image')->store('transactions', 'public');
+    }
+
+    try {
+        return DB::transaction(function () use ($id, $validated) {
+            $transaction = Transaction::findOrFail($id);
+
+            // Mantener el folio original si es necesario
+            $folio = $this->generateMonthlyFolio($validated['campus_id']);
+            $transaction->folio = $folio;
+            
+            // Agregar el nuevo formato de folio
+            $transaction->folio_new = $this->folioNew($validated['campus_id'], $folio);
+
+            $transaction->update($validated);
+
+            if (isset($validated['payment_method']) && $validated['payment_method'] === 'cash' && isset($validated['denominations'])) {
+                $transaction->transactionDetails()->delete();
+
+                foreach ($validated['denominations'] as $value => $quantity) {
+                    if ($quantity > 0) {
+                        $denomination = Denomination::firstOrCreate(
+                            ['value' => $value],
+                            ['type' => $value >= 100 ? 'billete' : 'moneda']
+                        );
+
+                        TransactionDetail::create([
+                            'transaction_id' => $transaction->id,
+                            'denomination_id' => $denomination->id,
+                            'quantity' => $quantity
+                        ]);
                     }
                 }
-    
-                if ($transaction->image) {
-                    $transaction->image = asset('storage/' . $transaction->image);
-                }
-    
-                return response()->json(
-                    $transaction->load('transactionDetails.denomination'),
-                    200
-                );
-            });
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error al actualizar la transacción',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+            }
+
+            if ($transaction->image) {
+                $transaction->image = asset('storage/' . $transaction->image);
+            }
+
+            return response()->json(
+                $transaction->load('transactionDetails.denomination'),
+                200
+            );
+        });
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Error al actualizar la transacción',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
+
+    
     
     /**
      * Genera un folio con reinicio mensual
@@ -263,14 +270,26 @@ class ChargeController extends Controller
     /**
      * Mantiene la generación de folio_new por compatibilidad
      */
-    private function generateFolioNew($campusId)
+    protected function folioNew($campusId, $folio)
     {
-        // Simplemente incrementamos el último valor
-        $currentMaxFolioNew = Transaction::where('campus_id', $campusId)
-            ->whereNotNull('folio_new')
-            ->max('folio_new');
+        // Obtener el mes y año actual
+        $mesAnio = now()->format('my'); // Formato 0425 para abril 2025
         
-        return ($currentMaxFolioNew ?: 0) + 1;
+        // Obtener la primera letra del campus
+        $campus = \App\Models\Campus::findOrFail($campusId);
+        $letraCampus = strtoupper(substr($campus->name, 0, 1));
+        
+        // Prefijo del folio
+        $prefix = $letraCampus . 'I-' . $mesAnio . ' | ';
+        
+        
+        // Formatear el número con ceros a la izquierda (4 dígitos)
+        $formattedNumber = str_pad($folio, 4, '0', STR_PAD_LEFT);
+        
+        // Generar el folio completo
+        $folio = $prefix . $formattedNumber;
+        
+        return $folio;
     }
     
 
