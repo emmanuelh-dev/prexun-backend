@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Grupo;
 use App\Models\Promocion;
 use App\Models\Student;
 use App\Models\Transaction;
@@ -119,21 +120,80 @@ class StudentController extends Controller
             'email' => 'required|email|unique:students,email,' . $request->id,
             'firstname' => 'sometimes|string|max:255',
             'lastname' => 'sometimes|string|max:255',
+            'grupo_id' => 'sometimes|nullable|exists:grupos,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $student = Student::findOrFail($request->id);
-        $student->update($request->only(['email', 'firstname', 'lastname']));
-
-        $this->syncMoodleUserEmail($student);
-
-        return response()->json([
-            'message' => 'Student updated successfully',
-            'student' => $student,
-        ]);
+        try {
+            DB::beginTransaction();
+            
+            $student = Student::findOrFail($request->id);
+            $oldGrupoId = $student->grupo_id;
+            $newGrupoId = $request->grupo_id;
+            
+            // Update student basic info
+            $student->update($request->only(['email', 'firstname', 'lastname', 'grupo_id']));
+            
+            // Sync email and name with Moodle
+            $this->syncMoodleUserEmail($student);
+            
+            // If grupo_id has changed, update cohort in Moodle
+            if ($newGrupoId !== $oldGrupoId && $newGrupoId) {
+                $username = (string) $student->id;
+                
+                // Get new cohort ID using the student's new group name
+                $newGrupo = Grupo::find($newGrupoId);
+                if ($newGrupo && $student->period) {
+                    $cohortName = $student->period->name . $newGrupo->name;
+                    $cohortId = $this->moodleService->getCohortIdByName($cohortName);
+                    
+                    if (!$cohortId) {
+                        DB::rollBack();
+                        return response()->json([
+                            'message' => 'Cohort not found in Moodle'
+                        ], 500);
+                    }
+                    
+                    // Add user to new cohort
+                    $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
+                    
+                    if ($cohortResponse['status'] !== 'success') {
+                        DB::rollBack();
+                        return response()->json([
+                            'message' => 'Error adding user to cohort in Moodle',
+                            'error' => $cohortResponse['message']
+                        ], 500);
+                    }
+                    
+                    Log::info('Student cohort updated in Moodle', [
+                        'student_id' => $student->id,
+                        'old_grupo_id' => $oldGrupoId,
+                        'new_grupo_id' => $newGrupoId,
+                        'cohort_id' => $cohortId
+                    ]);
+                }
+            }
+            
+            DB::commit();
+            return response()->json([
+                'message' => 'Student updated successfully',
+                'student' => $student,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error updating student', [
+                'student_id' => $request->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'message' => 'Error updating student',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
