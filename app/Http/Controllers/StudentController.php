@@ -140,41 +140,70 @@ class StudentController extends Controller
             // Sync email and name with Moodle
             $this->syncMoodleUserEmail($student);
             
-            // If grupo_id has changed, update cohort in Moodle
-            if ($newGrupoId !== $oldGrupoId && $newGrupoId) {
-                $username = (string) $student->id;
+            // Obtener el usuario de Moodle
+            $username = (string) $student->id;
+            $moodleUser = $this->moodleService->getUserByUsername($username);
+            
+            if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
+                $userId = $moodleUser['data']['id'];
                 
-                // Get new cohort ID using the student's new group name
-                $newGrupo = Grupo::find($newGrupoId);
-                if ($newGrupo && $student->period) {
-                    $cohortName = $student->period->name . $newGrupo->name;
-                    $cohortId = $this->moodleService->getCohortIdByName($cohortName);
-                    
-                    if (!$cohortId) {
-                        DB::rollBack();
-                        return response()->json([
-                            'message' => 'Cohort not found in Moodle'
-                        ], 500);
+                // Eliminar al usuario de todos sus cohorts actuales en Moodle
+                $userCohorts = $this->moodleService->getUserCohorts($userId);
+                
+                if ($userCohorts['status'] === 'success' && isset($userCohorts['data']['cohorts'])) {
+                    foreach ($userCohorts['data']['cohorts'] as $cohort) {
+                        $removeResponse = $this->moodleService->removeUserFromCohort($userId, $cohort['id']);
+                        
+                        if ($removeResponse['status'] !== 'success') {
+                            Log::warning('Error removing user from cohort', [
+                                'student_id' => $student->id,
+                                'cohort_id' => $cohort['id'],
+                                'error' => $removeResponse['message'] ?? 'Unknown error'
+                            ]);
+                        }
                     }
                     
-                    // Add user to new cohort
-                    $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
-                    
-                    if ($cohortResponse['status'] !== 'success') {
-                        DB::rollBack();
-                        return response()->json([
-                            'message' => 'Error adding user to cohort in Moodle',
-                            'error' => $cohortResponse['message']
-                        ], 500);
-                    }
-                    
-                    Log::info('Student cohort updated in Moodle', [
-                        'student_id' => $student->id,
-                        'old_grupo_id' => $oldGrupoId,
-                        'new_grupo_id' => $newGrupoId,
-                        'cohort_id' => $cohortId
+                    Log::info('Student removed from all cohorts in Moodle', [
+                        'student_id' => $student->id
                     ]);
                 }
+                
+                // Si se ha especificado un nuevo grupo, asignar al usuario al cohort correspondiente
+                if ($newGrupoId) {
+                    // Get new cohort ID using the student's new group name
+                    $newGrupo = Grupo::find($newGrupoId);
+                    if ($newGrupo && $student->period) {
+                        $cohortName = $student->period->name . $newGrupo->name;
+                        $cohortId = $this->moodleService->getCohortIdByName($cohortName);
+                        
+                        if (!$cohortId) {
+                            DB::rollBack();
+                            return response()->json([
+                                'message' => 'Cohort not found in Moodle'
+                            ], 500);
+                        }
+                        
+                        // Add user to new cohort
+                        $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
+                        
+                        if ($cohortResponse['status'] !== 'success') {
+                            DB::rollBack();
+                            return response()->json([
+                                'message' => 'Error adding user to cohort in Moodle',
+                                'error' => $cohortResponse['message']
+                            ], 500);
+                        }
+                        
+                        Log::info('Student cohort updated in Moodle', [
+                            'student_id' => $student->id,
+                            'old_grupo_id' => $oldGrupoId,
+                            'new_grupo_id' => $newGrupoId,
+                            'cohort_id' => $cohortId
+                        ]);
+                    }
+                }
+            } else {
+                Log::warning('Moodle user not found for cohort update', ['student_id' => $student->id]);
             }
             
             DB::commit();

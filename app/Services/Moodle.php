@@ -267,4 +267,97 @@ class Moodle
     {
         return $this->sendRequest('core_cohort_create_cohorts', ['cohorts' => $data]);
     }
+    
+     /**
+     * Obtener los cohorts de un usuario por su username.
+     */
+    public function getUserCohorts($userId)
+    {
+        Log::info('Getting user cohorts', ['user_id' => $userId]);
+
+        $data = [
+            'userid' => $userId
+        ];
+
+        return $this->sendRequest('core_cohort_get_user_cohorts', $data);
+    }
+
+    /**
+     * Eliminar un usuario de un cohort específico.
+     */
+    public function removeUserFromCohort($userId, $cohortId)
+    {
+        Log::info('Removing user from cohort', ['user_id' => $userId, 'cohort_id' => $cohortId]);
+
+        $data = [
+            'members' => [
+                [
+                    'userid' => $userId,
+                    'cohortid' => $cohortId
+                ]
+            ]
+        ];
+
+        return $this->sendRequest('core_cohort_delete_cohort_members', $data);
+    }
+
+    /**
+     * Eliminar un usuario de todos sus cohorts.
+     */
+    public function removeUserFromAllCohorts($username)
+    {
+        Log::info('Removing user from all cohorts', ['username' => $username]);
+        
+        // Primero obtenemos el ID del usuario en Moodle
+        $userResult = $this->getUserByUsername($username);
+        
+        if ($userResult['status'] !== 'success') {
+            return [
+                'status' => 'error',
+                'message' => 'Usuario no encontrado en Moodle'
+            ];
+        }
+        
+        $userId = $userResult['data']['id'];
+        
+        // Obtenemos todos los cohorts del usuario
+        $cohortsResult = $this->getUserCohorts($userId);
+        
+        if ($cohortsResult['status'] !== 'success') {
+            return [
+                'status' => 'error',
+                'message' => 'Error al obtener los cohorts del usuario'
+            ];
+        }
+        
+        // Si no hay cohorts, retornamos éxito
+        if (empty($cohortsResult['data']['cohorts'])) {
+            return [
+                'status' => 'success',
+                'message' => 'El usuario no pertenece a ningún cohort'
+            ];
+        }
+        
+        $results = [];
+        
+        // Eliminamos al usuario de cada cohort
+        foreach ($cohortsResult['data']['cohorts'] as $cohort) {
+            $result = $this->removeUserFromCohort($userId, $cohort['id']);
+            $results[] = $result;
+            
+            if ($result['status'] !== 'success') {
+                Log::error('Error removing user from cohort', [
+                    'username' => $username,
+                    'cohort_id' => $cohort['id'],
+                    'error' => $result['message']
+                ]);
+            }
+        }
+        
+        return [
+            'status' => 'success',
+            'message' => 'Usuario eliminado de todos los cohorts',
+            'details' => $results
+        ];
+    }
 }

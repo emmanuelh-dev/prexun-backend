@@ -159,9 +159,9 @@ class ChargeController extends Controller
         $request->validate([
             'folio' => 'required|integer|min:1',
         ]);
-
         $transaction = Transaction::findOrFail($id);
 
+        $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_date, $request->folio);
         $transaction->folio = $request->folio;
         $transaction->save();
 
@@ -198,7 +198,7 @@ class ChargeController extends Controller
             $transaction->folio = $folio;
             
             // Agregar el nuevo formato de folio
-            $transaction->folio_new = $this->folioNew($validated['campus_id'], $folio);
+            $transaction->folio_new = $this->folioNew($validated['campus_id'], $validated['payment_date'], $folio);
 
             $transaction->update($validated);
 
@@ -270,10 +270,11 @@ class ChargeController extends Controller
     /**
      * Mantiene la generación de folio_new por compatibilidad
      */
-    protected function folioNew($campusId, $folio)
+    protected function folioNew($campusId, $payment_date = null, $folio)
     {
         // Obtener el mes y año actual
-        $mesAnio = now()->format('my'); // Formato 0425 para abril 2025
+        $date = $payment_date ? Carbon::parse($payment_date) : now();
+        $mesAnio = $date->format('my'); // Formato 0425 para abril 2025
         
         // Obtener la primera letra del campus
         $campus = \App\Models\Campus::findOrFail($campusId);
@@ -281,7 +282,6 @@ class ChargeController extends Controller
         
         // Prefijo del folio
         $prefix = $letraCampus . 'I-' . $mesAnio . ' | ';
-        
         
         // Formatear el número con ceros a la izquierda (4 dígitos)
         $formattedNumber = str_pad($folio, 4, '0', STR_PAD_LEFT);
