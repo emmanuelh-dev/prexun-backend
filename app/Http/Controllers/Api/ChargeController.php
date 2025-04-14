@@ -250,21 +250,20 @@ class ChargeController extends Controller
         $currentMonth = $now->month;
         $currentYear = $now->year;
         
-        // Buscamos el último folio para este campus
-        $lastTransaction = Transaction::where('campus_id', $campusId)
+        // Buscamos el folio más alto para este campus en el mes actual
+        // independientemente de la fecha de pago
+        $maxFolio = Transaction::where('campus_id', $campusId)
             ->whereNotNull('folio')
             ->whereMonth('payment_date', $currentMonth)
             ->whereYear('payment_date', $currentYear)
-            ->orderBy('payment_date', 'desc')
-            ->orderBy('folio', 'desc')
-            ->first();
+            ->max('folio');
         
-        if (!$lastTransaction) {
+        if (!$maxFolio) {
             return 1;
         }
         
         // Retornamos el siguiente folio
-        return $lastTransaction->folio + 1;
+        return $maxFolio + 1;
     }
     
     /**
