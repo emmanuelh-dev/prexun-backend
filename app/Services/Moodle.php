@@ -20,7 +20,11 @@ class Moodle
     }
 
     /**
-     * Método genérico para realizar peticiones a la API de Moodle.
+     * Enviar una solicitud a la API de Moodle.
+     * 
+     * @param string $wsfunction Función de la API de Moodle a llamar
+     * @param array $data Datos específicos para la función
+     * @return array Respuesta formateada
      */
     private function sendRequest(string $wsfunction, array $data = [])
     {
@@ -42,12 +46,25 @@ class Moodle
                 'body' => $body
             ]);
 
-            if ($statusCode !== 200 || isset($body['exception'])) {
+            // Verificar si hay errores en la respuesta
+            if ($statusCode !== 200 || isset($body['exception']) || isset($body['errorcode'])) {
                 Log::error("Moodle API error", ['status' => $statusCode, 'response' => $body]);
                 return [
                     'status' => 'error',
                     'message' => $body['message'] ?? 'Error desconocido',
                     'code' => $body['errorcode'] ?? $statusCode
+                ];
+            }
+
+            // Verificar si hay warnings en la respuesta
+            if (isset($body['warnings']) && !empty($body['warnings'])) {
+                Log::info('Moodle API Response' . json_encode($body));
+                
+                // Si hay warnings pero la operación fue exitosa, devolver éxito con warnings
+                return [
+                    'status' => 'success',
+                    'data' => $body,
+                    'warnings' => $body['warnings']
                 ];
             }
 
@@ -263,9 +280,69 @@ class Moodle
     /**
      * Crear cohortes en Moodle.
      */
+    /**
+     * Crear cohortes en Moodle con formato correcto.
+     * 
+     * @param array $data Los datos del cohort a crear
+     * @return array Respuesta de la API de Moodle
+     */
     public function createCohorts(array $data)
     {
-        return $this->sendRequest('core_cohort_create_cohorts', ['cohorts' => $data]);
+        // Asegurar que los datos tengan el formato correcto
+        $formattedData = $this->formatCohorts($data);
+        Log::info($formattedData);
+        return $this->sendRequest('core_cohort_create_cohorts', [$formattedData]);
+    }
+    
+    /**
+     * Actualizar cohortes en Moodle con formato correcto.
+     * 
+     * @param array $data Los datos del cohort a actualizar
+     * @return array Respuesta de la API de Moodle
+     */
+    public function updateCohorts(array $data)
+    {
+        // Asegurar que los datos tengan el formato correcto
+        $formattedData = $this->formatCohorts($data);
+        
+        return $this->sendRequest('core_cohort_update_cohorts', $formattedData);
+    }
+    
+    /**
+     * Formatea los datos del cohort para asegurar que cumplan con la estructura requerida por la API de Moodle.
+     * 
+     * @param array $data Los datos del cohort a formatear
+     * @return array Datos formateados
+     */
+    private function formatCohorts(array $data)
+    {
+        // Si los datos ya tienen la estructura correcta, devolverlos sin cambios
+        if (isset($data['cohorts']) && is_array($data['cohorts'])) {
+            foreach ($data['cohorts'] as $key => $cohort) {
+                // Eliminar el campo contextid si existe, ya que causa errores
+                if (isset($cohort['contextid'])) {
+                    unset($data['cohorts'][$key]['contextid']);
+                }
+                
+                // Asegurar que todos los campos requeridos estén presentes
+                $data['cohorts'][$key] = array_merge([
+                    'categorytype' => ['type' => 'system', 'value' => ''],
+                    'name' => $cohort['name'] ?? '',
+                    'idnumber' => $cohort['idnumber'] ?? '',
+                    'description' => $cohort['description'] ?? '',
+                    'descriptionformat' => 1,
+                    'visible' => 1,
+                    'theme' => '',
+                ], $cohort);
+                
+                // Asegurar que customfields esté correctamente formateado si existe
+                if (!isset($data['cohorts'][$key]['customfields'])) {
+                    $data['cohorts'][$key]['customfields'] = [];
+                }
+            }
+        }
+        
+        return $data;
     }
     
      /**

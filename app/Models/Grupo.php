@@ -16,7 +16,8 @@ class Grupo extends Model
         'start_time',
         'end_time',
         'start_date',
-        'end_date'
+        'end_date',
+        'moodle_id'
     ];
 
     public function period()
