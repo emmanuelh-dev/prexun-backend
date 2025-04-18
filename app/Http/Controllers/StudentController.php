@@ -70,12 +70,23 @@ class StudentController extends Controller
             $moodleResponse = $this->moodleService->createUser([$moodleUser]);
             Log::info('Moodle User Created', ['moodle_user' => $moodleResponse]);
 
-            // Wait a bit for Moodle to register the user
-            sleep(2);
 
             // Get cohort ID using the student's group name
             $cohortName = $student->period->name . $student->grupo->name;
-            $cohortId = $this->moodleService->getCohortIdByName($cohortName);
+
+            $grupo = Grupo::find($request->grupo_id);
+            $cohortId = null;
+
+            if ($grupo->moodle_id) {
+                $cohortId = $grupo->moodle_id;
+            } else {
+                // Get cohort ID from Moodle and store it for future use
+                $cohortId = $this->moodleService->getCohortIdByName($cohortName);
+                
+                if ($cohortId) {
+                    $grupo->update(['moodle_id' => $cohortId]);
+                }
+            }
 
             if (!$cohortId) {
                 DB::rollBack();
