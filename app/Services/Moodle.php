@@ -133,7 +133,7 @@ class Moodle
 
             $body = json_decode($response->getBody(), true);
 
-            // Log::info('Moodle API Response', ['wsfunction' => 'core_cohort_get_cohorts', 'status_code' => $response->getStatusCode(), 'body' => $body]);
+            Log::info('Moodle API Response', ['wsfunction' => 'core_cohort_get_cohorts', 'status_code' => $response->getStatusCode(), 'body' => $body]);
 
             foreach ($body as $cohort) {
                 if ($cohort['name'] === $cohortName) {
@@ -291,7 +291,7 @@ class Moodle
         // Asegurar que los datos tengan el formato correcto
         $formattedData = $this->formatCohorts($data);
         Log::info($formattedData);
-        return $this->sendRequest('core_cohort_create_cohorts', [$formattedData]);
+        return $this->sendRequest('core_cohort_create_cohorts', $formattedData);
     }
     
     /**
@@ -324,22 +324,52 @@ class Moodle
                     unset($data['cohorts'][$key]['contextid']);
                 }
                 
+                // Eliminar campos vacíos que pueden causar errores
+                if (isset($cohort['theme']) && empty($cohort['theme'])) {
+                    unset($data['cohorts'][$key]['theme']);
+                }
+                
+                if (isset($cohort['customfields']) && empty($cohort['customfields'])) {
+                    unset($data['cohorts'][$key]['customfields']);
+                }
+                
                 // Asegurar que todos los campos requeridos estén presentes
                 $data['cohorts'][$key] = array_merge([
-                    'categorytype' => ['type' => 'system', 'value' => ''],
+                    'name' => $cohort['name'] ?? '',
+                    'idnumber' => $cohort['idnumber'] ?? '',
+                    'description' => $cohort['description'] ?? '',
+                    'descriptionformat' => 1,
+                    'visible' => 1,
+                ], $data['cohorts'][$key]);
+                
+                // Asegurar que categorytype esté correctamente formateado
+                if (!isset($data['cohorts'][$key]['categorytype']) || !is_array($data['cohorts'][$key]['categorytype'])) {
+                    $data['cohorts'][$key]['categorytype'] = [
+                        'type' => 'system',
+                        'value' => ''
+                    ];
+                }
+            }
+        } else {
+            // Si los datos no tienen la estructura esperada, formatearlos
+            $formattedData = ['cohorts' => []];
+            
+            foreach ($data as $key => $cohort) {
+                $formattedCohort = [
                     'name' => $cohort['name'] ?? '',
                     'idnumber' => $cohort['idnumber'] ?? '',
                     'description' => $cohort['description'] ?? '',
                     'descriptionformat' => 1,
                     'visible' => 1,
                     'theme' => '',
-                ], $cohort);
+                    'categorytype' => $cohort['categorytype'] ?? ['type' => 'system', 'value' => ''],
+                    'customfields' => []
+                ];
                 
-                // Asegurar que customfields esté correctamente formateado si existe
-                if (!isset($data['cohorts'][$key]['customfields'])) {
-                    $data['cohorts'][$key]['customfields'] = [];
-                }
+                $formattedData['cohorts'][] = $formattedCohort;
             }
+            
+            return $formattedData;
         }
         
         return $data;

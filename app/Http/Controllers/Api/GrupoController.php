@@ -58,12 +58,15 @@ class GrupoController extends Controller
                 
                 $cohortData = [
                     'cohorts' => [[
-                        'contextid' => 1,
                         'name' => $cohortName,
                         'idnumber' => 'G' . $grupo->id,
                         'description' => 'Grupo ' . $grupo->name . ' del periodo ' . $period->name,
                         'descriptionformat' => 1,
-                        'visible' => 1
+                        'visible' => 1,
+                        'categorytype' => [
+                            'type' => 'system',
+                            'value' => ''
+                        ]
                     ]]
                 ];
                 
