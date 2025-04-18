@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\PeriodController;
 use App\Http\Controllers\Api\PrepaController;
 use App\Http\Controllers\Api\ProductsController;
 use App\Http\Controllers\Api\RemisionController;
+use App\Http\Controllers\Api\SemanaIntensivaController;
 use App\Http\Controllers\Api\UsersController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ModuloController;
@@ -150,6 +151,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/grupos', [GrupoController::class, 'store']);
     Route::put('/grupos/{id}', [GrupoController::class, 'update']);
     Route::delete('/grupos/{id}', [GrupoController::class, 'destroy']);
+
+    // Grupos Semanas Intensivas
+    Route::get('/semanas', [SemanaIntensivaController::class, 'index']);
+    Route::post('/semanas', [SemanaIntensivaController::class, 'store']);
+    Route::put('/semanas/{id}', [SemanaIntensivaController::class, 'update']);
+    Route::delete('/semanas/{id}', [SemanaIntensivaController::class, 'destroy']);
 
     // Gastos
     Route::get('/gastos', [GastoController::class, 'index']);
