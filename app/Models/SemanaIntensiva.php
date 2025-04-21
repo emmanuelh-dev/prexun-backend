@@ -19,4 +19,9 @@ class SemanaIntensiva extends Model
         'end_date',
         'moodle_id'
     ];
+
+    public function period()
+    {
+        return $this->belongsTo(Period::class);
+    }
 }

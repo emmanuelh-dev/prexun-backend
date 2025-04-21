@@ -48,7 +48,7 @@ class SemanaIntensivaController extends Controller
 
         $validated['frequency'] = json_encode($validated['frequency']);
         
-        $grupo = Grupo::create($validated);
+        $grupo = SemanaIntensiva::create($validated);
         
         // Crear cohort en Moodle
         try {
@@ -125,7 +125,7 @@ class SemanaIntensivaController extends Controller
             $dataToUpdate['frequency'] = json_encode($validated['frequency']);
         }
     
-        $grupo = Grupo::findOrFail($id);
+        $grupo = SemanaIntensiva::findOrFail($id);
         $oldName = $grupo->name;
         $oldPeriodId = $grupo->period_id;
         

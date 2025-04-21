@@ -23,6 +23,8 @@ return new class extends Migration
             $table->json('frequency');
             $table->time('start_time');
             $table->time('end_time');
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
             $table->unsignedBigInteger('moodle_id')->nullable();
             $table->timestamps();
         });
