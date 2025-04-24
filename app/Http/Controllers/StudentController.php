@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Grupo;
 use App\Models\Promocion;
+use App\Models\SemanaIntensiva;
 use App\Models\Student;
 use App\Models\Transaction;
 use App\Services\Moodle;
@@ -132,6 +133,7 @@ class StudentController extends Controller
             'firstname' => 'sometimes|string|max:255',
             'lastname' => 'sometimes|string|max:255',
             'grupo_id' => 'sometimes|nullable|exists:grupos,id',
+            'semana_intensiva_id'=>'sometimes|nullable|exists:semanas_intensivas,id',
         ]);
 
         if ($validator->fails()) {
@@ -143,80 +145,66 @@ class StudentController extends Controller
             
             $student = Student::findOrFail($request->id);
             $oldGrupoId = $student->grupo_id;
-            $newGrupoId = $request->grupo_id;
-            
-            // Update student basic info
-            $student->update($request->only(['email', 'firstname', 'lastname', 'grupo_id']));
-            
+            $newGrupoId = $request->input('grupo_id');
+            $newSemanaIntensivaId = $request->input('semana_intensiva_id');
+
+            // Update student basic info, including semana_intensiva_id
+            $student->update($request->only(['email', 'firstname', 'lastname', 'grupo_id', 'semana_intensiva_id']));
+
             // Sync email and name with Moodle
             $this->syncMoodleUserEmail($student);
-            
+
             // Obtener el usuario de Moodle
             $username = (string) $student->id;
             $moodleUser = $this->moodleService->getUserByUsername($username);
-            
+
             if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
                 $userId = $moodleUser['data']['id'];
-                
-                // Eliminar al usuario de todos sus cohorts actuales en Moodle
-                $userCohorts = $this->moodleService->getUserCohorts($userId);
-                
-                if ($userCohorts['status'] === 'success' && isset($userCohorts['data']['cohorts'])) {
-                    foreach ($userCohorts['data']['cohorts'] as $cohort) {
-                        $removeResponse = $this->moodleService->removeUserFromCohort($userId, $cohort['id']);
-                        
-                        if ($removeResponse['status'] !== 'success') {
-                            Log::warning('Error removing user from cohort', [
-                                'student_id' => $student->id,
-                                'cohort_id' => $cohort['id'],
-                                'error' => $removeResponse['message'] ?? 'Unknown error'
-                            ]);
-                        }
-                    }
-                    
-                    Log::info('Student removed from all cohorts in Moodle', [
-                        'student_id' => $student->id
-                    ]);
-                }
-                
-                // Si se ha especificado un nuevo grupo, asignar al usuario al cohort correspondiente
+
+                // Assign to new group cohort if specified
                 if ($newGrupoId) {
-                    // Get new cohort ID using the student's new group name
                     $newGrupo = Grupo::find($newGrupoId);
-                    if ($newGrupo && $student->period) {
-                        $cohortName = $student->period->name . $newGrupo->name;
-                        $cohortId = $this->moodleService->getCohortIdByName($cohortName);
-                        
-                        if (!$cohortId) {
+                    if ($newGrupo) {
+                        $assignResult = $this->assignToMoodleCohort($student, $newGrupo, 'group', $username);
+                        if (!$assignResult['success']) {
                             DB::rollBack();
-                            return response()->json([
-                                'message' => 'Cohort not found in Moodle'
-                            ], 500);
+                            return response()->json($assignResult['response'], 500);
                         }
-                        
-                        // Add user to new cohort
-                        $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
-                        
-                        if ($cohortResponse['status'] !== 'success') {
-                            DB::rollBack();
-                            return response()->json([
-                                'message' => 'Error adding user to cohort in Moodle',
-                                'error' => $cohortResponse['message']
-                            ], 500);
-                        }
-                        
-                        Log::info('Student cohort updated in Moodle', [
+                        Log::info('Student group cohort updated in Moodle', [
                             'student_id' => $student->id,
                             'old_grupo_id' => $oldGrupoId,
                             'new_grupo_id' => $newGrupoId,
-                            'cohort_id' => $cohortId
+                            'cohort_id' => $assignResult['cohort_id'] ?? null
                         ]);
+                    }
+                }
+
+                // Assign to new intensive week cohort if specified
+                if ($newSemanaIntensivaId) {
+                    $newSemanaIntensiva = SemanaIntensiva::find($newSemanaIntensivaId);
+                    if ($newSemanaIntensiva) {
+                        $assignResult = $this->assignToMoodleCohort($student, $newSemanaIntensiva, 'intensive_week', $username);
+                        if (!$assignResult['success']) {
+                            // Decide if rollback is necessary or just log warning
+                            Log::warning('Failed to assign to intensive week cohort, but continuing.', [
+                                'student_id' => $student->id,
+                                'semana_intensiva_id' => $newSemanaIntensivaId,
+                                'error' => $assignResult['response']['message'] ?? 'Unknown error'
+                            ]);
+                            // Optionally rollback: DB::rollBack(); return response()->json($assignResult['response'], 500);
+                        } else {
+                             Log::info('Student added to intensive week cohort in Moodle', [
+                                'student_id' => $student->id,
+                                'semana_intensiva_id' => $newSemanaIntensivaId,
+                                'cohort_id' => $assignResult['cohort_id'] ?? null
+                            ]);
+                        }
                     }
                 }
             } else {
                 Log::warning('Moodle user not found for cohort update', ['student_id' => $student->id]);
             }
-            
+
             DB::commit();
             return response()->json([
                 'message' => 'Student updated successfully',
@@ -469,5 +457,55 @@ class StudentController extends Controller
         }
 
         return $result;
+    }
+
+    /**
+     * Assign student to a Moodle cohort based on group or intensive week.
+     *
+     * @param Student $student The student instance.
+     * @param mixed $relatedModel The Grupo or SemanaIntensiva model instance.
+     * @param string $type Type of cohort ('group' or 'intensive_week').
+     * @param string $username Moodle username (student ID).
+     * @return array ['success' => bool, 'response' => array|null, 'cohort_id' => int|null]
+     */
+    private function assignToMoodleCohort(Student $student, $relatedModel, string $type, string $username): array
+    {
+        if (!$student->period) {
+            return ['success' => false, 'response' => ['message' => 'Student period not found'], 'cohort_id' => null];
+        }
+
+        $cohortName = $student->period->name . $relatedModel->name;
+        $cohortId = $this->moodleService->getCohortIdByName($cohortName);
+
+        if (!$cohortId) {
+            $logMessage = $type === 'group' ? 'Group cohort not found in Moodle' : 'Intensive week cohort not found in Moodle';
+            Log::warning($logMessage, [
+                'student_id' => $student->id,
+                'related_model_id' => $relatedModel->id,
+                'cohort_name' => $cohortName
+            ]);
+            // For groups, cohort must exist. For intensive weeks, it might be optional.
+            if ($type === 'group') {
+                 return ['success' => false, 'response' => ['message' => $logMessage], 'cohort_id' => null];
+            }
+            // If it's an optional intensive week cohort, we can consider it a 'success' in terms of not blocking the update.
+             return ['success' => true, 'response' => null, 'cohort_id' => null]; 
+        }
+
+        // Add user to cohort
+        $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
+
+        if ($cohortResponse['status'] !== 'success') {
+            $errorMessage = $type === 'group' 
+                ? 'Error adding user to group cohort in Moodle' 
+                : 'Error adding user to intensive week cohort in Moodle';
+            return [
+                'success' => false, 
+                'response' => ['message' => $errorMessage, 'error' => $cohortResponse['message']],
+                'cohort_id' => $cohortId
+            ];
+        }
+
+        return ['success' => true, 'response' => null, 'cohort_id' => $cohortId];
     }
 }

@@ -35,15 +35,15 @@ class SemanaIntensivaController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string',
-            'type' => 'required|string',
-            'period_id' => 'required|integer|min:1',
-            'capacity' => 'required|integer|min:1',
-            'frequency' => 'required|array',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i',
-            'start_date' => 'required|date_format:Y-m-d',
-            'end_date' => 'required|date_format:Y-m-d'
+            'name' => 'string|sometimes',
+            'type' => 'string|sometimes',
+            'period_id' => 'integer|min:1|sometimes', 
+            'capacity' => 'integer|min:1|sometimes',
+            'frequency' => 'array|nullable',
+            'start_time' => 'sometimes|date_format:H:i|nullable',
+            'end_time' => 'sometimes|date_format:H:i|nullable',
+            'start_date' => 'sometimes|date_format:Y-m-d|nullable',
+            'end_date' => 'sometimes|date_format:Y-m-d|nullable'
         ]);
 
         $validated['frequency'] = json_encode($validated['frequency']);
@@ -59,7 +59,7 @@ class SemanaIntensivaController extends Controller
                 $cohortData = [
                     'cohorts' => [[
                         'name' => $cohortName,
-                        'idnumber' => 'G' . $grupo->id,
+                        'idnumber' => 'I' . $grupo->id,
                         'description' => 'Grupo ' . $grupo->name . ' del periodo ' . $period->name,
                         'descriptionformat' => 1,
                         'visible' => 1,
@@ -107,10 +107,10 @@ class SemanaIntensivaController extends Controller
             'period_id' => 'integer|min:1|sometimes', 
             'capacity' => 'integer|min:1|sometimes',
             'frequency' => 'array|nullable',
-            'start_time' => 'sometimes|date_format:H:i',
-            'end_time' => 'sometimes|date_format:H:i',
-            'start_date' => 'required|date_format:Y-m-d',
-            'end_date' => 'required|date_format:Y-m-d'
+            'start_time' => 'sometimes|date_format:H:i|nullable',
+            'end_time' => 'sometimes|date_format:H:i|nullable',
+            'start_date' => 'sometimes|date_format:Y-m-d|nullable',
+            'end_date' => 'sometimes|date_format:Y-m-d|nullable'
         ]);
     
         $dataToUpdate = [];
@@ -143,7 +143,7 @@ class SemanaIntensivaController extends Controller
                         'cohorts' => [[
                             'id' => $grupo->moodle_id,
                             'name' => $cohortName,
-                            'idnumber' => 'G' . $grupo->id,
+                            'idnumber' => 'I' . $grupo->id,
                             'description' => 'Grupo ' . $grupo->name . ' del periodo ' . $period->name,
                             'descriptionformat' => 1,
                             'visible' => 1

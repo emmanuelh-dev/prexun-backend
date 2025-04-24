@@ -19,7 +19,7 @@ class CardController extends Controller
     
         $cards = isset($campus_id) 
             ? Card::where('campus_id', $campus_id)->get()
-            : Card::all();
+            : Card::all(); 
     
         return response()->json($cards);
     }

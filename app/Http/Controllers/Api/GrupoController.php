@@ -17,6 +17,7 @@ class GrupoController extends Controller
     {
         $this->moodleService = $moodleService;
     }
+    
     public function index()
     {
         $grupos = Grupo::with('period')
@@ -35,15 +36,15 @@ class GrupoController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string',
-            'type' => 'required|string',
-            'period_id' => 'required|integer|min:1',
-            'capacity' => 'required|integer|min:1',
-            'frequency' => 'required|array',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i',
-            'start_date' => 'required|date_format:Y-m-d',
-            'end_date' => 'required|date_format:Y-m-d'
+            'name' => 'string|sometimes',
+            'type' => 'string|sometimes',
+            'period_id' => 'integer|min:1|sometimes', 
+            'capacity' => 'integer|min:1|sometimes',
+            'frequency' => 'array|nullable',
+            'start_time' => 'sometimes|date_format:H:i|nullable',
+            'end_time' => 'sometimes|date_format:H:i|nullable',
+            'start_date' => 'sometimes|date_format:Y-m-d|nullable',
+            'end_date' => 'sometimes|date_format:Y-m-d|nullable'
         ]);
 
         $validated['frequency'] = json_encode($validated['frequency']);
@@ -107,10 +108,10 @@ class GrupoController extends Controller
             'period_id' => 'integer|min:1|sometimes', 
             'capacity' => 'integer|min:1|sometimes',
             'frequency' => 'array|nullable',
-            'start_time' => 'sometimes|date_format:H:i',
-            'end_time' => 'sometimes|date_format:H:i',
-            'start_date' => 'required|date_format:Y-m-d',
-            'end_date' => 'required|date_format:Y-m-d'
+            'start_time' => 'sometimes|date_format:H:i|nullable',
+            'end_time' => 'sometimes|date_format:H:i|nullable',
+            'start_date' => 'sometimes|date_format:Y-m-d|nullable',
+            'end_date' => 'sometimes|date_format:Y-m-d|nullable'
         ]);
     
         $dataToUpdate = [];

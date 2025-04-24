@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('semana_intensivas', function (Blueprint $table) {
+        Schema::create('semanas_intensivas', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('type')->default('Hibrido');
@@ -20,9 +20,9 @@ return new class extends Migration
             $table->unsignedBigInteger('period_id')->nullable();
             $table->foreign('period_id')->references('id')->on('periods')->onDelete('cascade');
             $table->integer('capacity');
-            $table->json('frequency');
-            $table->time('start_time');
-            $table->time('end_time');
+            $table->json('frequency')->nullable();
+            $table->time('start_time')->nullable();
+            $table->time('end_time')->nullable();
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->unsignedBigInteger('moodle_id')->nullable();
@@ -35,6 +35,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('semana_intensivas');
+        Schema::dropIfExists('semanas_intensivas');
     }
 };

@@ -7,37 +7,40 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Student extends Model
 {
-    use SoftDeletes;
 
-        protected $fillable = [
-            'period_id',
-            'username',
-            'firstname',
-            'lastname',
-            'email',
-            'phone',
-            'type',
-            'campus_id',
-            'period_id',
-            'carrer_id',
-            'facultad_id',
-            'prepa_id',
-            'municipio_id',
-            'tutor_name',
-            'tutor_phone',
-            'tutor_relationship',
-            'average',
-            'attempts',
-            'score',
-            'health_conditions',
-            'how_found_out',
-            'preferred_communication',
-            'status',
-            'general_book',
-            'module_book',
-            'promo_id',
-            'grupo_id'
-        ];
+    use SoftDeletes;
+    protected $table = 'students';
+
+    protected $fillable = [
+        'period_id',
+        'username',
+        'firstname',
+        'lastname',
+        'email',
+        'phone',
+        'type',
+        'campus_id',
+        'period_id',
+        'carrer_id',
+        'facultad_id',
+        'prepa_id',
+        'municipio_id',
+        'tutor_name',
+        'tutor_phone',
+        'tutor_relationship',
+        'average',
+        'attempts',
+        'score',
+        'health_conditions',
+        'how_found_out',
+        'preferred_communication',
+        'status',
+        'general_book',
+        'module_book',
+        'promo_id',
+        'grupo_id',
+        'semana_intensiva_id'
+    ];
 
     public function period()
     {
@@ -82,5 +85,9 @@ class Student extends Model
     public function grupo()
     {
         return $this->belongsTo(Grupo::class, 'grupo_id');
+    }
+    public function semana_intensiva()
+    {
+        return $this->belongsTo(SemanaIntensiva::class, 'semana_intensiva_id');
     }
 }

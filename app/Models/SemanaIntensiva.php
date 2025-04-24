@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class SemanaIntensiva extends Model
 {
+    
+    protected $table = 'semanas_intensivas';
+
     protected $fillable = [
         'name',
         'type',
