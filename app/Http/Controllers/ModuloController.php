@@ -84,8 +84,49 @@ class ModuloController extends Controller
         $oldName = $modulo->name;
         
         $modulo->update($validated);
-        
-        if ($oldName !== $modulo->name && $modulo->moodle_id) {
+
+        if (!$modulo->moodle_id) {
+            try {
+                $cohortName = $modulo->name;
+                $cohortData = [
+                    'cohorts' => [[
+                        'name' => $cohortName,
+                        'idnumber' => 'M' . $modulo->id,
+                        'description' => 'Cohorte para el módulo ' . $modulo->name,
+                        'descriptionformat' => 1,
+                        'visible' => 1,
+                        'categorytype' => [
+                            'type' => 'system',
+                            'value' => ''
+                        ]
+                    ]]
+                ];
+                
+                $response = $this->moodleService->createCohorts($cohortData);
+                
+                if ($response['status'] === 'success' && isset($response['data'][0]['id'])) {
+                    $modulo->moodle_id = $response['data'][0]['id'];
+                    $modulo->save(); // Guardar el moodle_id recién creado
+                    
+                    Log::info('Cohort created in Moodle during Modulo update', [
+                        'modulo_id' => $modulo->id,
+                        'moodle_id' => $modulo->moodle_id,
+                        'cohort_name' => $cohortName
+                    ]);
+                } else {
+                    Log::error('Failed to create cohort in Moodle during Modulo update', [
+                        'modulo_id' => $modulo->id,
+                        'error' => $response['message'] ?? 'Unknown error'
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Exception creating cohort in Moodle during Modulo update', [
+                    'modulo_id' => $modulo->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        } 
+        elseif ($oldName !== $modulo->name && $modulo->moodle_id) {
             try {
                 $cohortName = $modulo->name;
                 
@@ -95,29 +136,33 @@ class ModuloController extends Controller
                         'name' => $cohortName,
                         'idnumber' => 'M' . $modulo->id,
                         'description' => 'Cohorte para el módulo ' . $modulo->name,
-                        'descriptionformat' => 1,
+                        'descriptionformat' => 1, 
                         'visible' => 1
                     ]]
                 ];
                 
                 $response = $this->moodleService->updateCohorts($cohortData);
                 
-                if ($response['status'] === 'success') {
-                    Log::info('Cohort updated in Moodle for Modulo', [
+                if (isset($response['status']) && $response['status'] === 'success') {
+                    Log::info('Cohort updated successfully in Moodle for Modulo', [
                         'modulo_id' => $modulo->id,
                         'moodle_id' => $modulo->moodle_id,
-                        'cohort_name' => $cohortName
+                        'new_cohort_name' => $cohortName
                     ]);
                 } else {
                     Log::error('Failed to update cohort in Moodle for Modulo', [
                         'modulo_id' => $modulo->id,
-                        'error' => $response['message'] ?? 'Unknown error'
+                        'moodle_id' => $modulo->moodle_id,
+                        'error' => $response['message'] ?? 'Unknown error or invalid response format',
+                        'response' => $response
                     ]);
                 }
             } catch (\Exception $e) {
-                Log::error('Exception updating cohort in Moodle for Modulo', [
+                Log::error('Exception occurred while updating cohort in Moodle for Modulo', [
                     'modulo_id' => $modulo->id,
-                    'error' => $e->getMessage()
+                    'moodle_id' => $modulo->moodle_id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
                 ]);
             }
         }
