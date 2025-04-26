@@ -69,46 +69,88 @@ class StudentController extends Controller
             // Create user in Moodle
             $moodleUser = $this->prepareMoodleUser($student);
             $moodleResponse = $this->moodleService->createUser([$moodleUser]);
+
+            // Check if response contains user data in expected format
+            Log::info('Moodle Response before validation', ['moodleResponse' => $moodleResponse]);
+            // Check if response contains user data in expected format
+            if ($moodleResponse['status'] !== 'success' || !isset($moodleResponse['data'][0]['id'])) {
+                Log::error('Validation failed', ['moodleResponse' => $moodleResponse]);
+                throw new \Exception('Invalid Moodle API response format');
+            }
+
+            $student->moodle_id = $moodleResponse['data'][0]['id'];
+            $student->save();
             Log::info('Moodle User Created', ['moodle_user' => $moodleResponse]);
 
+            $cohortes = [];
 
-            // Get cohort ID using the student's group name
-            $cohortName = $student->period->name . $student->grupo->name;
 
-            $grupo = Grupo::find($request->grupo_id);
-            $cohortId = null;
-
-            if ($grupo->moodle_id) {
-                $cohortId = $grupo->moodle_id;
+            if ($student->grupo_id) {
+                $grupo = $student->grupo;
+                Log::info('Grupo found', ['grupo' => $grupo]);
+                $cohort = [
+                    'cohorttype' => [
+                        'type' => 'id',
+                        'value' => $grupo->moodle_id
+                    ],
+                    'usertype' => [
+                        'type' => 'username',
+                        'value' => $username
+                    ]
+                ];
+                $cohortes[] = $cohort;
             } else {
-                // Get cohort ID from Moodle and store it for future use
-                $cohortId = $this->moodleService->getCohortIdByName($cohortName);
-                
-                if ($cohortId) {
-                    $grupo->update(['moodle_id' => $cohortId]);
+                // Get cohort ID using the student's group name
+                $cohortName = $student->period->name . $student->grupo->name;
+
+                $grupo = Grupo::find($request->grupo_id);
+                $cohortId = null;
+
+                if ($grupo->moodle_id) {
+                    $cohortId = $grupo->moodle_id;
+                } else {
+                    // Get cohort ID from Moodle and store it for future use
+                    $cohortId = $this->moodleService->getCohortIdByName($cohortName);
+
+                    if ($cohortId) {
+                        $grupo->update(['moodle_id' => $cohortId]);
+                    }
+                }
+
+                if (!$cohortId) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => 'Cohort not found in Moodle'
+                    ], 500);
                 }
             }
 
-            if (!$cohortId) {
-                DB::rollBack();
-                return response()->json([
-                    'message' => 'Cohort not found in Moodle'
-                ], 500);
+            if ($student->semana_intensiva_id) {
+                $semana_intensiva = $student->semana_intensiva;
+                Log::info('Semana intensiva found', ['semana_intensiva' => $semana_intensiva]);
+                $cohort = [
+                    'cohorttype' => [
+                        'type' => 'id',
+                        'value' => $semana_intensiva->moodle_id
+                    ],
+                    'usertype' => [
+                        'type' => 'username',
+                        'value' => $username
+                    ]
+                ];
+                $cohortes[] = $cohort;
             }
 
             // Add user to cohort
-            $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
+            $cohortResponse = $this->moodleService->addUserToCohort($cohortes);
 
             if ($cohortResponse['status'] !== 'success') {
                 DB::rollBack();
                 return response()->json([
-                    'message' => 'Error adding user to cohort in Moodle',
+                    'message' => 'Error adding user to cohort in Moodle FROM CONTROLLER',
                     'error' => $cohortResponse['message']
                 ], 500);
             }
-
-            // The commented code for creating transactions has been removed as it appears to be unused
-
             DB::commit();
             $student->load('charges');
 
@@ -116,7 +158,7 @@ class StudentController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'message' => 'Error creating student and charges',
+                'message' => 'Error creating student',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -133,7 +175,7 @@ class StudentController extends Controller
             'firstname' => 'sometimes|string|max:255',
             'lastname' => 'sometimes|string|max:255',
             'grupo_id' => 'sometimes|nullable|exists:grupos,id',
-            'semana_intensiva_id'=>'sometimes|nullable|exists:semanas_intensivas,id',
+            'semana_intensiva_id' => 'sometimes|nullable|exists:semanas_intensivas,id',
         ]);
 
         if ($validator->fails()) {
@@ -142,7 +184,7 @@ class StudentController extends Controller
 
         try {
             DB::beginTransaction();
-            
+
             $student = Student::findOrFail($request->id);
             $oldGrupoId = $student->grupo_id;
             $newGrupoId = $request->input('grupo_id');
@@ -193,7 +235,7 @@ class StudentController extends Controller
                             ]);
                             // Optionally rollback: DB::rollBack(); return response()->json($assignResult['response'], 500);
                         } else {
-                             Log::info('Student added to intensive week cohort in Moodle', [
+                            Log::info('Student added to intensive week cohort in Moodle', [
                                 'student_id' => $student->id,
                                 'semana_intensiva_id' => $newSemanaIntensivaId,
                                 'cohort_id' => $assignResult['cohort_id'] ?? null
@@ -216,7 +258,7 @@ class StudentController extends Controller
                 'student_id' => $request->id,
                 'error' => $e->getMessage()
             ]);
-            
+
             return response()->json([
                 'message' => 'Error updating student',
                 'error' => $e->getMessage()
@@ -486,21 +528,33 @@ class StudentController extends Controller
             ]);
             // For groups, cohort must exist. For intensive weeks, it might be optional.
             if ($type === 'group') {
-                 return ['success' => false, 'response' => ['message' => $logMessage], 'cohort_id' => null];
+                return ['success' => false, 'response' => ['message' => $logMessage], 'cohort_id' => null];
             }
             // If it's an optional intensive week cohort, we can consider it a 'success' in terms of not blocking the update.
-             return ['success' => true, 'response' => null, 'cohort_id' => null]; 
+            return ['success' => true, 'response' => null, 'cohort_id' => null];
         }
 
+        $cohortes = [
+            [
+                'cohorttype' => [
+                    'type' => 'id',
+                    'value' => $cohortId
+                ],
+                'usertype' => [
+                    'type' => 'username',
+                    'value' => $username
+                ]
+            ]
+        ];
         // Add user to cohort
-        $cohortResponse = $this->moodleService->addUserToCohort($username, $cohortId);
+        $cohortResponse = $this->moodleService->addUserToCohort($cohortes);
 
         if ($cohortResponse['status'] !== 'success') {
-            $errorMessage = $type === 'group' 
-                ? 'Error adding user to group cohort in Moodle' 
+            $errorMessage = $type === 'group'
+                ? 'Error adding user to group cohort in Moodle'
                 : 'Error adding user to intensive week cohort in Moodle';
             return [
-                'success' => false, 
+                'success' => false,
                 'response' => ['message' => $errorMessage, 'error' => $cohortResponse['message']],
                 'cohort_id' => $cohortId
             ];

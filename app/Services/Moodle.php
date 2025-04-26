@@ -59,7 +59,7 @@ class Moodle
             // Verificar si hay warnings en la respuesta
             if (isset($body['warnings']) && !empty($body['warnings'])) {
                 Log::info('Moodle API Response' . json_encode($body));
-                
+
                 // Si hay warnings pero la operación fue exitosa, devolver éxito con warnings
                 return [
                     'status' => 'success',
@@ -148,9 +148,9 @@ class Moodle
         }
     }
 
-    public function addUserToCohort($username, $cohortId)
+    public function addUserToCohort($members)
     {
-        Log::info('Adding user to cohort', ['username' => $username, 'cohort_id' => $cohortId]);
+        Log::info('Adding user to cohorts', ['members' => $members]);
 
         try {
             $response = $this->client->post($this->url, [
@@ -158,24 +158,13 @@ class Moodle
                     'wstoken' => $this->token,
                     'wsfunction' => 'core_cohort_add_cohort_members',
                     'moodlewsrestformat' => 'json',
-                    'members' => [
-                        [
-                            'cohorttype' => [
-                                'type' => 'id',
-                                'value' => $cohortId
-                            ],
-                            'usertype' => [
-                                'type' => 'username',
-                                'value' => $username
-                            ]
-                        ]
-                    ]
+                    'members' => $members
                 ]
             ]);
 
             $body = json_decode($response->getBody(), true);
 
-            Log::info('Moodle API Response' . json_encode($body));
+            Log::info('Moodle API Response: ' . json_encode($body));
 
             if (isset($body['exception'])) {
                 return [
@@ -192,11 +181,11 @@ class Moodle
             Log::error('Moodle API Exception', ['exception' => $e->getMessage()]);
             return [
                 'status' => 'error',
-                'message' => 'Error adding user to cohort in Moodle'
+                'message' => 'Error adding user to cohort in Moodle FROM SERVICE: ' . $e->getMessage()
             ];
         }
     }
-    
+
     public function deleteUser($userId)
     {
         Log::info('Deleting user from Moodle', ['moodle_user_id' => $userId]);
@@ -262,11 +251,11 @@ class Moodle
     {
         $response = $this->sendRequest('core_user_create_users', $this->formatUsers($users));
 
-        if (is_array($response) && !empty($response) && isset($response[0]['id'])) {
+        if ($response['status'] === 'success' && !empty($response['data']) && isset($response['data'][0]['id'])) {
             return [
                 'status' => 'success',
-                'data' => $response,
-                'moodle_user_ids' => array_column($response, 'id')
+                'data' => $response['data'],
+                'moodle_user_ids' => array_column($response['data'], 'id')
             ];
         }
 
@@ -276,6 +265,8 @@ class Moodle
             'response' => $response
         ];
     }
+
+
 
     /**
      * Crear cohortes en Moodle.
@@ -293,7 +284,7 @@ class Moodle
         Log::info($formattedData);
         return $this->sendRequest('core_cohort_create_cohorts', $formattedData);
     }
-    
+
     /**
      * Actualizar cohortes en Moodle con formato correcto.
      * 
@@ -304,10 +295,10 @@ class Moodle
     {
         // Asegurar que los datos tengan el formato correcto
         $formattedData = $this->formatCohorts($data);
-        
+
         return $this->sendRequest('core_cohort_update_cohorts', $formattedData);
     }
-    
+
     /**
      * Formatea los datos del cohort para asegurar que cumplan con la estructura requerida por la API de Moodle.
      * 
@@ -323,16 +314,16 @@ class Moodle
                 if (isset($cohort['contextid'])) {
                     unset($data['cohorts'][$key]['contextid']);
                 }
-                
+
                 // Eliminar campos vacíos que pueden causar errores
                 if (isset($cohort['theme']) && empty($cohort['theme'])) {
                     unset($data['cohorts'][$key]['theme']);
                 }
-                
+
                 if (isset($cohort['customfields']) && empty($cohort['customfields'])) {
                     unset($data['cohorts'][$key]['customfields']);
                 }
-                
+
                 // Asegurar que todos los campos requeridos estén presentes
                 $data['cohorts'][$key] = array_merge([
                     'name' => $cohort['name'] ?? '',
@@ -341,7 +332,7 @@ class Moodle
                     'descriptionformat' => 1,
                     'visible' => 1,
                 ], $data['cohorts'][$key]);
-                
+
                 // Asegurar que categorytype esté correctamente formateado
                 if (!isset($data['cohorts'][$key]['categorytype']) || !is_array($data['cohorts'][$key]['categorytype'])) {
                     $data['cohorts'][$key]['categorytype'] = [
@@ -353,7 +344,7 @@ class Moodle
         } else {
             // Si los datos no tienen la estructura esperada, formatearlos
             $formattedData = ['cohorts' => []];
-            
+
             foreach ($data as $key => $cohort) {
                 $formattedCohort = [
                     'name' => $cohort['name'] ?? '',
@@ -365,17 +356,17 @@ class Moodle
                     'categorytype' => $cohort['categorytype'] ?? ['type' => 'system', 'value' => ''],
                     'customfields' => []
                 ];
-                
+
                 $formattedData['cohorts'][] = $formattedCohort;
             }
-            
+
             return $formattedData;
         }
-        
+
         return $data;
     }
-    
-     /**
+
+    /**
      * Obtener los cohorts de un usuario por su username.
      */
     public function getUserCohorts($userId)
@@ -414,29 +405,29 @@ class Moodle
     public function removeUserFromAllCohorts($username)
     {
         Log::info('Removing user from all cohorts', ['username' => $username]);
-        
+
         // Primero obtenemos el ID del usuario en Moodle
         $userResult = $this->getUserByUsername($username);
-        
+
         if ($userResult['status'] !== 'success') {
             return [
                 'status' => 'error',
                 'message' => 'Usuario no encontrado en Moodle'
             ];
         }
-        
+
         $userId = $userResult['data']['id'];
-        
+
         // Obtenemos todos los cohorts del usuario
         $cohortsResult = $this->getUserCohorts($userId);
-        
+
         if ($cohortsResult['status'] !== 'success') {
             return [
                 'status' => 'error',
                 'message' => 'Error al obtener los cohorts del usuario'
             ];
         }
-        
+
         // Si no hay cohorts, retornamos éxito
         if (empty($cohortsResult['data']['cohorts'])) {
             return [
@@ -444,14 +435,14 @@ class Moodle
                 'message' => 'El usuario no pertenece a ningún cohort'
             ];
         }
-        
+
         $results = [];
-        
+
         // Eliminamos al usuario de cada cohort
         foreach ($cohortsResult['data']['cohorts'] as $cohort) {
             $result = $this->removeUserFromCohort($userId, $cohort['id']);
             $results[] = $result;
-            
+
             if ($result['status'] !== 'success') {
                 Log::error('Error removing user from cohort', [
                     'username' => $username,
@@ -460,7 +451,7 @@ class Moodle
                 ]);
             }
         }
-        
+
         return [
             'status' => 'success',
             'message' => 'Usuario eliminado de todos los cohorts',

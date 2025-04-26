@@ -173,6 +173,54 @@ class GrupoController extends Controller
                 ]);
             }
         }
+
+        // Crear cohort en Moodle si no existe
+        if (!$grupo->moodle_id) {
+            try {
+                $period = Period::find($grupo->period_id);
+                if ($period) {
+                    $cohortName = $period->name . $grupo->name;
+                    
+                    $cohortData = [
+                        'cohorts' => [[
+                            'name' => $cohortName,
+                            'idnumber' => 'G' . $grupo->id,
+                            'description' => 'Grupo ' . $grupo->name . ' del periodo ' . $period->name,
+                            'descriptionformat' => 1,
+                            'visible' => 1,
+                            'categorytype' => [
+                                'type' => 'system',
+                                'value' => ''
+                            ]
+                        ]]
+                    ];
+                    
+                    $response = $this->moodleService->createCohorts($cohortData);
+                    
+                    if ($response['status'] === 'success' && isset($response['data'][0]['id'])) {
+                        // Guardar el ID del cohort en Moodle
+                        $grupo->moodle_id = $response['data'][0]['id'];
+                        $grupo->save();
+                        
+                        Log::info('Cohort created in Moodle during update', [
+                            'grupo_id' => $grupo->id,
+                            'moodle_id' => $grupo->moodle_id,
+                            'cohort_name' => $cohortName
+                        ]);
+                    } else {
+                        Log::error('Failed to create cohort in Moodle during update', [
+                            'grupo_id' => $grupo->id,
+                            'error' => $response['message'] ?? 'Unknown error'
+                        ]);
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error('Exception creating cohort in Moodle during update', [
+                    'grupo_id' => $grupo->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
         
         return response()->json($grupo);
     }

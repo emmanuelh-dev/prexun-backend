@@ -39,7 +39,8 @@ class Student extends Model
         'module_book',
         'promo_id',
         'grupo_id',
-        'semana_intensiva_id'
+        'semana_intensiva_id',
+        'moodle_id',
     ];
 
     public function period()
