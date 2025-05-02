@@ -29,23 +29,65 @@ class StudentController extends Controller
     /**
      * Display a listing of students.
      */
-    public function index($campus_id = null)
+    public function index(Request $request)
     {
+        $campus_id = $request->get('campus_id');
+        $search = $request->get('search');
+        $searchDate = $request->get('searchDate');
+        $searchPhone = $request->get('searchPhone');
+        $searchMatricula = $request->get('searchMatricula');
+        $period = $request->get('period');
+        $perPage = $request->get('perPage', 10);
+        $page = $request->get('page', 1);
+
+        Log::info('Fetching students', [
+            'campus_id' => $campus_id,
+            'search' => $search,
+            'searchDate' => $searchDate,
+            'searchPhone' => $searchPhone,
+            'searchMatricula' => $searchMatricula,
+            'period' => $period,
+            'perPage' => $perPage,
+            'page' => $page
+        ]);
+
         $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera']);
 
         if ($campus_id) {
             $query->where('campus_id', $campus_id);
         }
 
-        $students = $query->get()->map(function ($student) {
-            $periodCost = $student->period?->price ?? 0;
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('firstname', 'LIKE', "%{$search}%")
+                  ->orWhere('lastname', 'LIKE', "%{$search}%")
+                  ->orWhere('email', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if ($searchPhone) {
+            $query->where('phone', 'LIKE', "%{$searchPhone}%");
+        }
+
+        if ($searchMatricula) {
+            $query->where('matricula', 'LIKE', "%{$searchMatricula}%");
+        }
+
+        if ($searchDate) {
+            $query->whereDate('created_at', $searchDate);
+        }
+
+        if ($period) {
+            $query->where('period_id', $period);
+        }
+
+        $students = $query->paginate($perPage, ['*'], 'page', $page);
+
+        foreach($students as $student) {
+            $periodCost = $student->period ? $student->period->price : 0;
             $totalPaid = $student->transactions->sum('amount');
-
-            $student = $student->toArray();
-            $student['current_debt'] = $periodCost - $totalPaid;
-
-            return $student;
-        });
+            $student->current_debt = $periodCost - $totalPaid;
+        }
 
         return response()->json($students);
     }

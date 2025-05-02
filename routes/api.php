@@ -72,17 +72,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/campuses/{id}', [CampusController::class, 'destroy']);
 
     // Students
+    Route::get('/students', [StudentController::class, 'index']);
+    Route::post('/students', [StudentController::class, 'store']);
     Route::get('/students/export-email-group', [StudentController::class, 'exportCsv']);
     Route::post('/students/sync-module', [StudentController::class, 'syncMoodle']);
-    Route::get('/students/{campus_id}', [StudentController::class, 'index']);
     Route::get('/students/cohort/{cohort_id}', [StudentController::class, 'getByCohort']);
-    Route::post('/students', [StudentController::class, 'store']);
     Route::put('/students/{id}', [StudentController::class, 'update']);
     Route::get('/student/{student}', [StudentController::class, 'show']);
     Route::delete('/students/{student}', [StudentController::class, 'destroy']);
     Route::post('/students/bulk-destroy', [StudentController::class, 'bulkDestroy']);
     Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
     Route::patch('/students/hard-update', [StudentController::class, 'hardUpdate']);
+    
+    // Cohortes
     Route::get('cohortes',[ CohortController::class, 'index']);
     Route::post('/cohortes/generate', [CohortController::class, 'generate']);
     Route::post('/cohorts/sync', [CohortController::class, 'syncWithMoodle']);
