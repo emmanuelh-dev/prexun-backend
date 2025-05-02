@@ -255,27 +255,27 @@ class StudentController extends Controller
     }
 
     /**
-     * Remove the specified student.
-     */
-    /**
      * Remove the specified student and optionally delete from Moodle.
      */
     public function destroy(Student $student, Request $request)
     {
         try {
-            // Attempt to delete user from Moodle
-            $username = (string) $student->id;
-            $moodleUser = $this->moodleService->getUserByUsername($username);
-
-            if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
-                $userId = $moodleUser['data']['id'];
-                $this->moodleService->deleteUser($userId);
-                Log::info('Moodle user deleted', ['student_id' => $student->id, 'moodle_id' => $userId]);
+            if ($student->moodle_id) {
+                $this->moodleService->deleteUser($student->moodle_id);
+                Log::info('Moodle user deleted using stored moodle_id', ['student_id' => $student->id, 'moodle_id' => $student->moodle_id]);
             } else {
-                Log::warning('Moodle user not found for deletion', ['student_id' => $student->id]);
+                $username = (string) $student->id;
+                $moodleUser = $this->moodleService->getUserByUsername($username);
+
+                if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
+                    $userId = $moodleUser['data']['id'];
+                    $this->moodleService->deleteUser($userId);
+                    Log::info('Moodle user deleted', ['student_id' => $student->id, 'moodle_id' => $userId]);
+                } else {
+                    Log::warning('Moodle user not found for deletion', ['student_id' => $student->id]);
+                }
             }
 
-            // Delete from database
             if ($request->boolean('permanent') === true) {
                 $student->forceDelete();
                 return response()->json(['message' => 'Estudiante eliminado permanentemente y sincronizado con Moodle']);
@@ -291,6 +291,124 @@ class StudentController extends Controller
 
             return response()->json([
                 'message' => 'El estudiante fue eliminado de la base de datos, pero ocurrió un error al sincronizar con Moodle',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove multiple students and optionally delete from Moodle.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+            'permanent' => 'boolean'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $studentIds = $request->input('student_ids');
+        $isPermanent = $request->boolean('permanent', false);
+        $results = [
+            'success' => [],
+            'errors' => []
+        ];
+
+        try {
+            DB::beginTransaction();
+            Log::info('Starting bulk deletion operation', [
+               'student_ids' => $studentIds,
+                'permanent' => $isPermanent
+            ]);
+            // Obtener todos los estudiantes
+            $students = Student::whereIn('id', $studentIds)->get();
+            
+            // Preparar IDs de Moodle para eliminación masiva
+            $moodleUserIds = [];
+            
+            // Primero, obtener todos los IDs de Moodle usando el campo moodle_id cuando esté disponible
+            foreach ($students as $student) {
+                if ($student->moodle_id) {
+                    // Si tenemos el moodle_id almacenado, usarlo directamente
+                    $moodleUserIds[] = $student->moodle_id;
+                } else {
+                    // Si no tenemos el moodle_id, intentar buscarlo por username
+                    $username = (string) $student->id;
+                    $moodleUser = $this->moodleService->getUserByUsername($username);
+                    
+                    if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
+                        $moodleUserIds[] = $moodleUser['data']['id'];
+                    } else {
+                        Log::warning('Moodle user not found for bulk deletion', ['student_id' => $student->id]);
+                    }
+                }
+            }
+            
+            // Eliminar usuarios de Moodle en bloque si hay IDs (primero en Moodle, luego en local)
+            if (!empty($moodleUserIds)) {
+                $deleteResponse = $this->moodleService->deleteUser($moodleUserIds);
+                
+                if ($deleteResponse['status'] !== 'success') {
+                    Log::error('Error deleting users from Moodle in bulk', [
+                        'error' => $deleteResponse['message'] ?? 'Unknown error',
+                        'moodle_user_ids' => $moodleUserIds
+                    ]);
+                    
+                    // Decidir si continuar o no basado en la política de la aplicación
+                    // Aquí continuamos con la eliminación de la base de datos
+                } else {
+                    Log::info('Moodle users deleted in bulk', ['count' => count($moodleUserIds)]);
+                }
+            }
+            
+            // Después de eliminar en Moodle, eliminar estudiantes de la base de datos
+            foreach ($students as $student) {
+                try {
+                    if ($isPermanent) {
+                        $student->forceDelete();
+                    } else {
+                        $student->delete();
+                    }
+                    $results['success'][] = $student->id;
+                } catch (\Exception $e) {
+                    $results['errors'][] = [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ];
+                    Log::error('Error deleting student from database', [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            DB::commit();
+            
+            $message = $isPermanent ? 
+                'Estudiantes eliminados permanentemente y sincronizados con Moodle' : 
+                'Estudiantes eliminados y sincronizados con Moodle';
+                
+            return response()->json([
+                'message' => $message,
+                'results' => $results
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error in bulk delete operation', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'message' => 'Error al eliminar estudiantes en bloque',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -475,7 +593,7 @@ class StudentController extends Controller
                 'usertype' => ['type' => 'username', 'value' => $username]
             ];
         } elseif ($student->grupo_id) {
-             Log::warning('Group assigned but Moodle ID missing', ['grupo_id' => $student->grupo_id]);
+            Log::warning('Group assigned but Moodle ID missing', ['grupo_id' => $student->grupo_id]);
         }
 
         if ($student->semana_intensiva && $student->semana_intensiva->moodle_id) {
@@ -524,8 +642,8 @@ class StudentController extends Controller
             // hardUpdate might not load period, ensure it's loaded if needed or adjust logic
             $student->load('period');
             if (!$student->period) {
-                 Log::error('Student period not found for cohort assignment', ['student_id' => $student->id]);
-                 return ['success' => false, 'response' => ['message' => 'Student period not found'], 'cohort_id' => null];
+                Log::error('Student period not found for cohort assignment', ['student_id' => $student->id]);
+                return ['success' => false, 'response' => ['message' => 'Student period not found'], 'cohort_id' => null];
             }
         }
 
@@ -543,18 +661,18 @@ class StudentController extends Controller
                 // $relatedModel->update(['moodle_id' => $cohortId]);
                 Log::info('Found cohort ID by name', ['cohort_id' => $cohortId]);
             } else {
-                 $logMessage = $type === 'group' ? 'Group cohort not found in Moodle by name' : 'Intensive week cohort not found in Moodle by name';
-                 Log::warning($logMessage, [
-                     'student_id' => $student->id,
-                     'related_model_id' => $relatedModel->id,
-                     'cohort_name' => $cohortName
-                 ]);
-                 // For groups, cohort might be mandatory. For intensive weeks, maybe optional.
-                 if ($type === 'group') {
-                     return ['success' => false, 'response' => ['message' => $logMessage], 'cohort_id' => null];
-                 }
-                 // If optional, consider it a 'success' in terms of not blocking the update.
-                 return ['success' => true, 'response' => null, 'cohort_id' => null];
+                $logMessage = $type === 'group' ? 'Group cohort not found in Moodle by name' : 'Intensive week cohort not found in Moodle by name';
+                Log::warning($logMessage, [
+                    'student_id' => $student->id,
+                    'related_model_id' => $relatedModel->id,
+                    'cohort_name' => $cohortName
+                ]);
+                // For groups, cohort might be mandatory. For intensive weeks, maybe optional.
+                if ($type === 'group') {
+                    return ['success' => false, 'response' => ['message' => $logMessage], 'cohort_id' => null];
+                }
+                // If optional, consider it a 'success' in terms of not blocking the update.
+                return ['success' => true, 'response' => null, 'cohort_id' => null];
             }
         }
 

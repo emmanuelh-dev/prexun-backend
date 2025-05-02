@@ -80,6 +80,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/students/{id}', [StudentController::class, 'update']);
     Route::get('/student/{student}', [StudentController::class, 'show']);
     Route::delete('/students/{student}', [StudentController::class, 'destroy']);
+    Route::post('/students/bulk-destroy', [StudentController::class, 'bulkDestroy']);
     Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
     Route::patch('/students/hard-update', [StudentController::class, 'hardUpdate']);
     Route::get('cohortes',[ CohortController::class, 'index']);

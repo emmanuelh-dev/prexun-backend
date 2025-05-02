@@ -190,9 +190,17 @@ class Moodle
     {
         Log::info('Deleting user from Moodle', ['moodle_user_id' => $userId]);
 
-        $data = [
-            'userids' => [$userId]
-        ];
+        if (is_array($userId)) {
+            $data = [];
+            foreach ($userId as $index => $id) {
+                $data["userids[$index]"] = $id;
+            }
+        } else {
+
+            $data = [
+                'userids[0]' => $userId
+            ];
+        }
 
         return $this->sendRequest('core_user_delete_users', $data);
     }
