@@ -37,6 +37,7 @@ class StudentController extends Controller
         $searchPhone = $request->get('searchPhone');
         $searchMatricula = $request->get('searchMatricula');
         $period = $request->get('period');
+        $grupo = $request->get('grupo');
         $perPage = $request->get('perPage', 10);
         $page = $request->get('page', 1);
 
@@ -48,10 +49,11 @@ class StudentController extends Controller
             'searchMatricula' => $searchMatricula,
             'period' => $period,
             'perPage' => $perPage,
-            'page' => $page
+            'page' => $page,
+            'grupo'=>$grupo
         ]);
 
-        $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera']);
+        $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera', 'grupo']);
 
         if ($campus_id) {
             $query->where('campus_id', $campus_id);
@@ -79,6 +81,10 @@ class StudentController extends Controller
 
         if ($period) {
             $query->where('period_id', $period);
+        }
+
+        if ($grupo) {
+            $query->where('grupo_id', $grupo);
         }
 
         $students = $query->paginate($perPage, ['*'], 'page', $page);
