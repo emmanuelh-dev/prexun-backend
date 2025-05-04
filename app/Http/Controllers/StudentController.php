@@ -553,6 +553,98 @@ class StudentController extends Controller
         $students = Student::where('status', 'active')->with('cohort')->get();
         return response()->json($students);
     }
+    
+    /**
+     * Bulk update students' semana intensiva and sync with Moodle.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkUpdateSemanaIntensiva(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+            'semana_intensiva_id' => 'required|exists:semanas_intensivas,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $studentIds = $request->input('student_ids');
+        $semanaIntensivaId = $request->input('semana_intensiva_id');
+        $results = [
+            'success' => [],
+            'errors' => []
+        ];
+
+        try {
+            DB::beginTransaction();
+            Log::info('Starting bulk semana intensiva update operation', [
+               'student_ids' => $studentIds,
+                'semana_intensiva_id' => $semanaIntensivaId
+            ]);
+            
+            $semanaIntensiva = SemanaIntensiva::findOrFail($semanaIntensivaId);
+            
+            $students = Student::whereIn('id', $studentIds)->get();
+            
+            foreach ($students as $student) {
+                try {
+                    $student->semana_intensiva_id = $semanaIntensivaId;
+                    $student->save();
+                    
+                    $username = (string) $student->id;
+                    $assignResult = $this->assignToMoodleCohort($student, $semanaIntensiva, 'intensive_week', $username);
+                    
+                    if ($assignResult['success']) {
+                        $results['success'][] = $student->id;
+                        Log::info('Student added to intensive week cohort in Moodle', [
+                            'student_id' => $student->id,
+                            'semana_intensiva_id' => $semanaIntensivaId,
+                            'cohort_id' => $assignResult['cohort_id'] ?? null
+                        ]);
+                    } else {
+                        Log::warning('Failed to assign to intensive week cohort, but continuing.', [
+                            'student_id' => $student->id,
+                            'semana_intensiva_id' => $semanaIntensivaId,
+                            'error' => $assignResult['response']['message'] ?? 'Unknown error'
+                        ]);
+                        $results['success'][] = $student->id;
+                    }
+                } catch (\Exception $e) {
+                    $results['errors'][] = [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ];
+                    Log::error('Error updating student semana intensiva', [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            DB::commit();
+            
+            return response()->json([
+                'message' => 'Estudiantes asignados a semana intensiva y sincronizados con Moodle',
+                'results' => $results
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error in bulk semana intensiva update operation', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'message' => 'Error al asignar estudiantes a semana intensiva',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
     /**
      * Validate student data.
