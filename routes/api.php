@@ -76,6 +76,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/students', [StudentController::class, 'store']);
     Route::get('/students/export-email-group', [StudentController::class, 'exportCsv']);
     Route::post('/students/sync-module', [StudentController::class, 'syncMoodle']);
+    Route::post('/students/sync-modules', [StudentController::class, 'syncStudentModules']);
     Route::get('/students/cohort/{cohort_id}', [StudentController::class, 'getByCohort']);
     Route::put('/students/{id}', [StudentController::class, 'update']);
     Route::get('/student/{student}', [StudentController::class, 'show']);

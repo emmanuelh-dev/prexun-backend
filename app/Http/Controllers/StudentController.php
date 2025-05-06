@@ -50,7 +50,7 @@ class StudentController extends Controller
             'period' => $period,
             'perPage' => $perPage,
             'page' => $page,
-            'grupo'=>$grupo
+            'grupo' => $grupo
         ]);
 
         $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera', 'grupo']);
@@ -60,10 +60,10 @@ class StudentController extends Controller
         }
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('firstname', 'LIKE', "%{$search}%")
-                  ->orWhere('lastname', 'LIKE', "%{$search}%")
-                  ->orWhere('email', 'LIKE', "%{$search}%");
+                    ->orWhere('lastname', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%");
             });
         }
 
@@ -89,7 +89,7 @@ class StudentController extends Controller
 
         $students = $query->paginate($perPage, ['*'], 'page', $page);
 
-        foreach($students as $student) {
+        foreach ($students as $student) {
             $periodCost = $student->period ? $student->period->price : 0;
             $totalPaid = $student->transactions->sum('amount');
             $student->current_debt = $periodCost - $totalPaid;
@@ -372,15 +372,15 @@ class StudentController extends Controller
         try {
             DB::beginTransaction();
             Log::info('Starting bulk deletion operation', [
-               'student_ids' => $studentIds,
+                'student_ids' => $studentIds,
                 'permanent' => $isPermanent
             ]);
             // Obtener todos los estudiantes
             $students = Student::whereIn('id', $studentIds)->get();
-            
+
             // Preparar IDs de Moodle para eliminación masiva
             $moodleUserIds = [];
-            
+
             // Primero, obtener todos los IDs de Moodle usando el campo moodle_id cuando esté disponible
             foreach ($students as $student) {
                 if ($student->moodle_id) {
@@ -390,7 +390,7 @@ class StudentController extends Controller
                     // Si no tenemos el moodle_id, intentar buscarlo por username
                     $username = (string) $student->id;
                     $moodleUser = $this->moodleService->getUserByUsername($username);
-                    
+
                     if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
                         $moodleUserIds[] = $moodleUser['data']['id'];
                     } else {
@@ -398,24 +398,24 @@ class StudentController extends Controller
                     }
                 }
             }
-            
+
             // Eliminar usuarios de Moodle en bloque si hay IDs (primero en Moodle, luego en local)
             if (!empty($moodleUserIds)) {
                 $deleteResponse = $this->moodleService->deleteUser($moodleUserIds);
-                
+
                 if ($deleteResponse['status'] !== 'success') {
                     Log::error('Error deleting users from Moodle in bulk', [
                         'error' => $deleteResponse['message'] ?? 'Unknown error',
                         'moodle_user_ids' => $moodleUserIds
                     ]);
-                    
+
                     // Decidir si continuar o no basado en la política de la aplicación
                     // Aquí continuamos con la eliminación de la base de datos
                 } else {
                     Log::info('Moodle users deleted in bulk', ['count' => count($moodleUserIds)]);
                 }
             }
-            
+
             // Después de eliminar en Moodle, eliminar estudiantes de la base de datos
             foreach ($students as $student) {
                 try {
@@ -436,25 +436,24 @@ class StudentController extends Controller
                     ]);
                 }
             }
-            
+
             DB::commit();
-            
-            $message = $isPermanent ? 
-                'Estudiantes eliminados permanentemente y sincronizados con Moodle' : 
+
+            $message = $isPermanent ?
+                'Estudiantes eliminados permanentemente y sincronizados con Moodle' :
                 'Estudiantes eliminados y sincronizados con Moodle';
-                
+
             return response()->json([
                 'message' => $message,
                 'results' => $results
             ]);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in bulk delete operation', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'message' => 'Error al eliminar estudiantes en bloque',
                 'error' => $e->getMessage()
@@ -553,7 +552,7 @@ class StudentController extends Controller
         $students = Student::where('status', 'active')->with('cohort')->get();
         return response()->json($students);
     }
-    
+
     /**
      * Bulk update students' semana intensiva and sync with Moodle.
      * 
@@ -582,22 +581,22 @@ class StudentController extends Controller
         try {
             DB::beginTransaction();
             Log::info('Starting bulk semana intensiva update operation', [
-               'student_ids' => $studentIds,
+                'student_ids' => $studentIds,
                 'semana_intensiva_id' => $semanaIntensivaId
             ]);
-            
+
             $semanaIntensiva = SemanaIntensiva::findOrFail($semanaIntensivaId);
-            
+
             $students = Student::whereIn('id', $studentIds)->get();
-            
+
             foreach ($students as $student) {
                 try {
                     $student->semana_intensiva_id = $semanaIntensivaId;
                     $student->save();
-                    
+
                     $username = (string) $student->id;
                     $assignResult = $this->assignToMoodleCohort($student, $semanaIntensiva, 'intensive_week', $username);
-                    
+
                     if ($assignResult['success']) {
                         $results['success'][] = $student->id;
                         Log::info('Student added to intensive week cohort in Moodle', [
@@ -624,21 +623,20 @@ class StudentController extends Controller
                     ]);
                 }
             }
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'message' => 'Estudiantes asignados a semana intensiva y sincronizados con Moodle',
                 'results' => $results
             ]);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in bulk semana intensiva update operation', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'message' => 'Error al asignar estudiantes a semana intensiva',
                 'error' => $e->getMessage()
@@ -845,5 +843,103 @@ class StudentController extends Controller
 
         Log::info('Successfully assigned user to cohort', ['student_id' => $student->id, 'cohort_id' => $cohortId]);
         return ['success' => true, 'response' => null, 'cohort_id' => $cohortId];
+    }
+
+    /**
+     * Sincroniza todos los estudiantes con sus respectivos módulos en Moodle.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function syncStudentModules(Request $request)
+    {
+        try {
+            DB::beginTransaction();
+
+            $students = Student::with(['grupo', 'semana_intensiva', 'carrera.modulos'])
+                ->get();
+            if ($students->isEmpty()) {
+                return response()->json(['message' => 'No se encontraron estudiantes activos.'], 404);
+            }
+
+            $results = [
+                'success' => [],
+                'errors' => []
+            ];
+
+            $totalStudents = $students->count();
+            $processedCount = 0;
+
+            foreach ($students as $student) {
+                try {
+                    $username = (string) $student->id;
+                    $moodleUser = $this->moodleService->getUserByUsername($username);
+                    if ($moodleUser['status'] !== 'success' || !isset($moodleUser['data']['id'])) {
+                        Log::warning('Estudiante no encontrado en Moodle para sincronización de módulos', ['student_id' => $student->id]);
+                        $results['errors'][] = [
+                            'student_id' => $student->id,
+                            'error' => 'Estudiante no encontrado en Moodle'
+                        ];
+                        continue;
+                    }
+                    $cohortes = $this->_prepareCohortsForMoodle($student, $username);
+                    if (empty($cohortes)) {
+                        Log::info('No hay cohortes para asignar al estudiante.', ['student_id' => $student->id]);
+                        $results['success'][] = [
+                            'student_id' => $student->id,
+                            'message' => 'No hay cohortes para asignar'
+                        ];
+                        continue;
+                    }
+                    $cohortResponse = $this->moodleService->addUserToCohort($cohortes);
+                    if ($cohortResponse['status'] !== 'success') {
+                        Log::error('Error al asignar estudiante a cohortes en Moodle', [
+                            'student_id' => $student->id,
+                            'error' => $cohortResponse['message'] ?? 'Error desconocido'
+                        ]);
+                        $results['errors'][] = [
+                            'student_id' => $student->id,
+                            'error' => $cohortResponse['message'] ?? 'Error desconocido'
+                        ];
+                    } else {
+                        Log::info('Estudiante sincronizado correctamente con sus módulos en Moodle', [
+                            'student_id' => $student->id,
+                            'cohortes_count' => count($cohortes)
+                        ]);
+                        $results['success'][] = $student->id;
+                    }
+
+                    $processedCount++;
+                } catch (\Exception $e) {
+                    Log::error('Error al sincronizar estudiante con módulos', [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    $results['errors'][] = [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+            DB::commit();
+            return response()->json([
+                'message' => 'Sincronización de estudiantes con módulos completada',
+                'total_students' => $totalStudents,
+                'processed_students' => $processedCount,
+                'results' => $results
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error en la operación de sincronización de módulos', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al sincronizar estudiantes con módulos',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
