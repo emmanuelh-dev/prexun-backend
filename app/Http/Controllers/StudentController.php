@@ -38,6 +38,7 @@ class StudentController extends Controller
         $searchMatricula = $request->get('searchMatricula');
         $period = $request->get('period');
         $grupo = $request->get('grupo');
+        $semanaIntensivaId = $request->get('semanaIntensivaFilter');
         $perPage = $request->get('perPage', 10);
         $page = $request->get('page', 1);
 
@@ -85,6 +86,10 @@ class StudentController extends Controller
 
         if ($grupo) {
             $query->where('grupo_id', $grupo);
+        }
+
+        if ($semanaIntensivaId) {
+            $query->where('semana_intensiva_id', $semanaIntensivaId);
         }
 
         $students = $query->paginate($perPage, ['*'], 'page', $page);
