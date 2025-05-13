@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class TeacherGroupController extends Controller
 {
@@ -14,7 +15,7 @@ class TeacherGroupController extends Controller
         try {
             $teacher = User::with('grupos')->findOrFail($id);
             
-            if ($teacher->role !== 'maestro') {
+            if ($teacher->role !== 'maestro' && $teacher->role !== 'teacher') {
                 return response()->json([
                     'message' => 'El usuario no es un maestro'
                 ], 400);
@@ -33,24 +34,38 @@ class TeacherGroupController extends Controller
         }
     }
 
-    public function assignGroups(Request $request)
+    public function assignGroups(Request $request, $id)
     {
         try {
+            DB::beginTransaction();
+
+            $teacher = User::findOrFail($id);
+            
+            if ($teacher->role !== 'teacher' && $teacher->role !== 'maestro') {
+                return response()->json([
+                    'message' => 'El usuario no es un maestro'
+                ], 400);
+            }
+
             $request->validate([
-                'user_id' => 'required|exists:users,id',
                 'grupo_ids' => 'required|array',
                 'grupo_ids.*' => 'exists:grupos,id'
             ]);
 
-            $user = User::findOrFail($request->user_id);
-            $user->grupos()->sync($request->grupo_ids);
+            $teacher->grupos()->sync($request->grupo_ids);
 
+            DB::commit();
             return response()->json([
-                'message' => 'Grupos asignados correctamente',
-                'grupos' => $user->grupos
+                'message' => 'Grupos asignados correctamente'
             ]);
+
         } catch (\Exception $e) {
-            Log::error('Error al asignar grupos: ' . $e->getMessage());
+            DB::rollBack();
+            Log::error('Error assigning groups to teacher:', [
+                'teacher_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'message' => 'Error al asignar grupos',
                 'error' => $e->getMessage()
