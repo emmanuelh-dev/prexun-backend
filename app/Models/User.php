@@ -60,4 +60,14 @@ class User extends Authenticatable
     {
         return $this->role === 'super_admin';
     }
+
+    public function grupos()
+    {
+        return $this->belongsToMany(Grupo::class, 'teacher_groups');
+    }
+
+    public function isTeacher()
+    {
+        return $this->role === 'teacher';
+    }
 }
