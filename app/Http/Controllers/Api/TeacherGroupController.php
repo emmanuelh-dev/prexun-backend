@@ -13,7 +13,7 @@ class TeacherGroupController extends Controller
     public function getTeacherGroups($id)
     {
         try {
-            $teacher = User::with('grupos.students')->findOrFail($id);
+            $teacher = User::findOrFail($id);
             
             if ($teacher->role !== 'maestro' && $teacher->role !== 'teacher') {
                 return response()->json([
@@ -21,8 +21,20 @@ class TeacherGroupController extends Controller
                 ], 400);
             }
 
-            $grupos = $teacher->grupos()->with('students')->get();
+            $grupos = $teacher->grupos()
+                ->with(['students' => function($query) {
+                    $query->select(
+                        'students.id',
+                        'students.firstname',
+                        'students.lastname',
+                        'students.email',
+                        'students.matricula',
+                        'students.grupo_id'
+                    );
+                }])
+                ->get();
             
+            // Ya no transformamos el ID, dejamos que use el ID original del estudiante
             return response()->json($grupos);
             
         } catch (\Exception $e) {
