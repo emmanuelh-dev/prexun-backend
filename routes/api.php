@@ -25,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\User;
 use App\Http\Controllers\Api\TeacherGroupController;
+use App\Http\Controllers\Api\TeacherAttendanceController;
 
 
 Route::get('/test', function () {
@@ -173,10 +174,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/teacher/groups/{id}', [TeacherGroupController::class, 'getTeacherGroups']);
     Route::get('/teacher/groups', [TeacherGroupController::class, 'index']);
     Route::post('/teacher/groups/assign', [TeacherGroupController::class, 'assignGroups']);
+    // Asistencia
+    Route::post('/teacher/attendance', [TeacherAttendanceController::class,'store']);
     // Rutas para maestros y grupos
     Route::prefix('teacher')->group(function () {
         Route::get('/{id}/groups', [TeacherGroupController::class, 'getTeacherGroups']);
         Route::post('/{id}/groups/assign', [TeacherGroupController::class, 'assignGroups']);
+        Route::get('/attendance/{grupo_id}/{date}', [TeacherAttendanceController::class, 'getAttendance']);
+
+
     });
     // Products
     Route::get('/products', [ProductsController::class, 'index']);
