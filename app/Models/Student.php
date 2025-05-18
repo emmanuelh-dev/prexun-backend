@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Student extends Model
 {
-
     use SoftDeletes;
     protected $table = 'students';
 
@@ -41,6 +40,7 @@ class Student extends Model
         'grupo_id',
         'semana_intensiva_id',
         'moodle_id',
+        'matricula',
     ];
 
     public function period()
