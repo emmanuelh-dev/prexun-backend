@@ -16,8 +16,6 @@ return new class extends Migration
             $table->date('date');
             $table->boolean('present')->default(false);
             $table->timestamps();
-
-            // Índice compuesto para evitar duplicados
             $table->unique(['student_id', 'grupo_id', 'date']);
         });
     }

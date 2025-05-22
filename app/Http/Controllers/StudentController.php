@@ -73,7 +73,7 @@ class StudentController extends Controller
         }
 
         if ($searchMatricula) {
-            $query->where('matricula', 'LIKE', "%{$searchMatricula}%");
+            $query->where('id', 'LIKE', "%{$searchMatricula}%");
         }
 
         if ($searchDate) {

@@ -28,7 +28,6 @@ class TeacherGroupController extends Controller
                         'students.firstname',
                         'students.lastname',
                         'students.email',
-                        'students.matricula',
                         'students.grupo_id'
                     );
                 }])
