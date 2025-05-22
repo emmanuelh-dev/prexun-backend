@@ -27,4 +27,9 @@ class SemanaIntensiva extends Model
     {
         return $this->belongsTo(Period::class);
     }
+
+    public function students()
+    {
+       return $this->hasMany(Student::class, 'semana_intensiva_id');   
+    }
 }

@@ -21,13 +21,14 @@ class SemanaIntensivaController extends Controller
     public function index()
     {
         $grupos = SemanaIntensiva::with('period')
-            ->get();
-            // ->map(function ($grupo) {
-            //     $grupo->available_slots = $grupo->capacity - $grupo->students_count;
-            //     $grupo->is_almost_full = $grupo->available_slots <= 3;
-            //     $grupo->is_full = $grupo->available_slots <= 0;
-            //     return $grupo;
-            // });
+            ->withCount('students')
+            ->get()
+            ->map(function ($semana) {
+                $semana->available_slots = $semana->capacity - $semana->students_count;
+                $semana->is_almost_full = $semana->available_slots <= 3;
+                $semana->is_full = $semana->available_slots <= 0;
+                return $semana;
+            });
         
         return response()->json($grupos);
     }
