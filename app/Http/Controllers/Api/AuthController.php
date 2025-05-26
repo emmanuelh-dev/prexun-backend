@@ -25,7 +25,7 @@ class AuthController extends Controller
      * @return \Illuminate\Http\JsonResponse
      */
     public function login(LoginRequest $request)
-    {
+    {   
         $user = User::where('email', $request->email)
             ->with([
                 'campuses',
@@ -78,6 +78,15 @@ class AuthController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
+
+     public function user(Request $request) {
+        $user = auth()->user()->load([
+            'campuses',
+            'campuses.latestCashRegister'
+        ]);
+        return response()->json($user);
+    }
+
     public function logout(Request $request)
     {
         $token = auth()->user()->currentAccessToken();
