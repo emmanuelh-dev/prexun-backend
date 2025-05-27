@@ -14,7 +14,7 @@ class CampusController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-    
+
         if ($user->isSuperAdmin()) {
             $campuses = Campus::with([
                 'users:id,name,email,role',
@@ -26,10 +26,10 @@ class CampusController extends Controller
                 'latestCashRegister'
             ])->get();
         }
-    
+
         return response()->json($campuses);
     }
-    
+
     public function addAdmin(Request $request)
     {
         $user = $request->user();
@@ -49,7 +49,9 @@ class CampusController extends Controller
             'admin_ids' => 'nullable|array',
             'admin_ids.*' => 'exists:users,id',
             'folio_inicial' => 'nullable|integer',
-            'titular' => 'nullable|string'
+            'titular' => 'nullable|string',
+            'grupos' => 'array',
+            'grupos.*' => 'integer|exists:grupos,id'
         ]);
 
         if ($validator->fails()) {
@@ -74,6 +76,10 @@ class CampusController extends Controller
             $campus->users()->attach($request->admin_ids);
         }
 
+        if ($request->has('grupos') && !empty($request->grupos)) {
+            $campus->grupos()->sync($request->grupos);
+        }
+
         $campus->load('users:id,name,email,role');
 
         return response()->json($campus, 201);
@@ -86,8 +92,8 @@ class CampusController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
             'code' => [
-                'sometimes', 
-                'string', 
+                'sometimes',
+                'string',
                 Rule::unique('campuses', 'code')->ignore($campus->id)
             ],
             'description' => 'nullable|string',
@@ -96,7 +102,9 @@ class CampusController extends Controller
             'admin_ids' => 'nullable|array',
             'admin_ids.*' => 'exists:users,id',
             'folio_inicial' => 'nullable|integer',
-            'titular' => 'nullable|string'
+            'titular' => 'nullable|string',
+            'grupos' => 'nullable|array',
+            'grupos.*' => 'integer|exists:grupos,id'
         ]);
 
         if ($validator->fails()) {
@@ -107,12 +115,14 @@ class CampusController extends Controller
 
         $campus->update($validator->validated());
 
-        // Sync administrators if provided
         if ($request->has('admin_ids')) {
             $campus->users()->sync($request->input('admin_ids'));
         }
 
-        // Cargar las relaciones antes de devolver
+        if ($request->has('grupos')) {
+            $campus->grupos()->sync($request->input('grupos'));
+        }
+
         $campus->load('users:id,name,email,role');
 
         return response()->json($campus);

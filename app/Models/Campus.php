@@ -43,4 +43,9 @@ class Campus extends Model
                     ->where('status', 'abierta')
                     ->latest();
     }
+
+    public function grupos()
+    {
+        return $this->belongsToMany(Grupo::class, 'campus_group_pivot', 'campus_id', 'grupo_id');
+    }
 }
