@@ -16,7 +16,8 @@ class Campus extends Model
         'address', 
         'is_active',
         'folio_inicial',
-        'titular'
+        'titular',
+        'grupo_ids' 
     ];
 
     public function users()

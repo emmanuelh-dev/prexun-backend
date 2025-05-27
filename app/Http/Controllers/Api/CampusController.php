@@ -18,12 +18,14 @@ class CampusController extends Controller
         if ($user->isSuperAdmin()) {
             $campuses = Campus::with([
                 'users:id,name,email,role',
-                'latestCashRegister'
+                'latestCashRegister',
+                'grupos'  // Agregar esta línea
             ])->get();
         } else {
             $campuses = $user->campuses()->with([
                 'users:id,name,email,role',
-                'latestCashRegister'
+                'latestCashRegister',
+                'grupos'  // Agregar esta línea
             ])->get();
         }
 
@@ -50,8 +52,8 @@ class CampusController extends Controller
             'admin_ids.*' => 'exists:users,id',
             'folio_inicial' => 'nullable|integer',
             'titular' => 'nullable|string',
-            'grupos' => 'array',
-            'grupos.*' => 'integer|exists:grupos,id'
+            'grupo_ids' => 'nullable|array',  // Cambiado de 'grupos' a 'grupo_ids'
+            'grupo_ids.*' => 'exists:grupos,id'  // Validación para cada ID
         ]);
 
         if ($validator->fails()) {
@@ -61,26 +63,20 @@ class CampusController extends Controller
             ], 422);
         }
 
-        $campusData = [
-            'name' => $request->name,
-            'code' => $request->code,
-            'description' => $request->description,
-            'address' => $request->address,
-            'is_active' => $request->is_active ?? true,
-            'folio_inicial' => $request->folio_inicial ?? 1
-        ];
+        $campus = Campus::create($request->only([
+            'name', 'code', 'description', 'address',
+            'is_active', 'folio_inicial', 'titular'
+        ]));
 
-        $campus = Campus::create($campusData);
-
-        if ($request->has('admin_ids') && !empty($request->admin_ids)) {
-            $campus->users()->attach($request->admin_ids);
+        if ($request->has('admin_ids')) {
+            $campus->users()->sync($request->admin_ids);
         }
 
-        if ($request->has('grupos') && !empty($request->grupos)) {
-            $campus->grupos()->sync($request->grupos);
+        if ($request->has('grupo_ids')) {
+            $campus->grupos()->sync($request->grupo_ids);
         }
 
-        $campus->load('users:id,name,email,role');
+        $campus->load(['users:id,name,email,role', 'grupos']);
 
         return response()->json($campus, 201);
     }
@@ -103,8 +99,8 @@ class CampusController extends Controller
             'admin_ids.*' => 'exists:users,id',
             'folio_inicial' => 'nullable|integer',
             'titular' => 'nullable|string',
-            'grupos' => 'nullable|array',
-            'grupos.*' => 'integer|exists:grupos,id'
+            'grupo_ids' => 'nullable|array',  
+            'grupo_ids.*' => 'exists:grupos,id'  
         ]);
 
         if ($validator->fails()) {
@@ -113,17 +109,20 @@ class CampusController extends Controller
             ], 422);
         }
 
-        $campus->update($validator->validated());
+        $campus->update($request->only([
+            'name', 'code', 'description', 'address',
+            'is_active', 'folio_inicial', 'titular'
+        ]));
 
         if ($request->has('admin_ids')) {
             $campus->users()->sync($request->input('admin_ids'));
         }
 
-        if ($request->has('grupos')) {
-            $campus->grupos()->sync($request->input('grupos'));
+        if ($request->has('grupo_ids')) {
+            $campus->grupos()->sync($request->input('grupo_ids'));
         }
 
-        $campus->load('users:id,name,email,role');
+        $campus->load(['users:id,name,email,role', 'grupos']);
 
         return response()->json($campus);
     }
