@@ -18,11 +18,30 @@ class GrupoController extends Controller
         $this->moodleService = $moodleService;
     }
     
-    public function index()
+    public function index(Request $request)
     {
-        $grupos = Grupo::with('period')
-            ->withCount('students')
-            ->get()
+        $plantelId = $request->query('plantel_id');
+        $periodId = $request->query('period_id');
+        
+        Log::info('Fetching grupos', [
+            'plantel_id' => $plantelId,
+            'period_id' => $periodId
+        ]);
+
+        $query = Grupo::with(['period', 'campuses'])
+            ->withCount('students');
+
+        if ($plantelId) {
+            $query->whereHas('campuses', function($q) use ($plantelId) {
+                $q->where('campuses.id', $plantelId);
+            });
+        }
+            
+        if ($periodId) {
+            $query->where('period_id', $periodId);
+        }
+
+        $grupos = $query->get()
             ->map(function ($grupo) {
                 $grupo->available_slots = $grupo->capacity - $grupo->students_count;
                 $grupo->is_almost_full = $grupo->available_slots <= 3;

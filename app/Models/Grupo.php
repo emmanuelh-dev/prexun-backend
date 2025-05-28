@@ -24,12 +24,19 @@ class Grupo extends Model
     {
         return $this->belongsTo(Period::class);
     }
+
     public function student()
     {
         return $this->hasMany(Student::class);
     }
+
     public function students()
     {
         return $this->hasMany(Student::class);
+    }
+
+    public function campuses()
+    {
+        return $this->belongsToMany(Campus::class, 'campus_group_pivot', 'grupo_id', 'campus_id');
     }
 }
