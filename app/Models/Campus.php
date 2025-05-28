@@ -16,7 +16,8 @@ class Campus extends Model
         'address', 
         'is_active',
         'folio_inicial',
-        'titular'
+        'titular',
+        'grupo_ids' 
     ];
 
     public function users()
@@ -42,5 +43,10 @@ class Campus extends Model
         return $this->hasOne(CashRegister::class)
                     ->where('status', 'abierta')
                     ->latest();
+    }
+
+    public function grupos()
+    {
+        return $this->belongsToMany(Grupo::class, 'campus_group_pivot', 'campus_id', 'grupo_id');
     }
 }
