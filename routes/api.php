@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CarreraController;
 use App\Http\Controllers\Api\CashCutController;
 use App\Http\Controllers\Api\ChargeController;
 use App\Http\Controllers\Api\CohortController;
+use App\Http\Controllers\Api\MoodleCohortController;
 use App\Http\Controllers\Api\FacultadController;
 use App\Http\Controllers\Api\GastoController;
 use App\Http\Controllers\Api\GrupoController;
@@ -86,6 +87,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('cohortes',[ CohortController::class, 'index']);
     Route::post('/cohortes/generate', [CohortController::class, 'generate']);
     Route::post('/cohorts/sync', [CohortController::class, 'syncWithMoodle']);
+    
+    // Moodle Cohorts - Nuevas funcionalidades
+    Route::prefix('moodle/cohorts')->group(function () {
+        Route::delete('/user', [MoodleCohortController::class, 'removeUserFromCohort']);
+        Route::delete('/users/bulk', [MoodleCohortController::class, 'removeUsersFromCohorts']);
+        Route::delete('/user/all', [MoodleCohortController::class, 'removeUserFromAllCohorts']);
+        Route::post('/users', [MoodleCohortController::class, 'addUsersToCohorts']);
+        Route::get('/user/{userId}', [MoodleCohortController::class, 'getUserCohorts']);
+    });
     
     // Periods
     Route::get('/periods', [PeriodController::class, 'index']);
