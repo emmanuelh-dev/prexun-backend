@@ -116,13 +116,11 @@ class MoodleExamplesController extends Controller
         $userId = $userResult['data']['id'];
 
         // Paso 2: Eliminar de todos los cohorts
-        $removeAllResult = $this->moodleService->cohorts()->removeUserFromAllCohorts($username);
-
-        // Paso 3: Agregar al nuevo cohort
+        $removeAllResult = $this->moodleService->cohorts()->removeUserFromAllCohorts($username);        // Paso 3: Agregar al nuevo cohort - usar formato cohorttype/usertype
         $addResult = $this->moodleService->cohorts()->addUserToCohort([
             [
-                'userid' => $userId,
-                'cohortid' => $newCohortId
+                'cohorttype' => ['type' => 'id', 'value' => $newCohortId],
+                'usertype' => ['type' => 'username', 'value' => $username]
             ]
         ]);
 

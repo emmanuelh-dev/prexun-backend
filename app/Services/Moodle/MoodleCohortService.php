@@ -60,17 +60,42 @@ class MoodleCohortService extends BaseMoodleService
     {
         $formattedData = $this->formatCohorts($data);
         return $this->sendRequest('core_cohort_update_cohorts', $formattedData);
-    }
-
-    /**
+    }    /**
      * Agregar usuario a cohort.
      */
     public function addUserToCohort($members)
     {
         Log::info('Adding user to cohorts', ['members' => $members]);
 
+        // Verificar que todos los members tengan el formato correcto con cohorttype y usertype
+        $formattedMembers = [];
+        
+        foreach ($members as $member) {
+            if (isset($member['cohorttype']) && isset($member['usertype'])) {
+                // Formato correcto - usar directamente
+                $formattedMembers[] = $member;
+            } elseif (isset($member['userid']) && isset($member['cohortid'])) {
+                // Formato obsoleto - NO hacer conversión automática ya que userid puede ser Moodle ID o student ID
+                Log::error('Deprecated userid/cohortid format in addUserToCohort', [
+                    'member' => $member,
+                    'error' => 'userid/cohortid format is ambiguous - use cohorttype/usertype format instead'
+                ]);
+                
+                return [
+                    'status' => 'error',
+                    'message' => 'Formato obsoleto userid/cohortid no permitido en addUserToCohort. Use cohorttype/usertype con username del estudiante.'
+                ];
+            } else {
+                Log::error('Invalid member format', ['member' => $member]);
+                return [
+                    'status' => 'error',
+                    'message' => 'Formato de miembro inválido: debe contener cohorttype/usertype'
+                ];
+            }
+        }
+
         $data = [
-            'members' => $members
+            'members' => $formattedMembers
         ];
 
         return $this->sendRequest('core_cohort_add_cohort_members', $data);
