@@ -91,4 +91,14 @@ class Student extends Model
     {
         return $this->belongsTo(SemanaIntensiva::class, 'semana_intensiva_id');
     }
+
+    public function assignments()
+    {
+        return $this->hasMany(StudentAssignment::class);
+    }
+
+    public function activeAssignments()
+    {
+        return $this->hasMany(StudentAssignment::class)->active()->current();
+    }
 }
