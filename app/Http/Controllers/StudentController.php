@@ -8,7 +8,7 @@ use App\Models\Promocion;
 use App\Models\SemanaIntensiva;
 use App\Models\Student;
 use App\Models\Transaction;
-use App\Services\Moodle;
+use App\Services\Moodle\MoodleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -21,7 +21,7 @@ class StudentController extends Controller
 {
     protected $moodleService;
 
-    public function __construct(Moodle $moodleService)
+    public function __construct(MoodleService $moodleService)
     {
         $this->moodleService = $moodleService;
     }
@@ -121,7 +121,7 @@ class StudentController extends Controller
             $username = (string) $student->id;
 
             $moodleUser = $this->prepareMoodleUser($student);
-            $moodleResponse = $this->moodleService->createUser([$moodleUser]);
+            $moodleResponse = $this->moodleService->users()->createUser([$moodleUser]);
 
             Log::info('Moodle Response before validation', ['moodleResponse' => $moodleResponse]);
             if ($moodleResponse['status'] !== 'success' || !isset($moodleResponse['data'][0]['id'])) {
@@ -138,7 +138,7 @@ class StudentController extends Controller
 
             if (!empty($cohortes)) {
                 Log::info('Adding user to cohorts', ['members' => $cohortes]);
-                $cohortResponse = $this->moodleService->addUserToCohort($cohortes);
+                $cohortResponse = $this->moodleService->cohorts()->addUserToCohort($cohortes);
 
                 if ($cohortResponse['status'] !== 'success') {
                     DB::rollBack();
@@ -194,65 +194,25 @@ class StudentController extends Controller
             DB::beginTransaction();
 
             $student = Student::findOrFail($request->id);
+            
+            // Capture original values before update
             $oldGrupoId = $student->grupo_id;
+            $oldSemanaIntensivaId = $student->semana_intensiva_id;
             $newGrupoId = $request->input('grupo_id');
             $newSemanaIntensivaId = $request->input('semana_intensiva_id');
 
-            // Update student basic info, including semana_intensiva_id
+            // Update student basic info
             $student->update($request->only(['email', 'firstname', 'lastname', 'grupo_id', 'semana_intensiva_id']));
 
-            // Sync email and name with Moodle
+            // Ensure student has Moodle ID
+            $this->ensureStudentHasMoodleId($student);
+
+            // Sync basic info with Moodle
             $this->syncMoodleUserEmail($student);
 
-            // Obtener el usuario de Moodle
-            $username = (string) $student->id;
-            $moodleUser = $this->moodleService->getUserByUsername($username);
-
-            if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
-                $userId = $moodleUser['data']['id'];
-
-                // Assign to new group cohort if specified
-                if ($newGrupoId) {
-                    $newGrupo = Grupo::find($newGrupoId);
-                    if ($newGrupo) {
-                        $assignResult = $this->assignToMoodleCohort($student, $newGrupo, 'group', $username);
-                        if (!$assignResult['success']) {
-                            DB::rollBack();
-                            return response()->json($assignResult['response'], 500);
-                        }
-                        Log::info('Student group cohort updated in Moodle', [
-                            'student_id' => $student->id,
-                            'old_grupo_id' => $oldGrupoId,
-                            'new_grupo_id' => $newGrupoId,
-                            'cohort_id' => $assignResult['cohort_id'] ?? null
-                        ]);
-                    }
-                }
-
-                // Assign to new intensive week cohort if specified
-                if ($newSemanaIntensivaId) {
-                    $newSemanaIntensiva = SemanaIntensiva::find($newSemanaIntensivaId);
-                    if ($newSemanaIntensiva) {
-                        $assignResult = $this->assignToMoodleCohort($student, $newSemanaIntensiva, 'intensive_week', $username);
-                        if (!$assignResult['success']) {
-                            // Decide if rollback is necessary or just log warning
-                            Log::warning('Failed to assign to intensive week cohort, but continuing.', [
-                                'student_id' => $student->id,
-                                'semana_intensiva_id' => $newSemanaIntensivaId,
-                                'error' => $assignResult['response']['message'] ?? 'Unknown error'
-                            ]);
-                            // Optionally rollback: DB::rollBack(); return response()->json($assignResult['response'], 500);
-                        } else {
-                            Log::info('Student added to intensive week cohort in Moodle', [
-                                'student_id' => $student->id,
-                                'semana_intensiva_id' => $newSemanaIntensivaId,
-                                'cohort_id' => $assignResult['cohort_id'] ?? null
-                            ]);
-                        }
-                    }
-                }
-            } else {
-                Log::warning('Moodle user not found for cohort update', ['student_id' => $student->id]);
+            // Handle cohort changes if grupo or semana intensiva changed
+            if ($oldGrupoId !== $newGrupoId || $oldSemanaIntensivaId !== $newSemanaIntensivaId) {
+                $this->updateStudentCohorts($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId);
             }
 
             DB::commit();
@@ -264,7 +224,8 @@ class StudentController extends Controller
             DB::rollBack();
             Log::error('Error updating student', [
                 'student_id' => $request->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -314,15 +275,15 @@ class StudentController extends Controller
     {
         try {
             if ($student->moodle_id) {
-                $this->moodleService->deleteUser($student->moodle_id);
+                $this->moodleService->users()->deleteUser($student->moodle_id);
                 Log::info('Moodle user deleted using stored moodle_id', ['student_id' => $student->id, 'moodle_id' => $student->moodle_id]);
             } else {
                 $username = (string) $student->id;
-                $moodleUser = $this->moodleService->getUserByUsername($username);
+                $moodleUser = $this->moodleService->users()->getUserByUsername($username);
 
                 if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
                     $userId = $moodleUser['data']['id'];
-                    $this->moodleService->deleteUser($userId);
+                    $this->moodleService->users()->deleteUser($userId);
                     Log::info('Moodle user deleted', ['student_id' => $student->id, 'moodle_id' => $userId]);
                 } else {
                     Log::warning('Moodle user not found for deletion', ['student_id' => $student->id]);
@@ -394,7 +355,7 @@ class StudentController extends Controller
                 } else {
                     // Si no tenemos el moodle_id, intentar buscarlo por username
                     $username = (string) $student->id;
-                    $moodleUser = $this->moodleService->getUserByUsername($username);
+                    $moodleUser = $this->moodleService->users()->getUserByUsername($username);
 
                     if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
                         $moodleUserIds[] = $moodleUser['data']['id'];
@@ -406,7 +367,7 @@ class StudentController extends Controller
 
             // Eliminar usuarios de Moodle en bloque si hay IDs (primero en Moodle, luego en local)
             if (!empty($moodleUserIds)) {
-                $deleteResponse = $this->moodleService->deleteUser($moodleUserIds);
+                $deleteResponse = $this->moodleService->users()->deleteUser($moodleUserIds);
 
                 if ($deleteResponse['status'] !== 'success') {
                     Log::error('Error deleting users from Moodle in bulk', [
@@ -504,7 +465,7 @@ class StudentController extends Controller
             $userChunks = array_chunk($users, 100, true);
 
             foreach ($userChunks as $chunk) {
-                $responses[] = $this->moodleService->createUser($chunk);
+                $responses[] = $this->moodleService->users()->createUser($chunk);
             }
 
             return response()->json($responses, 200);
@@ -702,11 +663,11 @@ class StudentController extends Controller
      */
     private function syncMoodleUserEmail(Student $student)
     {
-        $result = $this->moodleService->getUserByUsername($student->id);
+        $result = $this->moodleService->users()->getUserByUsername($student->id);
 
         if ($result['status'] === 'success') {
             $user = $result['data'];
-            $this->moodleService->updateUser([[
+            $this->moodleService->users()->updateUser([[
                 "id" => $user['id'],
                 "email" => $student->email,
                 "firstname" => $student->firstname,
@@ -798,7 +759,7 @@ class StudentController extends Controller
         if (!$cohortId) {
             // Fallback to fetching by name if moodle_id is missing
             Log::info('Moodle ID missing for related model, attempting to fetch by name', ['type' => $type, 'related_model_id' => $relatedModel->id, 'cohort_name' => $cohortName]);
-            $cohortId = $this->moodleService->getCohortIdByName($cohortName);
+            $cohortId = $this->moodleService->cohorts()->getCohortIdByName($cohortName);
             if ($cohortId) {
                 // Optionally update the related model with the found moodle_id
                 // $relatedModel->update(['moodle_id' => $cohortId]);
@@ -828,7 +789,7 @@ class StudentController extends Controller
 
         // Add user to cohort
         Log::info('Assigning user to cohort', ['assignment' => $cohortAssignment]);
-        $cohortResponse = $this->moodleService->addUserToCohort($cohortAssignment);
+        $cohortResponse = $this->moodleService->cohorts()->addUserToCohort($cohortAssignment);
 
         if ($cohortResponse['status'] !== 'success') {
             $errorMessage = $type === 'group'
@@ -878,7 +839,7 @@ class StudentController extends Controller
             foreach ($students as $student) {
                 try {
                     $username = (string) $student->id;
-                    $moodleUser = $this->moodleService->getUserByUsername($username);
+                    $moodleUser = $this->moodleService->users()->getUserByUsername($username);
                     if ($moodleUser['status'] !== 'success' || !isset($moodleUser['data']['id'])) {
                         Log::warning('Estudiante no encontrado en Moodle para sincronización de módulos', ['student_id' => $student->id]);
                         $results['errors'][] = [
@@ -896,7 +857,7 @@ class StudentController extends Controller
                         ];
                         continue;
                     }
-                    $cohortResponse = $this->moodleService->addUserToCohort($cohortes);
+                    $cohortResponse = $this->moodleService->cohorts()->addUserToCohort($cohortes);
                     if ($cohortResponse['status'] !== 'success') {
                         Log::error('Error al asignar estudiante a cohortes en Moodle', [
                             'student_id' => $student->id,
@@ -945,6 +906,223 @@ class StudentController extends Controller
                 'message' => 'Error al sincronizar estudiantes con módulos',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Ensure student has a Moodle ID, fetch and save if missing.
+     */
+    private function ensureStudentHasMoodleId(Student $student): void
+    {
+        if (!$student->moodle_id) {
+            $username = (string) $student->id;
+            $moodleUser = $this->moodleService->users()->getUserByUsername($username);
+            
+            if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
+                $student->moodle_id = $moodleUser['data']['id'];
+                $student->save();
+                
+                Log::info('Moodle ID fetched and saved for student', [
+                    'student_id' => $student->id,
+                    'moodle_id' => $student->moodle_id
+                ]);
+            } else {
+                throw new \Exception('Failed to fetch Moodle ID for student: ' . $student->id);
+            }
+        }
+    }
+
+    /**
+     * Update student cohort assignments based on grupo and semana intensiva changes.
+     */
+    private function updateStudentCohorts(
+        Student $student, 
+        ?int $oldGrupoId, 
+        ?int $newGrupoId, 
+        ?int $oldSemanaIntensivaId, 
+        ?int $newSemanaIntensivaId
+    ): void {
+        $cohortsToRemove = $this->prepareCohortsToRemove($student, $oldGrupoId, $oldSemanaIntensivaId);
+        $cohortsToAdd = $this->prepareCohortsToAdd($student, $newGrupoId, $newSemanaIntensivaId);
+
+        // Remove from old cohorts first
+        if (!empty($cohortsToRemove)) {
+            $this->removeStudentFromCohorts($student, $cohortsToRemove);
+        }
+
+        // Add to new cohorts
+        if (!empty($cohortsToAdd)) {
+            $this->addStudentToCohorts($student, $cohortsToAdd);
+        }
+    }
+
+    /**
+     * Prepare cohorts to remove student from.
+     */
+    private function prepareCohortsToRemove(Student $student, ?int $oldGrupoId, ?int $oldSemanaIntensivaId): array
+    {
+        $cohortsToRemove = [];
+
+        // Remove from old grupo cohort
+        if ($oldGrupoId) {
+            $oldGrupo = Grupo::select('id', 'moodle_id', 'name')->find($oldGrupoId);
+            if ($oldGrupo && $oldGrupo->moodle_id) {
+                $cohortsToRemove[] = [
+                    'userid' => $student->moodle_id,
+                    'cohortid' => $oldGrupo->moodle_id
+                ];
+                
+                Log::info('Preparing to remove student from old group cohort', [
+                    'student_id' => $student->id,
+                    'moodle_user_id' => $student->moodle_id,
+                    'old_grupo_id' => $oldGrupoId,
+                    'old_cohort_id' => $oldGrupo->moodle_id,
+                    'grupo_name' => $oldGrupo->name
+                ]);
+            }
+        }
+
+        // Remove from old semana intensiva cohort
+        if ($oldSemanaIntensivaId) {
+            $oldSemanaIntensiva = SemanaIntensiva::select('id', 'moodle_id', 'name')->find($oldSemanaIntensivaId);
+            if ($oldSemanaIntensiva && $oldSemanaIntensiva->moodle_id) {
+                $cohortsToRemove[] = [
+                    'userid' => $student->moodle_id,
+                    'cohortid' => $oldSemanaIntensiva->moodle_id
+                ];
+                
+                Log::info('Preparing to remove student from old intensive week cohort', [
+                    'student_id' => $student->id,
+                    'moodle_user_id' => $student->moodle_id,
+                    'old_semana_intensiva_id' => $oldSemanaIntensivaId,
+                    'old_cohort_id' => $oldSemanaIntensiva->moodle_id,
+                    'semana_name' => $oldSemanaIntensiva->name
+                ]);
+            }
+        }
+
+        return $cohortsToRemove;
+    }
+
+    /**
+     * Prepare cohorts to add student to.
+     */
+    private function prepareCohortsToAdd(Student $student, ?int $newGrupoId, ?int $newSemanaIntensivaId): array
+    {
+        $cohortsToAdd = [];
+
+        // Add to new grupo cohort using the format that works with addUserToCohort
+        if ($newGrupoId) {
+            $newGrupo = Grupo::select('id', 'moodle_id', 'name')->find($newGrupoId);
+            if ($newGrupo && $newGrupo->moodle_id) {
+                $cohortsToAdd[] = [
+                    'cohorttype' => ['type' => 'id', 'value' => $newGrupo->moodle_id],
+                    'usertype' => ['type' => 'username', 'value' => (string) $student->id]
+                ];
+                
+                Log::info('Preparing to add student to new group cohort', [
+                    'student_id' => $student->id,
+                    'moodle_user_id' => $student->moodle_id,
+                    'new_grupo_id' => $newGrupoId,
+                    'new_cohort_id' => $newGrupo->moodle_id,
+                    'grupo_name' => $newGrupo->name
+                ]);
+            }
+        }
+
+        // Add to new semana intensiva cohort using the format that works with addUserToCohort
+        if ($newSemanaIntensivaId) {
+            $newSemanaIntensiva = SemanaIntensiva::select('id', 'moodle_id', 'name')->find($newSemanaIntensivaId);
+            if ($newSemanaIntensiva && $newSemanaIntensiva->moodle_id) {
+                $cohortsToAdd[] = [
+                    'cohorttype' => ['type' => 'id', 'value' => $newSemanaIntensiva->moodle_id],
+                    'usertype' => ['type' => 'username', 'value' => (string) $student->id]
+                ];
+                
+                Log::info('Preparing to add student to new intensive week cohort', [
+                    'student_id' => $student->id,
+                    'moodle_user_id' => $student->moodle_id,
+                    'new_semana_intensiva_id' => $newSemanaIntensivaId,
+                    'new_cohort_id' => $newSemanaIntensiva->moodle_id,
+                    'semana_name' => $newSemanaIntensiva->name
+                ]);
+            }
+        }
+
+        return $cohortsToAdd;
+    }
+
+    /**
+     * Remove student from specified cohorts.
+     */
+    private function removeStudentFromCohorts(Student $student, array $cohortsToRemove): void
+    {
+        Log::info('Removing student from cohorts', [
+            'student_id' => $student->id,
+            'moodle_id' => $student->moodle_id,
+            'cohorts_count' => count($cohortsToRemove),
+            'cohorts' => $cohortsToRemove
+        ]);
+
+        $removeResult = $this->moodleService->cohorts()->removeUsersFromCohorts($cohortsToRemove);
+
+        if ($removeResult['status'] !== 'success') {
+            Log::error('Failed to remove student from cohorts', [
+                'student_id' => $student->id,
+                'moodle_id' => $student->moodle_id,
+                'error' => $removeResult['message'] ?? 'Unknown error',
+                'cohorts' => $cohortsToRemove
+            ]);
+            // Continue anyway - removal failure shouldn't block the update
+        } else {
+            Log::info('Successfully removed student from cohorts', [
+                'student_id' => $student->id,
+                'moodle_id' => $student->moodle_id,
+                'cohorts_removed' => count($cohortsToRemove)
+            ]);
+        }
+    }
+
+    /**
+     * Add student to specified cohorts.
+     */
+    private function addStudentToCohorts(Student $student, array $cohortsToAdd): void
+    {
+        Log::info('Adding student to cohorts', [
+            'student_id' => $student->id,
+            'moodle_id' => $student->moodle_id,
+            'cohorts_count' => count($cohortsToAdd),
+            'cohorts' => $cohortsToAdd
+        ]);
+
+        $addResult = $this->moodleService->cohorts()->addUserToCohort($cohortsToAdd);
+
+        if ($addResult['status'] !== 'success') {
+            Log::error('Failed to add student to cohorts', [
+                'student_id' => $student->id,
+                'moodle_id' => $student->moodle_id,
+                'error' => $addResult['message'] ?? 'Unknown error',
+                'cohorts' => $cohortsToAdd,
+                'moodle_response' => $addResult
+            ]);
+            
+            throw new \Exception('Failed to add student to new cohorts in Moodle: ' . ($addResult['message'] ?? 'Unknown error'));
+        } else {
+            // Check for warnings in the response
+            if (isset($addResult['data']['warnings']) && !empty($addResult['data']['warnings'])) {
+                Log::warning('Student added to cohorts but with warnings', [
+                    'student_id' => $student->id,
+                    'moodle_id' => $student->moodle_id,
+                    'warnings' => $addResult['data']['warnings'],
+                    'cohorts_attempted' => count($cohortsToAdd)
+                ]);
+            } else {
+                Log::info('Successfully added student to cohorts', [
+                    'student_id' => $student->id,
+                    'moodle_id' => $student->moodle_id,
+                    'cohorts_added' => count($cohortsToAdd)
+                ]);
+            }
         }
     }
 }

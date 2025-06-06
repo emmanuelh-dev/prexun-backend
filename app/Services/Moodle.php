@@ -152,13 +152,38 @@ class Moodle
     {
         Log::info('Adding user to cohorts', ['members' => $members]);
 
+        // Format members to ensure they have the correct structure for Moodle API
+        $formattedMembers = [];
+        
+        foreach ($members as $member) {
+            if (isset($member['cohorttype']) && isset($member['usertype'])) {
+                // Already has the correct format
+                $formattedMembers[] = $member;
+            } elseif (isset($member['userid']) && isset($member['cohortid'])) {
+                // Simple format, needs to be converted
+                // Note: userid debe ser el username del estudiante (student ID), no el ID numérico de Moodle
+                $formattedMembers[] = [
+                    'cohorttype' => ['type' => 'id', 'value' => $member['cohortid']],
+                    'usertype' => ['type' => 'username', 'value' => $member['userid']]
+                ];
+            } else {
+                Log::error('Invalid member format in legacy service', ['member' => $member]);
+                return [
+                    'status' => 'error',
+                    'message' => 'Formato de miembro inválido: debe contener cohorttype/usertype o userid/cohortid'
+                ];
+            }
+        }
+
+        Log::info('Formatted members for Moodle API', ['formatted_members' => $formattedMembers]);
+
         try {
             $response = $this->client->post($this->url, [
                 'form_params' => [
                     'wstoken' => $this->token,
                     'wsfunction' => 'core_cohort_add_cohort_members',
                     'moodlewsrestformat' => 'json',
-                    'members' => $members
+                    'members' => $formattedMembers
                 ]
             ]);
 
