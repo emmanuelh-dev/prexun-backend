@@ -17,12 +17,12 @@ class GrupoController extends Controller
     {
         $this->moodleService = $moodleService;
     }
-    
+
     public function index(Request $request)
     {
         $plantelId = $request->query('plantel_id');
         $periodId = $request->query('period_id');
-        
+
         Log::info('Fetching grupos', [
             'plantel_id' => $plantelId,
             'period_id' => $periodId
@@ -32,11 +32,11 @@ class GrupoController extends Controller
             ->withCount('students');
 
         if ($plantelId) {
-            $query->whereHas('campuses', function($q) use ($plantelId) {
+            $query->whereHas('campuses', function ($q) use ($plantelId) {
                 $q->where('campuses.id', $plantelId);
             });
         }
-            
+
         if ($periodId) {
             $query->where('period_id', $periodId);
         }
@@ -48,7 +48,7 @@ class GrupoController extends Controller
                 $grupo->is_full = $grupo->available_slots <= 0;
                 return $grupo;
             });
-        
+
         return response()->json($grupos);
     }
 
@@ -57,7 +57,7 @@ class GrupoController extends Controller
         $validated = $request->validate([
             'name' => 'string|sometimes',
             'type' => 'string|sometimes',
-            'period_id' => 'integer|min:1|sometimes', 
+            'period_id' => 'integer|min:1|sometimes',
             'capacity' => 'integer|min:1|sometimes',
             'frequency' => 'array|nullable',
             'start_time' => 'sometimes|date_format:H:i|nullable',
@@ -67,15 +67,15 @@ class GrupoController extends Controller
         ]);
 
         $validated['frequency'] = json_encode($validated['frequency']);
-        
+
         $grupo = Grupo::create($validated);
-        
+
         // Crear cohort en Moodle
         try {
             $period = Period::find($validated['period_id']);
             if ($period) {
                 $cohortName = $period->name . $grupo->name;
-                
+
                 $cohortData = [
                     'cohorts' => [[
                         'name' => $cohortName,
@@ -89,14 +89,14 @@ class GrupoController extends Controller
                         ]
                     ]]
                 ];
-                
+
                 $response = $this->moodleService->createCohorts($cohortData);
-                
+
                 if ($response['status'] === 'success' && isset($response['data'][0]['id'])) {
                     // Guardar el ID del cohort en Moodle
                     $grupo->moodle_id = $response['data'][0]['id'];
                     $grupo->save();
-                    
+
                     Log::info('Cohort created in Moodle', [
                         'grupo_id' => $grupo->id,
                         'moodle_id' => $grupo->moodle_id,
@@ -115,16 +115,22 @@ class GrupoController extends Controller
                 'error' => $e->getMessage()
             ]);
         }
-        
+
         return response()->json($grupo, 201);
     }
+    public function getStudents($id)
+    {
+        $grupo = Grupo::with('students')->findOrFail($id);
+        return response()->json($grupo->students);
+    }
+
 
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
             'name' => 'string|sometimes',
             'type' => 'string|sometimes',
-            'period_id' => 'integer|min:1|sometimes', 
+            'period_id' => 'integer|min:1|sometimes',
             'capacity' => 'integer|min:1|sometimes',
             'frequency' => 'array|nullable',
             'start_time' => 'sometimes|date_format:H:i|nullable',
@@ -132,32 +138,32 @@ class GrupoController extends Controller
             'start_date' => 'sometimes|date_format:Y-m-d|nullable',
             'end_date' => 'sometimes|date_format:Y-m-d|nullable'
         ]);
-    
+
         $dataToUpdate = [];
-    
-        foreach(['name', 'type', 'period_id', 'capacity', 'start_time', 'end_time', 'start_date', 'end_date'] as $field) {
+
+        foreach (['name', 'type', 'period_id', 'capacity', 'start_time', 'end_time', 'start_date', 'end_date'] as $field) {
             if (isset($validated[$field])) {
                 $dataToUpdate[$field] = $validated[$field];
             }
         }
-    
+
         if (isset($validated['frequency']) && !empty($validated['frequency'])) {
             $dataToUpdate['frequency'] = json_encode($validated['frequency']);
         }
-    
+
         $grupo = Grupo::findOrFail($id);
         $oldName = $grupo->name;
         $oldPeriodId = $grupo->period_id;
-        
+
         $grupo->update($dataToUpdate);
-        
+
         // Actualizar cohort en Moodle si cambió el nombre o el periodo
         if (($oldName !== $grupo->name || $oldPeriodId !== $grupo->period_id) && $grupo->moodle_id) {
             try {
                 $period = Period::find($grupo->period_id);
                 if ($period) {
                     $cohortName = $period->name . $grupo->name;
-                    
+
                     // Actualizar el cohort en Moodle
                     $cohortData = [
                         'cohorts' => [[
@@ -169,9 +175,9 @@ class GrupoController extends Controller
                             'visible' => 1
                         ]]
                     ];
-                    
+
                     $response = $this->moodleService->updateCohorts($cohortData);
-                    
+
                     if ($response['status'] === 'success') {
                         Log::info('Cohort updated in Moodle', [
                             'grupo_id' => $grupo->id,
@@ -199,7 +205,7 @@ class GrupoController extends Controller
                 $period = Period::find($grupo->period_id);
                 if ($period) {
                     $cohortName = $period->name . $grupo->name;
-                    
+
                     $cohortData = [
                         'cohorts' => [[
                             'name' => $cohortName,
@@ -213,14 +219,14 @@ class GrupoController extends Controller
                             ]
                         ]]
                     ];
-                    
+
                     $response = $this->moodleService->createCohorts($cohortData);
-                    
+
                     if ($response['status'] === 'success' && isset($response['data'][0]['id'])) {
                         // Guardar el ID del cohort en Moodle
                         $grupo->moodle_id = $response['data'][0]['id'];
                         $grupo->save();
-                        
+
                         Log::info('Cohort created in Moodle during update', [
                             'grupo_id' => $grupo->id,
                             'moodle_id' => $grupo->moodle_id,
@@ -240,7 +246,8 @@ class GrupoController extends Controller
                 ]);
             }
         }
-        
+
+
         return response()->json($grupo);
     }
 }
