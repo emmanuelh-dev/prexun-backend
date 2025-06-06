@@ -27,6 +27,10 @@ use App\Models\User;
 use App\Http\Controllers\Api\TeacherGroupController;
 use App\Http\Controllers\Api\TeacherAttendanceController;
 
+use App\Http\Controllers\AttendanceController;
+
+
+
 
 Route::get('/test', function () {
     return response()->json(['message' => 'Hello, world!']);
@@ -81,12 +85,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/students/bulk-update-semana-intensiva', [StudentController::class, 'bulkUpdateSemanaIntensiva']);
     Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
     Route::patch('/students/hard-update', [StudentController::class, 'hardUpdate']);
-    
+
     // Cohortes
-    Route::get('cohortes',[ CohortController::class, 'index']);
+    Route::get('cohortes', [CohortController::class, 'index']);
     Route::post('/cohortes/generate', [CohortController::class, 'generate']);
     Route::post('/cohorts/sync', [CohortController::class, 'syncWithMoodle']);
-    
+    //planteles
+   
+    Route::get('/grupos/{id}/students', [GrupoController::class, 'getStudents']);
+
+    // Asistencia
+    Route::post('/asistencias', [AttendanceController::class, 'store']);;
+
+
+
+
     // Periods
     Route::get('/periods', [PeriodController::class, 'index']);
     Route::post('/periods', [PeriodController::class, 'store']);
@@ -170,14 +183,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/teacher/groups', [TeacherGroupController::class, 'index']);
     Route::post('/teacher/groups/assign', [TeacherGroupController::class, 'assignGroups']);
     // Asistencia
-    Route::post('/teacher/attendance', [TeacherAttendanceController::class,'store']);
+    Route::post('/teacher/attendance', [TeacherAttendanceController::class, 'store']);
     // Rutas para maestros y grupos
     Route::prefix('teacher')->group(function () {
         Route::get('/{id}/groups', [TeacherGroupController::class, 'getTeacherGroups']);
         Route::post('/{id}/groups/assign', [TeacherGroupController::class, 'assignGroups']);
         Route::get('/attendance/{grupo_id}/{date}', [TeacherAttendanceController::class, 'getAttendance']);
-
-
     });
     // Products
     Route::get('/products', [ProductsController::class, 'index']);
@@ -199,7 +210,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/current/{campus}', [CashCutController::class, 'current']);
         Route::put('/{cashRegister}', [CashCutController::class, 'update']);
     });
-    
+
     // Teacher Groups
-    
+
 });
