@@ -7,6 +7,7 @@ use App\Models\Modulo;
 use App\Models\Promocion;
 use App\Models\SemanaIntensiva;
 use App\Models\Student;
+use App\Models\StudentEvent;
 use App\Models\Transaction;
 use App\Services\Moodle\MoodleService;
 use Illuminate\Http\Request;
@@ -158,6 +159,9 @@ class StudentController extends Controller
             DB::commit();
             $student->load('charges');
 
+            // Log student creation event
+            StudentEvent::createEvent($student, StudentEvent::EVENT_CREATED, null, $student->toArray());
+
             return response()->json($student, 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -195,7 +199,8 @@ class StudentController extends Controller
 
             $student = Student::findOrFail($request->id);
             
-            // Capture original values before update
+            // Capture original values before update for event logging
+            $beforeData = $student->toArray();
             $oldGrupoId = $student->grupo_id;
             $oldSemanaIntensivaId = $student->semana_intensiva_id;
             $newGrupoId = $request->input('grupo_id');
@@ -203,6 +208,17 @@ class StudentController extends Controller
 
             // Update student basic info
             $student->update($request->only(['email', 'firstname', 'lastname', 'grupo_id', 'semana_intensiva_id']));
+
+            // Capture updated values for event logging
+            $afterData = $student->fresh()->toArray();
+            
+            // Get changed fields
+            $changedFields = [];
+            foreach ($request->only(['email', 'firstname', 'lastname', 'grupo_id', 'semana_intensiva_id']) as $field => $value) {
+                if ($beforeData[$field] !== $value) {
+                    $changedFields[] = $field;
+                }
+            }
 
             // Ensure student has Moodle ID
             $this->ensureStudentHasMoodleId($student);
@@ -213,6 +229,11 @@ class StudentController extends Controller
             // Handle cohort changes if grupo or semana intensiva changed
             if ($oldGrupoId !== $newGrupoId || $oldSemanaIntensivaId !== $newSemanaIntensivaId) {
                 $this->updateStudentCohorts($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId);
+            }
+
+            // Log student update event
+            if (!empty($changedFields)) {
+                StudentEvent::createEvent($student, StudentEvent::EVENT_UPDATED, $beforeData, $afterData, implode(', ', $changedFields));
             }
 
             DB::commit();
@@ -255,7 +276,26 @@ class StudentController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Capture original values before update
+        $beforeData = $student->toArray();
+        
         $student->update($request->all());
+        
+        // Capture updated values for event logging
+        $afterData = $student->fresh()->toArray();
+        
+        // Get changed fields
+        $changedFields = [];
+        foreach ($request->all() as $field => $value) {
+            if (array_key_exists($field, $beforeData) && $beforeData[$field] !== $value) {
+                $changedFields[] = $field;
+            }
+        }
+
+        // Log student update event
+        if (!empty($changedFields)) {
+            StudentEvent::createEvent($student, StudentEvent::EVENT_UPDATED, $beforeData, $afterData, implode(', ', $changedFields));
+        }
 
         return response()->json($student);
     }
@@ -274,6 +314,9 @@ class StudentController extends Controller
     public function destroy(Student $student, Request $request)
     {
         try {
+            // Capture student data before deletion for event logging
+            $beforeData = $student->toArray();
+            
             if ($student->moodle_id) {
                 $this->moodleService->users()->deleteUser($student->moodle_id);
                 Log::info('Moodle user deleted using stored moodle_id', ['student_id' => $student->id, 'moodle_id' => $student->moodle_id]);
@@ -291,10 +334,16 @@ class StudentController extends Controller
             }
 
             if ($request->boolean('permanent') === true) {
+                // Log permanent deletion event before deleting
+                StudentEvent::createEvent($student, StudentEvent::EVENT_DELETED, $beforeData, null, 'Permanent deletion');
+                
                 $student->forceDelete();
                 return response()->json(['message' => 'Estudiante eliminado permanentemente y sincronizado con Moodle']);
             }
 
+            // Log soft deletion event before deleting
+            StudentEvent::createEvent($student, StudentEvent::EVENT_DELETED, $beforeData, null);
+            
             $student->delete();
             return response()->json(['message' => 'Estudiante eliminado y sincronizado con Moodle']);
         } catch (\Exception $e) {
@@ -385,9 +434,16 @@ class StudentController extends Controller
             // Después de eliminar en Moodle, eliminar estudiantes de la base de datos
             foreach ($students as $student) {
                 try {
+                    // Capture student data before deletion for event logging
+                    $beforeData = $student->toArray();
+                    
                     if ($isPermanent) {
+                        // Log permanent deletion event before deleting
+                        StudentEvent::createEvent($student, StudentEvent::EVENT_DELETED, $beforeData, null, 'Permanent deletion');
                         $student->forceDelete();
                     } else {
+                        // Log soft deletion event before deleting
+                        StudentEvent::createEvent($student, StudentEvent::EVENT_DELETED, $beforeData, null);
                         $student->delete();
                     }
                     $results['success'][] = $student->id;
@@ -433,7 +489,14 @@ class StudentController extends Controller
     public function restore($id)
     {
         $student = Student::withTrashed()->findOrFail($id);
+        
+        // Capture student data after restoration for event logging
         $student->restore();
+        $afterData = $student->fresh()->toArray();
+        
+        // Log student restoration event
+        StudentEvent::createEvent($student, StudentEvent::EVENT_RESTORED, null, $afterData);
+        
         return response()->json(['message' => 'Estudiante restaurado']);
     }
 
@@ -557,14 +620,31 @@ class StudentController extends Controller
 
             foreach ($students as $student) {
                 try {
+                    // Capture original values before update for event logging
+                    $beforeData = $student->toArray();
+                    $oldSemanaIntensivaId = $student->semana_intensiva_id;
+                    
                     $student->semana_intensiva_id = $semanaIntensivaId;
                     $student->save();
+
+                    // Capture updated values for event logging
+                    $afterData = $student->fresh()->toArray();
 
                     $username = (string) $student->id;
                     $assignResult = $this->assignToMoodleCohort($student, $semanaIntensiva, 'intensive_week', $username);
 
                     if ($assignResult['success']) {
                         $results['success'][] = $student->id;
+                        
+                        // Log semana intensiva assignment event
+                        StudentEvent::createEvent(
+                            $student, 
+                            StudentEvent::EVENT_SEMANA_INTENSIVA_CHANGED, 
+                            $beforeData, 
+                            $afterData,
+                            "Semana intensiva changed from {$oldSemanaIntensivaId} to {$semanaIntensivaId}"
+                        );
+                        
                         Log::info('Student added to intensive week cohort in Moodle', [
                             'student_id' => $student->id,
                             'semana_intensiva_id' => $semanaIntensivaId,
@@ -577,6 +657,15 @@ class StudentController extends Controller
                             'error' => $assignResult['response']['message'] ?? 'Unknown error'
                         ]);
                         $results['success'][] = $student->id;
+                        
+                        // Still log the event even if Moodle assignment failed
+                        StudentEvent::createEvent(
+                            $student, 
+                            StudentEvent::EVENT_SEMANA_INTENSIVA_CHANGED, 
+                            $beforeData, 
+                            $afterData,
+                            "Semana intensiva changed from {$oldSemanaIntensivaId} to {$semanaIntensivaId} (Moodle sync failed)"
+                        );
                     }
                 } catch (\Exception $e) {
                     $results['errors'][] = [

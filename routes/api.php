@@ -24,9 +24,9 @@ use App\Http\Controllers\PromocionController;
 use App\Http\Controllers\StudentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Models\User;
 use App\Http\Controllers\Api\TeacherGroupController;
 use App\Http\Controllers\Api\TeacherAttendanceController;
+use App\Http\Controllers\Api\StudentAssignmentController;
 
 use App\Http\Controllers\AttendanceController;
 
@@ -88,7 +88,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/students/hard-update', [StudentController::class, 'hardUpdate']);
 
     // Cohortes
-    Route::get('cohortes', [CohortController::class, 'index']);
+    Route::get('/cohortes', [CohortController::class, 'index']);
     Route::post('/cohortes/generate', [CohortController::class, 'generate']);
     Route::post('/cohorts/sync', [CohortController::class, 'syncWithMoodle']);
 
@@ -97,13 +97,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/grupos/{id}/students', [GrupoController::class, 'getStudents']);
 
     // Asistencia
-    Route::post('/asistencias', [AttendanceController::class, 'store']);;
+    Route::post('/asistencias', [AttendanceController::class, 'store']);
 
-
-
-
-
-    
     // Moodle Cohorts - Nuevas funcionalidades
     Route::prefix('moodle/cohorts')->group(function () {
         Route::delete('/user', [MoodleCohortController::class, 'removeUserFromCohort']);
@@ -192,16 +187,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/gastos/{id}', [GastoController::class, 'show']);
     Route::put('/gastos/{id}', [GastoController::class, 'update']);
     Route::delete('/gastos/{id}', [GastoController::class, 'destroy']);
-    //maestro
-    Route::get('/teacher/groups/{id}', [TeacherGroupController::class, 'getTeacherGroups']);
-    Route::get('/teacher/groups', [TeacherGroupController::class, 'index']);
-    Route::post('/teacher/groups/assign', [TeacherGroupController::class, 'assignGroups']);
-    // Asistencia
-    Route::post('/teacher/attendance', [TeacherAttendanceController::class, 'store']);
+
     // Rutas para maestros y grupos
     Route::prefix('teacher')->group(function () {
+        Route::get('/groups', [TeacherGroupController::class, 'index']);
+        Route::get('/groups/{id}', [TeacherGroupController::class, 'getTeacherGroups']);
+        Route::post('/groups/assign', [TeacherGroupController::class, 'assignGroups']);
         Route::get('/{id}/groups', [TeacherGroupController::class, 'getTeacherGroups']);
         Route::post('/{id}/groups/assign', [TeacherGroupController::class, 'assignGroups']);
+        Route::post('/attendance', [TeacherAttendanceController::class, 'store']);
         Route::get('/attendance/{grupo_id}/{date}', [TeacherAttendanceController::class, 'getAttendance']);
     });
     // Products
@@ -224,7 +218,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/current/{campus}', [CashCutController::class, 'current']);
         Route::put('/{cashRegister}', [CashCutController::class, 'update']);
     });
-
-    // Teacher Groups
-
+    
+    // Student Assignments
+    Route::get('/student-assignments', [StudentAssignmentController::class, 'index']);
+    Route::post('/student-assignments', [StudentAssignmentController::class, 'store']);
+    Route::get('/student-assignments/{id}', [StudentAssignmentController::class, 'show']);
+    Route::put('/student-assignments/{id}', [StudentAssignmentController::class, 'update']);
+    Route::delete('/student-assignments/{id}', [StudentAssignmentController::class, 'destroy']);
+    
+    // Student Assignment specialized endpoints
+    Route::get('/student-assignments/student/{student_id}', [StudentAssignmentController::class, 'getByStudent']);
+    Route::get('/student-assignments/period/{period_id}', [StudentAssignmentController::class, 'getByPeriod']);
+    Route::get('/student-assignments/grupo/{grupo_id}', [StudentAssignmentController::class, 'getByGrupo']);
+    Route::get('/student-assignments/semana/{semana_intensiva_id}', [StudentAssignmentController::class, 'getBySemanaIntensiva']);
+    
+    // Student Assignment bulk operations
+    Route::post('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkStore']);
+    Route::put('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkUpdate']);
+    Route::patch('/student-assignments/{id}/toggle-active', [StudentAssignmentController::class, 'toggleActive']);
+    
 });

@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\LogsStudentEvents;
 
 class Student extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, LogsStudentEvents;
     protected $table = 'students';
 
     protected $fillable = [
@@ -100,5 +101,15 @@ class Student extends Model
     public function activeAssignments()
     {
         return $this->hasMany(StudentAssignment::class)->active()->current();
+    }
+
+    public function events()
+    {
+        return $this->hasMany(StudentEvent::class)->orderBy('created_at', 'desc');
+    }
+
+    public function recentEvents($limit = 10)
+    {
+        return $this->hasMany(StudentEvent::class)->orderBy('created_at', 'desc')->limit($limit);
     }
 }
