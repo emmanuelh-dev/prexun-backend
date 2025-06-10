@@ -10,7 +10,7 @@ class PeriodController extends Controller
 {
     public function index()
     {
-        return Period::all()->sortByDesc('start_date')->values()->all();
+        return Period::all();
     }
     
     public function store(Request $request)
