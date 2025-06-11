@@ -1214,4 +1214,174 @@ class StudentController extends Controller
             }
         }
     }
+
+    /**
+     * Bulk mark students as inactive.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkMarkAsInactive(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'exists:students,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $studentIds = $request->input('student_ids');
+        $results = [
+            'success' => [],
+            'errors' => []
+        ];
+
+        try {
+            DB::beginTransaction();
+
+            $students = Student::whereIn('id', $studentIds)->get();
+
+            foreach ($students as $student) {
+                try {
+                    // Capture data before update for event logging
+                    $beforeData = $student->toArray();
+                    
+                    $student->update(['status' => 'Inactivo']);
+                    
+                    // Capture data after update for event logging
+                    $afterData = $student->fresh()->toArray();
+                    
+                    // Log student status change event
+                    StudentEvent::createEvent(
+                        $student, 
+                        StudentEvent::EVENT_UPDATED, 
+                        $beforeData, 
+                        $afterData,
+                        'Student status changed to Inactive'
+                    );
+                    
+                    $results['success'][] = $student->id;
+                    
+                    Log::info('Student marked as inactive', [
+                        'student_id' => $student->id,
+                        'user_id' => auth()->id()
+                    ]);
+                } catch (\Exception $e) {
+                    $results['errors'][] = [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ];
+                    Log::error('Error marking student as inactive', [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Estudiantes marcados como inactivos correctamente',
+                'results' => $results
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error in bulk mark as inactive operation', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al marcar estudiantes como inactivos',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk mark students as active.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkMarkAsActive(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'exists:students,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $studentIds = $request->input('student_ids');
+        $results = [
+            'success' => [],
+            'errors' => []
+        ];
+
+        try {
+            DB::beginTransaction();
+
+            $students = Student::whereIn('id', $studentIds)->get();
+
+            foreach ($students as $student) {
+                try {
+                    // Capture data before update for event logging
+                    $beforeData = $student->toArray();
+                    
+                    $student->update(['status' => 'Activo']);
+                    
+                    // Capture data after update for event logging
+                    $afterData = $student->fresh()->toArray();
+                    
+                    // Log student status change event
+                    StudentEvent::createEvent(
+                        $student, 
+                        StudentEvent::EVENT_UPDATED, 
+                        $beforeData, 
+                        $afterData,
+                        'Student status changed to Active'
+                    );
+                    
+                    $results['success'][] = $student->id;
+                    
+                    Log::info('Student marked as active', [
+                        'student_id' => $student->id,
+                        'user_id' => auth()->id()
+                    ]);
+                } catch (\Exception $e) {
+                    $results['errors'][] = [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ];
+                    Log::error('Error marking student as active', [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Estudiantes marcados como activos correctamente',
+                'results' => $results
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error in bulk mark as active operation', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al marcar estudiantes como activos',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -84,6 +84,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/students/{student}', [StudentController::class, 'destroy']);
     Route::post('/students/bulk-destroy', [StudentController::class, 'bulkDestroy']);
     Route::post('/students/bulk-update-semana-intensiva', [StudentController::class, 'bulkUpdateSemanaIntensiva']);
+    Route::post('/students/bulk-mark-as-active', [StudentController::class, 'bulkMarkAsActive']);
+    Route::post('/students/bulk-mark-as-inactive', [StudentController::class, 'bulkMarkAsInactive']);
     Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
     Route::patch('/students/hard-update', [StudentController::class, 'hardUpdate']);
 
