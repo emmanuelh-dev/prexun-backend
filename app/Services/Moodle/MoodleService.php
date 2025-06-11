@@ -50,6 +50,11 @@ class MoodleService
         return $this->userService->updateUser($users);
     }
 
+    public function suspendUser(array $users)
+    {
+        return $this->userService->suspendUser($users);
+    }
+
     public function deleteUser($userId)
     {
         return $this->userService->deleteUser($userId);

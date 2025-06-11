@@ -3,7 +3,7 @@
 namespace App\Services\Moodle;
 
 use Illuminate\Support\Facades\Log;
-
+    
 class MoodleUserService extends BaseMoodleService
 {
     /**
@@ -92,6 +92,52 @@ class MoodleUserService extends BaseMoodleService
         return [
             'status' => 'error',
             'message' => 'Error updating user in Moodle',
+            'response' => $response
+        ];
+    }
+
+    /**
+     * Suspender (inactivar) o activar usuarios en Moodle.
+     * 
+     * @param array $users Array de usuarios con estructura: 
+     *                     [['id' => moodle_user_id, 'suspended' => 1|0], ...]
+     *                     suspended: 1 = suspender usuario, 0 = activar usuario
+     * @return array Respuesta de la API de Moodle
+     */
+    public function suspendUser(array $users)
+    {
+        Log::info('Suspending/Activating users in Moodle', ['users' => $users]);
+
+        // Validar que los usuarios tengan la estructura correcta
+        foreach ($users as $user) {
+            if (!isset($user['id']) || !isset($user['suspended'])) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Each user must have "id" and "suspended" fields'
+                ];
+            }
+
+            if (!is_numeric($user['id']) || !in_array($user['suspended'], [0, 1])) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Invalid user data: id must be numeric and suspended must be 0 or 1'
+                ];
+            }
+        }
+
+        $response = $this->sendRequest('core_user_update_users', $this->formatUsers($users));
+
+        if ($response['status'] === 'success') {
+            return [
+                'status' => 'success',
+                'data' => $response['data'] ?? [],
+                'message' => 'Users suspended/activated successfully'
+            ];
+        }
+
+        return [
+            'status' => 'error',
+            'message' => 'Error suspending/activating users in Moodle',
             'response' => $response
         ];
     }

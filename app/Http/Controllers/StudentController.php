@@ -255,7 +255,7 @@ class StudentController extends Controller
             ], 500);
         }
     }
-
+ 
     /**
      * Update the specified student.
      */
@@ -694,6 +694,129 @@ class StudentController extends Controller
 
             return response()->json([
                 'message' => 'Error al asignar estudiantes a semana intensiva',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Suspender o activar estudiantes en Moodle.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function suspendStudents(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+            'suspended' => 'required|boolean'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $studentIds = $request->input('student_ids');
+        $suspended = $request->input('suspended') ? 1 : 0;
+        $action = $suspended ? 'suspender' : 'activar';
+        
+        $results = [
+            'success' => [],
+            'errors' => []
+        ];
+
+        try {
+            DB::beginTransaction();
+            
+            Log::info("Starting bulk {$action} operation for students", [
+                'student_ids' => $studentIds,
+                'suspended' => $suspended
+            ]);
+
+            $students = Student::whereIn('id', $studentIds)->get();
+            $moodleUsers = [];
+
+            // Preparar datos para Moodle
+            foreach ($students as $student) {
+                try {
+                    // Asegurar que el estudiante tenga moodle_id
+                    $this->ensureStudentHasMoodleId($student);
+                    
+                    if ($student->moodle_id) {
+                        $moodleUsers[] = [
+                            'id' => $student->moodle_id,
+                            'suspended' => $suspended
+                        ];
+                        
+                        // Actualizar estado local si lo deseas
+                        // $student->is_active = !$suspended;
+                        // $student->save();
+                        
+                        $results['success'][] = $student->id;
+                    } else {
+                        $results['errors'][] = [
+                            'student_id' => $student->id,
+                            'error' => 'No se pudo obtener el ID de Moodle'
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    $results['errors'][] = [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ];
+                    Log::error("Error preparing student for {$action}", [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            // Suspender/activar en Moodle si hay usuarios válidos
+            if (!empty($moodleUsers)) {
+                $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
+                
+                if ($moodleResponse['status'] !== 'success') {
+                    // Si falla en Moodle, marcar todos como error
+                    foreach ($results['success'] as $studentId) {
+                        $results['errors'][] = [
+                            'student_id' => $studentId,
+                            'error' => $moodleResponse['message'] ?? 'Error en Moodle'
+                        ];
+                    }
+                    $results['success'] = [];
+                    
+                    DB::rollBack();
+                    
+                    return response()->json([
+                        'message' => "Error al {$action} estudiantes en Moodle",
+                        'error' => $moodleResponse['message'] ?? 'Error desconocido',
+                        'results' => $results
+                    ], 500);
+                }
+                
+                Log::info("Students successfully {$action}ed in Moodle", [
+                    'count' => count($moodleUsers),
+                    'action' => $action
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => "Estudiantes {$action}dos exitosamente",
+                'results' => $results
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Error in bulk {$action} operation", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => "Error al {$action} estudiantes",
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -1380,6 +1503,94 @@ class StudentController extends Controller
 
             return response()->json([
                 'message' => 'Error al marcar estudiantes como activos',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Suspender o activar un estudiante individual en Moodle.
+     * 
+     * @param Request $request
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function suspendStudent(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'suspended' => 'required|boolean'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $suspended = $request->input('suspended') ? 1 : 0;
+        $action = $suspended ? 'suspender' : 'activar';
+
+        try {
+            DB::beginTransaction();
+            
+            $student = Student::findOrFail($id);
+            
+            Log::info("Starting {$action} operation for student", [
+                'student_id' => $id,
+                'suspended' => $suspended
+            ]);
+
+            // Asegurar que el estudiante tenga moodle_id
+            $this->ensureStudentHasMoodleId($student);
+            
+            if (!$student->moodle_id) {
+                return response()->json([
+                    'message' => 'No se pudo obtener el ID de Moodle del estudiante',
+                    'error' => 'Moodle ID not found'
+                ], 400);
+            }
+
+            // Suspender/activar en Moodle
+            $moodleUsers = [[
+                'id' => $student->moodle_id,
+                'suspended' => $suspended
+            ]];
+
+            $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
+            
+            if ($moodleResponse['status'] !== 'success') {
+                DB::rollBack();
+                
+                return response()->json([
+                    'message' => "Error al {$action} estudiante en Moodle",
+                    'error' => $moodleResponse['message'] ?? 'Error desconocido'
+                ], 500);
+            }
+
+            // Actualizar estado local si lo deseas (opcional)
+            // $student->is_active = !$suspended;
+            // $student->save();
+
+            DB::commit();
+
+            Log::info("Student successfully {$action}ed in Moodle", [
+                'student_id' => $id,
+                'action' => $action
+            ]);
+
+            return response()->json([
+                'message' => "Estudiante {$action}do exitosamente",
+                'student' => $student
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Error in {$action} operation", [
+                'student_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => "Error al {$action} estudiante",
                 'error' => $e->getMessage()
             ], 500);
         }
