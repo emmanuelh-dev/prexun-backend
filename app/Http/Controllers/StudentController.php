@@ -740,6 +740,13 @@ class StudentController extends Controller
             // Preparar datos para Moodle
             foreach ($students as $student) {
                 try {
+                    Log::info("Processing student for {$action} operation", [
+                        'student_id' => $student->id,
+                        'action' => $action,
+                        'student_email' => $student->email,
+                        'current_moodle_id' => $student->moodle_id
+                    ]);
+                    
                     // Asegurar que el estudiante tenga moodle_id
                     $this->ensureStudentHasMoodleId($student);
                     
@@ -749,34 +756,66 @@ class StudentController extends Controller
                             'suspended' => $suspended
                         ];
                         
+                        Log::info("Student prepared for Moodle {$action} operation", [
+                            'student_id' => $student->id,
+                            'moodle_user_id' => $student->moodle_id,
+                            'action' => $action,
+                            'suspended_value' => $suspended
+                        ]);
+                        
                         // Actualizar estado local si lo deseas
                         // $student->is_active = !$suspended;
                         // $student->save();
                         
                         $results['success'][] = $student->id;
                     } else {
+                        Log::error("Failed to obtain Moodle ID for student", [
+                            'student_id' => $student->id,
+                            'action' => $action,
+                            'student_email' => $student->email
+                        ]);
+                        
                         $results['errors'][] = [
                             'student_id' => $student->id,
                             'error' => 'No se pudo obtener el ID de Moodle'
                         ];
                     }
                 } catch (\Exception $e) {
+                    Log::error("Exception while preparing student for {$action}", [
+                        'student_id' => $student->id,
+                        'action' => $action,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    
                     $results['errors'][] = [
                         'student_id' => $student->id,
                         'error' => $e->getMessage()
                     ];
-                    Log::error("Error preparing student for {$action}", [
-                        'student_id' => $student->id,
-                        'error' => $e->getMessage()
-                    ]);
                 }
             }
 
             // Suspender/activar en Moodle si hay usuarios válidos
             if (!empty($moodleUsers)) {
+                Log::info("Attempting to {$action} users in Moodle", [
+                    'total_users' => count($moodleUsers),
+                    'action' => $action,
+                    'moodle_users_data' => $moodleUsers,
+                    'request_timestamp' => now()->toISOString()
+                ]);
+                
                 $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
                 
                 if ($moodleResponse['status'] !== 'success') {
+                    Log::error("Moodle {$action} operation failed for bulk request", [
+                        'action' => $action,
+                        'attempted_users' => count($moodleUsers),
+                        'moodle_user_ids' => array_column($moodleUsers, 'id'),
+                        'moodle_error' => $moodleResponse['message'] ?? 'Unknown error',
+                        'full_response' => $moodleResponse,
+                        'failed_timestamp' => now()->toISOString()
+                    ]);
+                    
                     // Si falla en Moodle, marcar todos como error
                     foreach ($results['success'] as $studentId) {
                         $results['errors'][] = [
@@ -795,9 +834,18 @@ class StudentController extends Controller
                     ], 500);
                 }
                 
-                Log::info("Students successfully {$action}ed in Moodle", [
-                    'count' => count($moodleUsers),
-                    'action' => $action
+                Log::info("Moodle {$action} operation completed successfully", [
+                    'action' => $action,
+                    'processed_users' => count($moodleUsers),
+                    'moodle_user_ids' => array_column($moodleUsers, 'id'),
+                    'success_timestamp' => now()->toISOString(),
+                    'moodle_response_data' => $moodleResponse['data'] ?? []
+                ]);
+            } else {
+                Log::warning("No valid Moodle users found for {$action} operation", [
+                    'action' => $action,
+                    'attempted_student_ids' => $studentIds,
+                    'timestamp' => now()->toISOString()
                 ]);
             }
 
@@ -1127,6 +1175,12 @@ class StudentController extends Controller
     private function ensureStudentHasMoodleId(Student $student): void
     {
         if (!$student->moodle_id) {
+            Log::info('Student missing Moodle ID, attempting to fetch from Moodle', [
+                'student_id' => $student->id,
+                'student_email' => $student->email,
+                'student_name' => $student->firstname . ' ' . $student->lastname
+            ]);
+            
             $username = (string) $student->id;
             $moodleUser = $this->moodleService->users()->getUserByUsername($username);
             
@@ -1136,11 +1190,28 @@ class StudentController extends Controller
                 
                 Log::info('Moodle ID fetched and saved for student', [
                     'student_id' => $student->id,
-                    'moodle_id' => $student->moodle_id
+                    'moodle_id' => $student->moodle_id,
+                    'student_email' => $student->email,
+                    'moodle_username' => $username,
+                    'fetched_timestamp' => now()->toISOString()
                 ]);
             } else {
+                Log::error('Failed to fetch Moodle ID for student', [
+                    'student_id' => $student->id,
+                    'student_email' => $student->email,
+                    'moodle_username' => $username,
+                    'moodle_response' => $moodleUser,
+                    'error_timestamp' => now()->toISOString()
+                ]);
+                
                 throw new \Exception('Failed to fetch Moodle ID for student: ' . $student->id);
             }
+        } else {
+            Log::debug('Student already has Moodle ID', [
+                'student_id' => $student->id,
+                'moodle_id' => $student->moodle_id,
+                'student_email' => $student->email
+            ]);
         }
     }
 
@@ -1339,7 +1410,7 @@ class StudentController extends Controller
     }
 
     /**
-     * Bulk mark students as inactive.
+     * Bulk mark students as inactive and suspend them in Moodle.
      * 
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -1363,18 +1434,51 @@ class StudentController extends Controller
 
         try {
             DB::beginTransaction();
+            
+            Log::info('Starting bulk mark as inactive operation', [
+                'student_ids' => $studentIds,
+                'total_students' => count($studentIds),
+                'initiated_by' => auth()->id(),
+                'timestamp' => now()->toISOString()
+            ]);
 
             $students = Student::whereIn('id', $studentIds)->get();
+            $moodleUsers = [];
 
+            // Preparar datos para Moodle y actualizar estado local
             foreach ($students as $student) {
                 try {
                     // Capture data before update for event logging
                     $beforeData = $student->toArray();
                     
+                    // Asegurar que el estudiante tenga moodle_id
+                    $this->ensureStudentHasMoodleId($student);
+                    
+                    // Actualizar status local
                     $student->update(['status' => 'Inactivo']);
                     
                     // Capture data after update for event logging
                     $afterData = $student->fresh()->toArray();
+                    
+                    // Preparar para suspensión en Moodle si tiene moodle_id
+                    if ($student->moodle_id) {
+                        $moodleUsers[] = [
+                            'id' => $student->moodle_id,
+                            'suspended' => 1
+                        ];
+                        
+                        Log::info('Prepared student for Moodle suspension', [
+                            'student_id' => $student->id,
+                            'moodle_id' => $student->moodle_id,
+                            'student_email' => $student->email,
+                            'student_name' => $student->firstname . ' ' . $student->lastname
+                        ]);
+                    } else {
+                        Log::warning('Student marked as inactive locally but no Moodle ID available for suspension', [
+                            'student_id' => $student->id,
+                            'student_email' => $student->email
+                        ]);
+                    }
                     
                     // Log student status change event
                     StudentEvent::createEvent(
@@ -1387,10 +1491,15 @@ class StudentController extends Controller
                     
                     $results['success'][] = $student->id;
                     
-                    Log::info('Student marked as inactive', [
+                    Log::info('Student marked as inactive locally', [
                         'student_id' => $student->id,
-                        'user_id' => auth()->id()
+                        'student_email' => $student->email,
+                        'previous_status' => $beforeData['status'] ?? 'unknown',
+                        'new_status' => 'Inactivo',
+                        'user_id' => auth()->id(),
+                        'timestamp' => now()->toISOString()
                     ]);
+                    
                 } catch (\Exception $e) {
                     $results['errors'][] = [
                         'student_id' => $student->id,
@@ -1398,22 +1507,91 @@ class StudentController extends Controller
                     ];
                     Log::error('Error marking student as inactive', [
                         'student_id' => $student->id,
-                        'error' => $e->getMessage()
+                        'student_email' => $student->email ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                        'timestamp' => now()->toISOString()
                     ]);
                 }
             }
 
+            // Suspender en Moodle si hay usuarios válidos
+            if (!empty($moodleUsers)) {
+                Log::info('Attempting to suspend students in Moodle', [
+                    'total_moodle_users' => count($moodleUsers),
+                    'moodle_user_ids' => array_column($moodleUsers, 'id'),
+                    'operation_timestamp' => now()->toISOString()
+                ]);
+                
+                $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
+                
+                if ($moodleResponse['status'] !== 'success') {
+                    // Si falla en Moodle, marcar los estudiantes que fueron actualizados localmente como error
+                    $moodleErrorStudentIds = array_column($moodleUsers, 'id');
+                    
+                    Log::error('Failed to suspend students in Moodle after local update', [
+                        'failed_moodle_user_ids' => $moodleErrorStudentIds,
+                        'moodle_error' => $moodleResponse['message'] ?? 'Unknown error',
+                        'moodle_response' => $moodleResponse,
+                        'total_failed' => count($moodleErrorStudentIds),
+                        'operation_timestamp' => now()->toISOString()
+                    ]);
+                    
+                    // Actualizar results para reflejar el fallo de Moodle
+                    foreach ($students as $student) {
+                        if ($student->moodle_id && in_array($student->moodle_id, $moodleErrorStudentIds)) {
+                            // Mover de success a errors
+                            $results['success'] = array_filter($results['success'], fn($id) => $id !== $student->id);
+                            $results['errors'][] = [
+                                'student_id' => $student->id,
+                                'error' => 'Student marked as inactive locally but failed to suspend in Moodle: ' . ($moodleResponse['message'] ?? 'Unknown error')
+                            ];
+                        }
+                    }
+                } else {
+                    Log::info('Students successfully suspended in Moodle', [
+                        'suspended_moodle_user_ids' => array_column($moodleUsers, 'id'),
+                        'total_suspended' => count($moodleUsers),
+                        'operation_timestamp' => now()->toISOString()
+                    ]);
+                }
+            } else {
+                Log::warning('No students had Moodle IDs for suspension', [
+                    'total_students_processed' => count($students),
+                    'students_without_moodle_id' => count($students)
+                ]);
+            }
+
             DB::commit();
+
+            $successCount = count($results['success']);
+            $errorCount = count($results['errors']);
+            
+            Log::info('Bulk mark as inactive operation completed', [
+                'total_requested' => count($studentIds),
+                'successful_updates' => $successCount,
+                'failed_updates' => $errorCount,
+                'moodle_suspensions_attempted' => count($moodleUsers),
+                'completion_timestamp' => now()->toISOString()
+            ]);
 
             return response()->json([
                 'message' => 'Estudiantes marcados como inactivos correctamente',
-                'results' => $results
+                'results' => $results,
+                'summary' => [
+                    'total_processed' => count($studentIds),
+                    'successful' => $successCount,
+                    'failed' => $errorCount,
+                    'moodle_suspensions' => count($moodleUsers)
+                ]
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in bulk mark as inactive operation', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'student_ids' => $studentIds,
+                'operation_timestamp' => now()->toISOString()
             ]);
 
             return response()->json([
@@ -1424,7 +1602,7 @@ class StudentController extends Controller
     }
 
     /**
-     * Bulk mark students as active.
+     * Bulk mark students as active and activate them in Moodle.
      * 
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -1448,18 +1626,51 @@ class StudentController extends Controller
 
         try {
             DB::beginTransaction();
+            
+            Log::info('Starting bulk mark as active operation', [
+                'student_ids' => $studentIds,
+                'total_students' => count($studentIds),
+                'initiated_by' => auth()->id(),
+                'timestamp' => now()->toISOString()
+            ]);
 
             $students = Student::whereIn('id', $studentIds)->get();
+            $moodleUsers = [];
 
+            // Preparar datos para Moodle y actualizar estado local
             foreach ($students as $student) {
                 try {
                     // Capture data before update for event logging
                     $beforeData = $student->toArray();
                     
+                    // Asegurar que el estudiante tenga moodle_id
+                    $this->ensureStudentHasMoodleId($student);
+                    
+                    // Actualizar status local
                     $student->update(['status' => 'Activo']);
                     
                     // Capture data after update for event logging
                     $afterData = $student->fresh()->toArray();
+                    
+                    // Preparar para activación en Moodle si tiene moodle_id
+                    if ($student->moodle_id) {
+                        $moodleUsers[] = [
+                            'id' => $student->moodle_id,
+                            'suspended' => 0
+                        ];
+                        
+                        Log::info('Prepared student for Moodle activation', [
+                            'student_id' => $student->id,
+                            'moodle_id' => $student->moodle_id,
+                            'student_email' => $student->email,
+                            'student_name' => $student->firstname . ' ' . $student->lastname
+                        ]);
+                    } else {
+                        Log::warning('Student marked as active locally but no Moodle ID available for activation', [
+                            'student_id' => $student->id,
+                            'student_email' => $student->email
+                        ]);
+                    }
                     
                     // Log student status change event
                     StudentEvent::createEvent(
@@ -1472,10 +1683,15 @@ class StudentController extends Controller
                     
                     $results['success'][] = $student->id;
                     
-                    Log::info('Student marked as active', [
+                    Log::info('Student marked as active locally', [
                         'student_id' => $student->id,
-                        'user_id' => auth()->id()
+                        'student_email' => $student->email,
+                        'previous_status' => $beforeData['status'] ?? 'unknown',
+                        'new_status' => 'Activo',
+                        'user_id' => auth()->id(),
+                        'timestamp' => now()->toISOString()
                     ]);
+                    
                 } catch (\Exception $e) {
                     $results['errors'][] = [
                         'student_id' => $student->id,
@@ -1483,22 +1699,91 @@ class StudentController extends Controller
                     ];
                     Log::error('Error marking student as active', [
                         'student_id' => $student->id,
-                        'error' => $e->getMessage()
+                        'student_email' => $student->email ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                        'timestamp' => now()->toISOString()
                     ]);
                 }
             }
 
+            // Activar en Moodle si hay usuarios válidos
+            if (!empty($moodleUsers)) {
+                Log::info('Attempting to activate students in Moodle', [
+                    'total_moodle_users' => count($moodleUsers),
+                    'moodle_user_ids' => array_column($moodleUsers, 'id'),
+                    'operation_timestamp' => now()->toISOString()
+                ]);
+                
+                $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
+                
+                if ($moodleResponse['status'] !== 'success') {
+                    // Si falla en Moodle, marcar los estudiantes que fueron actualizados localmente como error
+                    $moodleErrorStudentIds = array_column($moodleUsers, 'id');
+                    
+                    Log::error('Failed to activate students in Moodle after local update', [
+                        'failed_moodle_user_ids' => $moodleErrorStudentIds,
+                        'moodle_error' => $moodleResponse['message'] ?? 'Unknown error',
+                        'moodle_response' => $moodleResponse,
+                        'total_failed' => count($moodleErrorStudentIds),
+                        'operation_timestamp' => now()->toISOString()
+                    ]);
+                    
+                    // Actualizar results para reflejar el fallo de Moodle
+                    foreach ($students as $student) {
+                        if ($student->moodle_id && in_array($student->moodle_id, $moodleErrorStudentIds)) {
+                            // Mover de success a errors
+                            $results['success'] = array_filter($results['success'], fn($id) => $id !== $student->id);
+                            $results['errors'][] = [
+                                'student_id' => $student->id,
+                                'error' => 'Student marked as active locally but failed to activate in Moodle: ' . ($moodleResponse['message'] ?? 'Unknown error')
+                            ];
+                        }
+                    }
+                } else {
+                    Log::info('Students successfully activated in Moodle', [
+                        'activated_moodle_user_ids' => array_column($moodleUsers, 'id'),
+                        'total_activated' => count($moodleUsers),
+                        'operation_timestamp' => now()->toISOString()
+                    ]);
+                }
+            } else {
+                Log::warning('No students had Moodle IDs for activation', [
+                    'total_students_processed' => count($students),
+                    'students_without_moodle_id' => count($students)
+                ]);
+            }
+
             DB::commit();
+
+            $successCount = count($results['success']);
+            $errorCount = count($results['errors']);
+            
+            Log::info('Bulk mark as active operation completed', [
+                'total_requested' => count($studentIds),
+                'successful_updates' => $successCount,
+                'failed_updates' => $errorCount,
+                'moodle_activations_attempted' => count($moodleUsers),
+                'completion_timestamp' => now()->toISOString()
+            ]);
 
             return response()->json([
                 'message' => 'Estudiantes marcados como activos correctamente',
-                'results' => $results
+                'results' => $results,
+                'summary' => [
+                    'total_processed' => count($studentIds),
+                    'successful' => $successCount,
+                    'failed' => $errorCount,
+                    'moodle_activations' => count($moodleUsers)
+                ]
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in bulk mark as active operation', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'student_ids' => $studentIds,
+                'operation_timestamp' => now()->toISOString()
             ]);
 
             return response()->json([
@@ -1553,10 +1838,29 @@ class StudentController extends Controller
                 'id' => $student->moodle_id,
                 'suspended' => $suspended
             ]];
+            
+            Log::info("Attempting to {$action} individual student in Moodle", [
+                'student_id' => $id,
+                'moodle_user_id' => $student->moodle_id,
+                'action' => $action,
+                'suspended_value' => $suspended,
+                'student_email' => $student->email,
+                'student_name' => $student->firstname . ' ' . $student->lastname,
+                'request_timestamp' => now()->toISOString()
+            ]);
 
             $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
             
             if ($moodleResponse['status'] !== 'success') {
+                Log::error("Failed to {$action} individual student in Moodle", [
+                    'student_id' => $id,
+                    'moodle_user_id' => $student->moodle_id,
+                    'action' => $action,
+                    'moodle_error' => $moodleResponse['message'] ?? 'Unknown error',
+                    'full_moodle_response' => $moodleResponse,
+                    'failed_timestamp' => now()->toISOString()
+                ]);
+                
                 DB::rollBack();
                 
                 return response()->json([
@@ -1571,9 +1875,15 @@ class StudentController extends Controller
 
             DB::commit();
 
-            Log::info("Student successfully {$action}ed in Moodle", [
+            Log::info("Student successfully {$action}ed in Moodle and database", [
                 'student_id' => $id,
-                'action' => $action
+                'moodle_user_id' => $student->moodle_id,
+                'action' => $action,
+                'suspended_value' => $suspended,
+                'student_email' => $student->email,
+                'student_name' => $student->firstname . ' ' . $student->lastname,
+                'success_timestamp' => now()->toISOString(),
+                'moodle_response_data' => $moodleResponse['data'] ?? []
             ]);
 
             return response()->json([
