@@ -160,7 +160,7 @@ class StudentController extends Controller
             $student->load('charges');
 
             // Log student creation event
-            StudentEvent::createEvent($student, StudentEvent::EVENT_CREATED, null, $student->toArray());
+            StudentEvent::createEvent($student->id, StudentEvent::EVENT_CREATED, null, $student->toArray());
 
             return response()->json($student, 201);
         } catch (\Exception $e) {
@@ -233,7 +233,7 @@ class StudentController extends Controller
 
             // Log student update event
             if (!empty($changedFields)) {
-                StudentEvent::createEvent($student, StudentEvent::EVENT_UPDATED, $beforeData, $afterData, implode(', ', $changedFields));
+                StudentEvent::createEvent($student->id, StudentEvent::EVENT_UPDATED, $beforeData, $afterData, implode(', ', $changedFields));
             }
 
             DB::commit();
@@ -294,7 +294,7 @@ class StudentController extends Controller
 
         // Log student update event
         if (!empty($changedFields)) {
-            StudentEvent::createEvent($student, StudentEvent::EVENT_UPDATED, $beforeData, $afterData, implode(', ', $changedFields));
+            StudentEvent::createEvent($student->id, StudentEvent::EVENT_UPDATED, $beforeData, $afterData, implode(', ', $changedFields));
         }
 
         return response()->json($student);
@@ -335,14 +335,14 @@ class StudentController extends Controller
 
             if ($request->boolean('permanent') === true) {
                 // Log permanent deletion event before deleting
-                StudentEvent::createEvent($student, StudentEvent::EVENT_DELETED, $beforeData, null, 'Permanent deletion');
+                StudentEvent::createEvent($student->id, StudentEvent::EVENT_DELETED, $beforeData, null, 'Permanent deletion');
                 
                 $student->forceDelete();
                 return response()->json(['message' => 'Estudiante eliminado permanentemente y sincronizado con Moodle']);
             }
 
             // Log soft deletion event before deleting
-            StudentEvent::createEvent($student, StudentEvent::EVENT_DELETED, $beforeData, null);
+            StudentEvent::createEvent($student->id, StudentEvent::EVENT_DELETED, $beforeData, null);
             
             $student->delete();
             return response()->json(['message' => 'Estudiante eliminado y sincronizado con Moodle']);
@@ -439,11 +439,11 @@ class StudentController extends Controller
                     
                     if ($isPermanent) {
                         // Log permanent deletion event before deleting
-                        StudentEvent::createEvent($student, StudentEvent::EVENT_DELETED, $beforeData, null, 'Permanent deletion');
+                        StudentEvent::createEvent($student->id, StudentEvent::EVENT_DELETED, $beforeData, null, 'Permanent deletion');
                         $student->forceDelete();
                     } else {
                         // Log soft deletion event before deleting
-                        StudentEvent::createEvent($student, StudentEvent::EVENT_DELETED, $beforeData, null);
+                        StudentEvent::createEvent($student->id, StudentEvent::EVENT_DELETED, $beforeData, null);
                         $student->delete();
                     }
                     $results['success'][] = $student->id;
@@ -495,7 +495,7 @@ class StudentController extends Controller
         $afterData = $student->fresh()->toArray();
         
         // Log student restoration event
-        StudentEvent::createEvent($student, StudentEvent::EVENT_RESTORED, null, $afterData);
+        StudentEvent::createEvent($student->id, StudentEvent::EVENT_RESTORED, null, $afterData);
         
         return response()->json(['message' => 'Estudiante restaurado']);
     }
@@ -638,7 +638,7 @@ class StudentController extends Controller
                         
                         // Log semana intensiva assignment event
                         StudentEvent::createEvent(
-                            $student, 
+                            $student->id, 
                             StudentEvent::EVENT_SEMANA_INTENSIVA_CHANGED, 
                             $beforeData, 
                             $afterData,
@@ -660,7 +660,7 @@ class StudentController extends Controller
                         
                         // Still log the event even if Moodle assignment failed
                         StudentEvent::createEvent(
-                            $student, 
+                            $student->id, 
                             StudentEvent::EVENT_SEMANA_INTENSIVA_CHANGED, 
                             $beforeData, 
                             $afterData,
@@ -1378,7 +1378,7 @@ class StudentController extends Controller
                     
                     // Log student status change event
                     StudentEvent::createEvent(
-                        $student, 
+                        $student->id, 
                         StudentEvent::EVENT_UPDATED, 
                         $beforeData, 
                         $afterData,
@@ -1463,7 +1463,7 @@ class StudentController extends Controller
                     
                     // Log student status change event
                     StudentEvent::createEvent(
-                        $student, 
+                        $student->id, 
                         StudentEvent::EVENT_UPDATED, 
                         $beforeData, 
                         $afterData,
