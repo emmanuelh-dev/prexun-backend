@@ -21,11 +21,33 @@ class ChargeController extends Controller
         $campus_id = $request->campus_id; 
         $perPage = (int) $request->query('per_page', 10);
         $page = (int) $request->query('page', 1);
+        $search = $request->query('search');
+        $payment_method = $request->query('payment_method');
     
-        $charges = Transaction::with(['student', 'campus', 'student.grupo'])
+        $query = Transaction::with(['student', 'campus', 'student.grupo'])
             ->where('campus_id', $campus_id)
-            ->where('paid', true)
-            ->orderBy('payment_date', 'desc')
+            ->where('paid', true);
+
+        // Filtro de búsqueda por nombre de estudiante
+        if ($search) {
+            $query->whereHas('student', function ($q) use ($search) {
+                $searchTerms = explode(' ', trim($search));
+                foreach ($searchTerms as $term) {
+                    $q->where(function ($subQuery) use ($term) {
+                        $subQuery->where('firstname', 'LIKE', '%' . $term . '%')
+                                 ->orWhere('lastname', 'LIKE', '%' . $term . '%')
+                                 ->orWhere('username', 'LIKE', '%' . $term . '%');
+                    });
+                }
+            });
+        }
+
+        // Filtro por método de pago
+        if ($payment_method && $payment_method !== 'all') {
+            $query->where('payment_method', $payment_method);
+        }
+
+        $charges = $query->orderBy('payment_date', 'desc')
             ->orderBy('folio', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
     
@@ -46,6 +68,8 @@ class ChargeController extends Controller
         $expiration_date = $request->query('expiration_date');
         $perPage = (int) $request->query('per_page', 10);
         $page = (int) $request->query('page', 1);
+        $search = $request->query('search');
+        $payment_method = $request->query('payment_method');
 
         if (!$campus_id) {
             return response()->json(['error' => 'campus_id is required'], 400);
@@ -53,8 +77,26 @@ class ChargeController extends Controller
 
         $query = Transaction::with('student', 'campus', 'student.grupo')
             ->where('campus_id', $campus_id)
-            ->where('paid', false)
-            ->orderBy('expiration_date', 'asc');
+            ->where('paid', false);
+
+        // Filtro de búsqueda por nombre de estudiante
+        if ($search) {
+            $query->whereHas('student', function ($q) use ($search) {
+                $searchTerms = explode(' ', trim($search));
+                foreach ($searchTerms as $term) {
+                    $q->where(function ($subQuery) use ($term) {
+                        $subQuery->where('firstname', 'LIKE', '%' . $term . '%')
+                                 ->orWhere('lastname', 'LIKE', '%' . $term . '%')
+                                 ->orWhere('username', 'LIKE', '%' . $term . '%');
+                    });
+                }
+            });
+        }
+
+        // Filtro por método de pago
+        if ($payment_method && $payment_method !== 'all') {
+            $query->where('payment_method', $payment_method);
+        }
 
         if ($expiration_date) {
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiration_date)) {
@@ -63,7 +105,8 @@ class ChargeController extends Controller
             $query->whereDate('expiration_date', $expiration_date);
         }
 
-        $charges = $query->paginate($perPage, ['*'], 'page', $page);
+        $charges = $query->orderBy('expiration_date', 'asc')
+            ->paginate($perPage, ['*'], 'page', $page);
 
         $charges->getCollection()->transform(function ($charge) {
             if ($charge->image) {
