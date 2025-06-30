@@ -15,11 +15,11 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::factory()->create([
-            'name' => 'DIANA ARELI IBARRA OLVERA',
-            'email' => 'admin@prexun.com',
-            'password' => Hash::make('Em805177'),
-            'role' => 'super_admin',
-        ]);
+        // User::factory()->create([
+        //     'name' => 'DIANA ARELI IBARRA OLVERA',
+        //     'email' => 'admin@prexun.com',
+        //     'password' => Hash::make('Em805177'),
+        //     'role' => 'super_admin',
+        // ]);
     }
 }
