@@ -23,8 +23,9 @@ class ChargeController extends Controller
         $page = (int) $request->query('page', 1);
         $search = $request->query('search');
         $payment_method = $request->query('payment_method');
+        $card_id = $request->query('card_id');
     
-        $query = Transaction::with(['student', 'campus', 'student.grupo'])
+        $query = Transaction::with(['student', 'campus', 'student.grupo', 'card'])
             ->where('campus_id', $campus_id)
             ->where('paid', true);
 
@@ -45,6 +46,11 @@ class ChargeController extends Controller
         // Filtro por método de pago
         if ($payment_method && $payment_method !== 'all') {
             $query->where('payment_method', $payment_method);
+        }
+
+        // Filtro por tarjeta específica
+        if ($card_id && $card_id !== 'all') {
+            $query->where('card_id', $card_id);
         }
 
         $charges = $query->orderBy('payment_date', 'desc')
@@ -70,12 +76,13 @@ class ChargeController extends Controller
         $page = (int) $request->query('page', 1);
         $search = $request->query('search');
         $payment_method = $request->query('payment_method');
+        $card_id = $request->query('card_id');
 
         if (!$campus_id) {
             return response()->json(['error' => 'campus_id is required'], 400);
         }
 
-        $query = Transaction::with('student', 'campus', 'student.grupo')
+        $query = Transaction::with('student', 'campus', 'student.grupo', 'card')
             ->where('campus_id', $campus_id)
             ->where('paid', false);
 
@@ -96,6 +103,11 @@ class ChargeController extends Controller
         // Filtro por método de pago
         if ($payment_method && $payment_method !== 'all') {
             $query->where('payment_method', $payment_method);
+        }
+
+        // Filtro por tarjeta específica
+        if ($card_id && $card_id !== 'all') {
+            $query->where('card_id', $card_id);
         }
 
         if ($expiration_date) {
