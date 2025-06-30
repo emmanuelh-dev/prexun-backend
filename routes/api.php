@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\PrepaController;
 use App\Http\Controllers\Api\ProductsController;
 use App\Http\Controllers\Api\RemisionController;
 use App\Http\Controllers\Api\SemanaIntensivaController;
+use App\Http\Controllers\Api\SiteSettingController;
 use App\Http\Controllers\Api\UsersController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ModuloController;
@@ -241,4 +242,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkUpdate']);
     Route::patch('/student-assignments/{id}/toggle-active', [StudentAssignmentController::class, 'toggleActive']);
     
+    // Site Settings
+    Route::prefix('site-settings')->group(function () {
+        Route::get('/', [SiteSettingController::class, 'index']);
+        Route::post('/', [SiteSettingController::class, 'store']);
+        Route::get('/ui-config', [SiteSettingController::class, 'getUIConfig']);
+        Route::get('/group/{group}', [SiteSettingController::class, 'getByGroup']);
+        Route::get('/value/{key}', [SiteSettingController::class, 'getValue']);
+        Route::get('/{id}', [SiteSettingController::class, 'show']);
+        Route::put('/{id}', [SiteSettingController::class, 'update']);
+        Route::post('/update-multiple', [SiteSettingController::class, 'updateMultiple']);
+        Route::delete('/{id}', [SiteSettingController::class, 'destroy']);
+    });
 });
