@@ -15,8 +15,20 @@ class Moodle
     public function __construct()
     {
         $this->client = new Client(['http_errors' => false]);
-        $this->token = env('MOODLE_TOKEN');
-        $this->url = env('MOODLE_URL');
+        
+        $token = config('moodle.token');
+        $url = config('moodle.url');
+        
+        if (empty($token)) {
+            throw new \Exception('MOODLE_TOKEN is not configured or is empty');
+        }
+        
+        if (empty($url)) {
+            throw new \Exception('MOODLE_URL is not configured or is empty');
+        }
+        
+        $this->token = $token;
+        $this->url = $url;
     }
 
     /**
