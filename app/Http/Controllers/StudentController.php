@@ -38,6 +38,7 @@ class StudentController extends Controller
         $searchPhone = $request->get('searchPhone');
         $searchMatricula = $request->get('searchMatricula');
         $period = $request->get('period');
+        $assignedPeriod = $request->get('assignedPeriod');
         $grupo = $request->get('grupo');
         $semanaIntensivaId = $request->get('semanaIntensivaFilter');
         $perPage = $request->get('perPage', 10);
@@ -50,6 +51,7 @@ class StudentController extends Controller
             'searchPhone' => $searchPhone,
             'searchMatricula' => $searchMatricula,
             'period' => $period,
+            'assignedPeriod' => $assignedPeriod,
             'perPage' => $perPage,
             'page' => $page,
             'grupo' => $grupo
@@ -85,6 +87,13 @@ class StudentController extends Controller
             $query->where('period_id', $period);
         }
 
+        if ($assignedPeriod) {
+            $query->whereHas('assignments', function ($q) use ($assignedPeriod) {
+                $q->where('period_id', $assignedPeriod)
+                  ->where('is_active', true);
+            });
+        }
+
         if ($grupo) {
             $query->where('grupo_id', $grupo);
         }
@@ -99,6 +108,15 @@ class StudentController extends Controller
             $periodCost = $student->period ? $student->period->price : 0;
             $totalPaid = $student->transactions->sum('amount');
             $student->current_debt = $periodCost - $totalPaid;
+            
+            // Add information about assignments if filtering by assigned period
+            if ($assignedPeriod) {
+                $student->period_assignments = $student->assignments()
+                    ->with(['grupo', 'semanaIntensiva'])
+                    ->where('period_id', $assignedPeriod)
+                    ->where('is_active', true)
+                    ->get();
+            }
         }
 
         return response()->json($students);

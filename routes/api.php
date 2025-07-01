@@ -236,6 +236,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/student-assignments/period/{period_id}', [StudentAssignmentController::class, 'getByPeriod']);
     Route::get('/student-assignments/grupo/{grupo_id}', [StudentAssignmentController::class, 'getByGrupo']);
     Route::get('/student-assignments/semana/{semana_intensiva_id}', [StudentAssignmentController::class, 'getBySemanaIntensiva']);
+    Route::get('/student-assignments/students-by-period/{period_id}', [StudentAssignmentController::class, 'getStudentsByAssignedPeriod']);
     
     // Student Assignment bulk operations
     Route::post('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkStore']);

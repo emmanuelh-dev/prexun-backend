@@ -367,6 +367,106 @@ class StudentAssignmentController extends Controller
     }
 
     /**
+     * Get students that have active assignments in a specific period.
+     */
+    public function getStudentsByAssignedPeriod(Request $request, $periodId)
+    {
+        $campus_id = $request->get('campus_id');
+        $search = $request->get('search');
+        $searchDate = $request->get('searchDate');
+        $searchPhone = $request->get('searchPhone');
+        $searchMatricula = $request->get('searchMatricula');
+        $grupo = $request->get('grupo');
+        $semanaIntensivaFilter = $request->get('semanaIntensivaFilter');
+        $perPage = $request->get('perPage', 10);
+        $page = $request->get('page', 1);
+
+        Log::info('Fetching students by assigned period', [
+            'period_id' => $periodId,
+            'campus_id' => $campus_id,
+            'search' => $search,
+            'perPage' => $perPage,
+            'page' => $page,
+        ]);
+
+        // Start with the base query joining students through assignments
+        $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera', 'grupo'])
+            ->whereHas('assignments', function ($q) use ($periodId) {
+                $q->where('period_id', $periodId)
+                  ->where('is_active', true);
+            });
+
+        // Apply campus filter
+        if ($campus_id) {
+            $query->where('campus_id', $campus_id);
+        }
+
+        // Apply search filters
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('firstname', 'LIKE', "%{$search}%")
+                    ->orWhere('lastname', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if ($searchPhone) {
+            $query->where('phone', 'LIKE', "%{$searchPhone}%");
+        }
+
+        if ($searchMatricula) {
+            $query->where('id', 'LIKE', "%{$searchMatricula}%");
+        }
+
+        if ($searchDate) {
+            $query->whereDate('created_at', $searchDate);
+        }
+
+        // Apply grupo filter - can filter by assignments or student's direct grupo
+        if ($grupo) {
+            $query->where(function ($q) use ($grupo, $periodId) {
+                $q->where('grupo_id', $grupo)
+                  ->orWhereHas('assignments', function ($subQ) use ($grupo, $periodId) {
+                      $subQ->where('grupo_id', $grupo)
+                           ->where('period_id', $periodId)
+                           ->where('is_active', true);
+                  });
+            });
+        }
+
+        // Apply semana intensiva filter
+        if ($semanaIntensivaFilter) {
+            $query->where(function ($q) use ($semanaIntensivaFilter, $periodId) {
+                $q->where('semana_intensiva_id', $semanaIntensivaFilter)
+                  ->orWhereHas('assignments', function ($subQ) use ($semanaIntensivaFilter, $periodId) {
+                      $subQ->where('semana_intensiva_id', $semanaIntensivaFilter)
+                           ->where('period_id', $periodId)
+                           ->where('is_active', true);
+                  });
+            });
+        }
+
+        // Get paginated results
+        $students = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // Calculate debt for each student and add assignment info
+        foreach ($students as $student) {
+            $periodCost = $student->period ? $student->period->price : 0;
+            $totalPaid = $student->transactions->sum('amount');
+            $student->current_debt = $periodCost - $totalPaid;
+            
+            // Add information about assignments in this specific period
+            $student->period_assignments = $student->assignments()
+                ->with(['grupo', 'semanaIntensiva'])
+                ->where('period_id', $periodId)
+                ->where('is_active', true)
+                ->get();
+        }
+
+        return response()->json($students);
+    }
+
+    /**
      * Sync assignment with Moodle when creating new assignments.
      */
     private function syncAssignmentWithMoodle(StudentAssignment $assignment)
