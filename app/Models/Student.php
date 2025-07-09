@@ -20,7 +20,6 @@ class Student extends Model
         'phone',
         'type',
         'campus_id',
-        'period_id',
         'carrer_id',
         'facultad_id',
         'prepa_id',

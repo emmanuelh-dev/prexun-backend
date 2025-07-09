@@ -90,7 +90,7 @@ class StudentController extends Controller
         if ($assignedPeriod) {
             $query->whereHas('assignments', function ($q) use ($assignedPeriod) {
                 $q->where('period_id', $assignedPeriod)
-                  ->where('is_active', true);
+                    ->where('is_active', true);
             });
         }
 
@@ -108,7 +108,7 @@ class StudentController extends Controller
             $periodCost = $student->period ? $student->period->price : 0;
             $totalPaid = $student->transactions->sum('amount');
             $student->current_debt = $periodCost - $totalPaid;
-            
+
             // Add information about assignments if filtering by assigned period
             if ($assignedPeriod) {
                 $student->period_assignments = $student->assignments()
@@ -216,7 +216,7 @@ class StudentController extends Controller
             DB::beginTransaction();
 
             $student = Student::findOrFail($request->id);
-            
+
             // Capture original values before update for event logging
             $beforeData = $student->toArray();
             $oldGrupoId = $student->grupo_id;
@@ -229,7 +229,7 @@ class StudentController extends Controller
 
             // Capture updated values for event logging
             $afterData = $student->fresh()->toArray();
-            
+
             // Get changed fields
             $changedFields = [];
             foreach ($request->only(['email', 'firstname', 'lastname', 'grupo_id', 'semana_intensiva_id']) as $field => $value) {
@@ -273,7 +273,7 @@ class StudentController extends Controller
             ], 500);
         }
     }
- 
+
     /**
      * Update the specified student.
      */
@@ -296,12 +296,12 @@ class StudentController extends Controller
 
         // Capture original values before update
         $beforeData = $student->toArray();
-        
+
         $student->update($request->all());
-        
+
         // Capture updated values for event logging
         $afterData = $student->fresh()->toArray();
-        
+
         // Get changed fields
         $changedFields = [];
         foreach ($request->all() as $field => $value) {
@@ -334,7 +334,7 @@ class StudentController extends Controller
         try {
             // Capture student data before deletion for event logging
             $beforeData = $student->toArray();
-            
+
             if ($student->moodle_id) {
                 $this->moodleService->users()->deleteUser($student->moodle_id);
                 Log::info('Moodle user deleted using stored moodle_id', ['student_id' => $student->id, 'moodle_id' => $student->moodle_id]);
@@ -354,14 +354,14 @@ class StudentController extends Controller
             if ($request->boolean('permanent') === true) {
                 // Log permanent deletion event before deleting
                 StudentEvent::createEvent($student->id, StudentEvent::EVENT_DELETED, $beforeData, null, 'Permanent deletion');
-                
+
                 $student->forceDelete();
                 return response()->json(['message' => 'Estudiante eliminado permanentemente y sincronizado con Moodle']);
             }
 
             // Log soft deletion event before deleting
             StudentEvent::createEvent($student->id, StudentEvent::EVENT_DELETED, $beforeData, null);
-            
+
             $student->delete();
             return response()->json(['message' => 'Estudiante eliminado y sincronizado con Moodle']);
         } catch (\Exception $e) {
@@ -454,7 +454,7 @@ class StudentController extends Controller
                 try {
                     // Capture student data before deletion for event logging
                     $beforeData = $student->toArray();
-                    
+
                     if ($isPermanent) {
                         // Log permanent deletion event before deleting
                         StudentEvent::createEvent($student->id, StudentEvent::EVENT_DELETED, $beforeData, null, 'Permanent deletion');
@@ -507,14 +507,14 @@ class StudentController extends Controller
     public function restore($id)
     {
         $student = Student::withTrashed()->findOrFail($id);
-        
+
         // Capture student data after restoration for event logging
         $student->restore();
         $afterData = $student->fresh()->toArray();
-        
+
         // Log student restoration event
         StudentEvent::createEvent($student->id, StudentEvent::EVENT_RESTORED, null, $afterData);
-        
+
         return response()->json(['message' => 'Estudiante restaurado']);
     }
 
@@ -641,7 +641,7 @@ class StudentController extends Controller
                     // Capture original values before update for event logging
                     $beforeData = $student->toArray();
                     $oldSemanaIntensivaId = $student->semana_intensiva_id;
-                    
+
                     $student->semana_intensiva_id = $semanaIntensivaId;
                     $student->save();
 
@@ -653,16 +653,16 @@ class StudentController extends Controller
 
                     if ($assignResult['success']) {
                         $results['success'][] = $student->id;
-                        
+
                         // Log semana intensiva assignment event
                         StudentEvent::createEvent(
-                            $student->id, 
-                            StudentEvent::EVENT_SEMANA_INTENSIVA_CHANGED, 
-                            $beforeData, 
+                            $student->id,
+                            StudentEvent::EVENT_SEMANA_INTENSIVA_CHANGED,
+                            $beforeData,
                             $afterData,
                             "Semana intensiva changed from {$oldSemanaIntensivaId} to {$semanaIntensivaId}"
                         );
-                        
+
                         Log::info('Student added to intensive week cohort in Moodle', [
                             'student_id' => $student->id,
                             'semana_intensiva_id' => $semanaIntensivaId,
@@ -675,12 +675,12 @@ class StudentController extends Controller
                             'error' => $assignResult['response']['message'] ?? 'Unknown error'
                         ]);
                         $results['success'][] = $student->id;
-                        
+
                         // Still log the event even if Moodle assignment failed
                         StudentEvent::createEvent(
-                            $student->id, 
-                            StudentEvent::EVENT_SEMANA_INTENSIVA_CHANGED, 
-                            $beforeData, 
+                            $student->id,
+                            StudentEvent::EVENT_SEMANA_INTENSIVA_CHANGED,
+                            $beforeData,
                             $afterData,
                             "Semana intensiva changed from {$oldSemanaIntensivaId} to {$semanaIntensivaId} (Moodle sync failed)"
                         );
@@ -738,7 +738,7 @@ class StudentController extends Controller
         $studentIds = $request->input('student_ids');
         $suspended = $request->input('suspended') ? 1 : 0;
         $action = $suspended ? 'suspender' : 'activar';
-        
+
         $results = [
             'success' => [],
             'errors' => []
@@ -746,7 +746,7 @@ class StudentController extends Controller
 
         try {
             DB::beginTransaction();
-            
+
             Log::info("Starting bulk {$action} operation for students", [
                 'student_ids' => $studentIds,
                 'suspended' => $suspended
@@ -764,27 +764,27 @@ class StudentController extends Controller
                         'student_email' => $student->email,
                         'current_moodle_id' => $student->moodle_id
                     ]);
-                    
+
                     // Asegurar que el estudiante tenga moodle_id
                     $this->ensureStudentHasMoodleId($student);
-                    
+
                     if ($student->moodle_id) {
                         $moodleUsers[] = [
                             'id' => $student->moodle_id,
                             'suspended' => $suspended
                         ];
-                        
+
                         Log::info("Student prepared for Moodle {$action} operation", [
                             'student_id' => $student->id,
                             'moodle_user_id' => $student->moodle_id,
                             'action' => $action,
                             'suspended_value' => $suspended
                         ]);
-                        
+
                         // Actualizar estado local si lo deseas
                         // $student->is_active = !$suspended;
                         // $student->save();
-                        
+
                         $results['success'][] = $student->id;
                     } else {
                         Log::error("Failed to obtain Moodle ID for student", [
@@ -792,7 +792,7 @@ class StudentController extends Controller
                             'action' => $action,
                             'student_email' => $student->email
                         ]);
-                        
+
                         $results['errors'][] = [
                             'student_id' => $student->id,
                             'error' => 'No se pudo obtener el ID de Moodle'
@@ -805,7 +805,7 @@ class StudentController extends Controller
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString()
                     ]);
-                    
+
                     $results['errors'][] = [
                         'student_id' => $student->id,
                         'error' => $e->getMessage()
@@ -821,9 +821,9 @@ class StudentController extends Controller
                     'moodle_users_data' => $moodleUsers,
                     'request_timestamp' => now()->toISOString()
                 ]);
-                
+
                 $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
-                
+
                 if ($moodleResponse['status'] !== 'success') {
                     Log::error("Moodle {$action} operation failed for bulk request", [
                         'action' => $action,
@@ -833,7 +833,7 @@ class StudentController extends Controller
                         'full_response' => $moodleResponse,
                         'failed_timestamp' => now()->toISOString()
                     ]);
-                    
+
                     // Si falla en Moodle, marcar todos como error
                     foreach ($results['success'] as $studentId) {
                         $results['errors'][] = [
@@ -842,16 +842,16 @@ class StudentController extends Controller
                         ];
                     }
                     $results['success'] = [];
-                    
+
                     DB::rollBack();
-                    
+
                     return response()->json([
                         'message' => "Error al {$action} estudiantes en Moodle",
                         'error' => $moodleResponse['message'] ?? 'Error desconocido',
                         'results' => $results
                     ], 500);
                 }
-                
+
                 Log::info("Moodle {$action} operation completed successfully", [
                     'action' => $action,
                     'processed_users' => count($moodleUsers),
@@ -873,7 +873,6 @@ class StudentController extends Controller
                 'message' => "Estudiantes {$action}dos exitosamente",
                 'results' => $results
             ]);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("Error in bulk {$action} operation", [
@@ -1198,14 +1197,14 @@ class StudentController extends Controller
                 'student_email' => $student->email,
                 'student_name' => $student->firstname . ' ' . $student->lastname
             ]);
-            
+
             $username = (string) $student->id;
             $moodleUser = $this->moodleService->users()->getUserByUsername($username);
-            
+
             if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
                 $student->moodle_id = $moodleUser['data']['id'];
                 $student->save();
-                
+
                 Log::info('Moodle ID fetched and saved for student', [
                     'student_id' => $student->id,
                     'moodle_id' => $student->moodle_id,
@@ -1221,7 +1220,7 @@ class StudentController extends Controller
                     'moodle_response' => $moodleUser,
                     'error_timestamp' => now()->toISOString()
                 ]);
-                
+
                 throw new \Exception('Failed to fetch Moodle ID for student: ' . $student->id);
             }
         } else {
@@ -1237,10 +1236,10 @@ class StudentController extends Controller
      * Update student cohort assignments based on grupo and semana intensiva changes.
      */
     private function updateStudentCohorts(
-        Student $student, 
-        ?int $oldGrupoId, 
-        ?int $newGrupoId, 
-        ?int $oldSemanaIntensivaId, 
+        Student $student,
+        ?int $oldGrupoId,
+        ?int $newGrupoId,
+        ?int $oldSemanaIntensivaId,
         ?int $newSemanaIntensivaId
     ): void {
         $cohortsToRemove = $this->prepareCohortsToRemove($student, $oldGrupoId, $oldSemanaIntensivaId);
@@ -1272,7 +1271,7 @@ class StudentController extends Controller
                     'userid' => $student->moodle_id,
                     'cohortid' => $oldGrupo->moodle_id
                 ];
-                
+
                 Log::info('Preparing to remove student from old group cohort', [
                     'student_id' => $student->id,
                     'moodle_user_id' => $student->moodle_id,
@@ -1291,7 +1290,7 @@ class StudentController extends Controller
                     'userid' => $student->moodle_id,
                     'cohortid' => $oldSemanaIntensiva->moodle_id
                 ];
-                
+
                 Log::info('Preparing to remove student from old intensive week cohort', [
                     'student_id' => $student->id,
                     'moodle_user_id' => $student->moodle_id,
@@ -1320,7 +1319,7 @@ class StudentController extends Controller
                     'cohorttype' => ['type' => 'id', 'value' => $newGrupo->moodle_id],
                     'usertype' => ['type' => 'username', 'value' => (string) $student->id]
                 ];
-                
+
                 Log::info('Preparing to add student to new group cohort', [
                     'student_id' => $student->id,
                     'moodle_user_id' => $student->moodle_id,
@@ -1339,7 +1338,7 @@ class StudentController extends Controller
                     'cohorttype' => ['type' => 'id', 'value' => $newSemanaIntensiva->moodle_id],
                     'usertype' => ['type' => 'username', 'value' => (string) $student->id]
                 ];
-                
+
                 Log::info('Preparing to add student to new intensive week cohort', [
                     'student_id' => $student->id,
                     'moodle_user_id' => $student->moodle_id,
@@ -1406,7 +1405,7 @@ class StudentController extends Controller
                 'cohorts' => $cohortsToAdd,
                 'moodle_response' => $addResult
             ]);
-            
+
             throw new \Exception('Failed to add student to new cohorts in Moodle: ' . ($addResult['message'] ?? 'Unknown error'));
         } else {
             // Check for warnings in the response
@@ -1452,7 +1451,7 @@ class StudentController extends Controller
 
         try {
             DB::beginTransaction();
-            
+
             Log::info('Starting bulk mark as inactive operation', [
                 'student_ids' => $studentIds,
                 'total_students' => count($studentIds),
@@ -1468,23 +1467,23 @@ class StudentController extends Controller
                 try {
                     // Capture data before update for event logging
                     $beforeData = $student->toArray();
-                    
+
                     // Asegurar que el estudiante tenga moodle_id
                     $this->ensureStudentHasMoodleId($student);
-                    
+
                     // Actualizar status local
                     $student->update(['status' => 'Inactivo']);
-                    
+
                     // Capture data after update for event logging
                     $afterData = $student->fresh()->toArray();
-                    
+
                     // Preparar para suspensión en Moodle si tiene moodle_id
                     if ($student->moodle_id) {
                         $moodleUsers[] = [
                             'id' => $student->moodle_id,
                             'suspended' => 1
                         ];
-                        
+
                         Log::info('Prepared student for Moodle suspension', [
                             'student_id' => $student->id,
                             'moodle_id' => $student->moodle_id,
@@ -1497,18 +1496,18 @@ class StudentController extends Controller
                             'student_email' => $student->email
                         ]);
                     }
-                    
+
                     // Log student status change event
                     StudentEvent::createEvent(
-                        $student->id, 
-                        StudentEvent::EVENT_UPDATED, 
-                        $beforeData, 
+                        $student->id,
+                        StudentEvent::EVENT_UPDATED,
+                        $beforeData,
                         $afterData,
                         'Student status changed to Inactive'
                     );
-                    
+
                     $results['success'][] = $student->id;
-                    
+
                     Log::info('Student marked as inactive locally', [
                         'student_id' => $student->id,
                         'student_email' => $student->email,
@@ -1517,7 +1516,6 @@ class StudentController extends Controller
                         'user_id' => auth()->id(),
                         'timestamp' => now()->toISOString()
                     ]);
-                    
                 } catch (\Exception $e) {
                     $results['errors'][] = [
                         'student_id' => $student->id,
@@ -1540,13 +1538,13 @@ class StudentController extends Controller
                     'moodle_user_ids' => array_column($moodleUsers, 'id'),
                     'operation_timestamp' => now()->toISOString()
                 ]);
-                
+
                 $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
-                
+
                 if ($moodleResponse['status'] !== 'success') {
                     // Si falla en Moodle, marcar los estudiantes que fueron actualizados localmente como error
                     $moodleErrorStudentIds = array_column($moodleUsers, 'id');
-                    
+
                     Log::error('Failed to suspend students in Moodle after local update', [
                         'failed_moodle_user_ids' => $moodleErrorStudentIds,
                         'moodle_error' => $moodleResponse['message'] ?? 'Unknown error',
@@ -1554,7 +1552,7 @@ class StudentController extends Controller
                         'total_failed' => count($moodleErrorStudentIds),
                         'operation_timestamp' => now()->toISOString()
                     ]);
-                    
+
                     // Actualizar results para reflejar el fallo de Moodle
                     foreach ($students as $student) {
                         if ($student->moodle_id && in_array($student->moodle_id, $moodleErrorStudentIds)) {
@@ -1584,7 +1582,7 @@ class StudentController extends Controller
 
             $successCount = count($results['success']);
             $errorCount = count($results['errors']);
-            
+
             Log::info('Bulk mark as inactive operation completed', [
                 'total_requested' => count($studentIds),
                 'successful_updates' => $successCount,
@@ -1644,7 +1642,7 @@ class StudentController extends Controller
 
         try {
             DB::beginTransaction();
-            
+
             Log::info('Starting bulk mark as active operation', [
                 'student_ids' => $studentIds,
                 'total_students' => count($studentIds),
@@ -1660,23 +1658,23 @@ class StudentController extends Controller
                 try {
                     // Capture data before update for event logging
                     $beforeData = $student->toArray();
-                    
+
                     // Asegurar que el estudiante tenga moodle_id
                     $this->ensureStudentHasMoodleId($student);
-                    
+
                     // Actualizar status local
                     $student->update(['status' => 'Activo']);
-                    
+
                     // Capture data after update for event logging
                     $afterData = $student->fresh()->toArray();
-                    
+
                     // Preparar para activación en Moodle si tiene moodle_id
                     if ($student->moodle_id) {
                         $moodleUsers[] = [
                             'id' => $student->moodle_id,
                             'suspended' => 0
                         ];
-                        
+
                         Log::info('Prepared student for Moodle activation', [
                             'student_id' => $student->id,
                             'moodle_id' => $student->moodle_id,
@@ -1689,18 +1687,18 @@ class StudentController extends Controller
                             'student_email' => $student->email
                         ]);
                     }
-                    
+
                     // Log student status change event
                     StudentEvent::createEvent(
-                        $student->id, 
-                        StudentEvent::EVENT_UPDATED, 
-                        $beforeData, 
+                        $student->id,
+                        StudentEvent::EVENT_UPDATED,
+                        $beforeData,
                         $afterData,
                         'Student status changed to Active'
                     );
-                    
+
                     $results['success'][] = $student->id;
-                    
+
                     Log::info('Student marked as active locally', [
                         'student_id' => $student->id,
                         'student_email' => $student->email,
@@ -1709,7 +1707,6 @@ class StudentController extends Controller
                         'user_id' => auth()->id(),
                         'timestamp' => now()->toISOString()
                     ]);
-                    
                 } catch (\Exception $e) {
                     $results['errors'][] = [
                         'student_id' => $student->id,
@@ -1732,13 +1729,13 @@ class StudentController extends Controller
                     'moodle_user_ids' => array_column($moodleUsers, 'id'),
                     'operation_timestamp' => now()->toISOString()
                 ]);
-                
+
                 $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
-                
+
                 if ($moodleResponse['status'] !== 'success') {
                     // Si falla en Moodle, marcar los estudiantes que fueron actualizados localmente como error
                     $moodleErrorStudentIds = array_column($moodleUsers, 'id');
-                    
+
                     Log::error('Failed to activate students in Moodle after local update', [
                         'failed_moodle_user_ids' => $moodleErrorStudentIds,
                         'moodle_error' => $moodleResponse['message'] ?? 'Unknown error',
@@ -1746,7 +1743,7 @@ class StudentController extends Controller
                         'total_failed' => count($moodleErrorStudentIds),
                         'operation_timestamp' => now()->toISOString()
                     ]);
-                    
+
                     // Actualizar results para reflejar el fallo de Moodle
                     foreach ($students as $student) {
                         if ($student->moodle_id && in_array($student->moodle_id, $moodleErrorStudentIds)) {
@@ -1776,7 +1773,7 @@ class StudentController extends Controller
 
             $successCount = count($results['success']);
             $errorCount = count($results['errors']);
-            
+
             Log::info('Bulk mark as active operation completed', [
                 'total_requested' => count($studentIds),
                 'successful_updates' => $successCount,
@@ -1833,9 +1830,9 @@ class StudentController extends Controller
 
         try {
             DB::beginTransaction();
-            
+
             $student = Student::findOrFail($id);
-            
+
             Log::info("Starting {$action} operation for student", [
                 'student_id' => $id,
                 'suspended' => $suspended
@@ -1843,7 +1840,7 @@ class StudentController extends Controller
 
             // Asegurar que el estudiante tenga moodle_id
             $this->ensureStudentHasMoodleId($student);
-            
+
             if (!$student->moodle_id) {
                 return response()->json([
                     'message' => 'No se pudo obtener el ID de Moodle del estudiante',
@@ -1856,7 +1853,7 @@ class StudentController extends Controller
                 'id' => $student->moodle_id,
                 'suspended' => $suspended
             ]];
-            
+
             Log::info("Attempting to {$action} individual student in Moodle", [
                 'student_id' => $id,
                 'moodle_user_id' => $student->moodle_id,
@@ -1868,7 +1865,7 @@ class StudentController extends Controller
             ]);
 
             $moodleResponse = $this->moodleService->users()->suspendUser($moodleUsers);
-            
+
             if ($moodleResponse['status'] !== 'success') {
                 Log::error("Failed to {$action} individual student in Moodle", [
                     'student_id' => $id,
@@ -1878,9 +1875,9 @@ class StudentController extends Controller
                     'full_moodle_response' => $moodleResponse,
                     'failed_timestamp' => now()->toISOString()
                 ]);
-                
+
                 DB::rollBack();
-                
+
                 return response()->json([
                     'message' => "Error al {$action} estudiante en Moodle",
                     'error' => $moodleResponse['message'] ?? 'Error desconocido'
@@ -1908,7 +1905,6 @@ class StudentController extends Controller
                 'message' => "Estudiante {$action}do exitosamente",
                 'student' => $student
             ]);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("Error in {$action} operation", [
