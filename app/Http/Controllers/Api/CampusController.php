@@ -19,13 +19,13 @@ class CampusController extends Controller
             $campuses = Campus::with([
                 'users:id,name,email,role',
                 'latestCashRegister',
-                'grupos'  // Agregar esta línea
+                'grupos'
             ])->get();
         } else {
             $campuses = $user->campuses()->with([
                 'users:id,name,email,role',
                 'latestCashRegister',
-                'grupos'  // Agregar esta línea
+                'grupos'
             ])->get();
         }
 
