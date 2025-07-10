@@ -92,6 +92,8 @@ class StudentController extends Controller
                 $q->where('period_id', $assignedPeriod)
                     ->where('is_active', true);
             });
+        } else {
+            $query->orderBy('created_at', 'desc');
         }
 
         if ($grupo) {
