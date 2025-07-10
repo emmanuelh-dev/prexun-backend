@@ -49,4 +49,9 @@ class Campus extends Model
     {
         return $this->belongsToMany(Grupo::class, 'campus_group_pivot', 'campus_id', 'grupo_id');
     }
+
+    public function semanasIntensivas()
+    {
+        return $this->belongsToMany(SemanaIntensiva::class, 'campus_semana_intensiva_pivot', 'campus_id', 'semana_intensiva_id');
+    }
 }

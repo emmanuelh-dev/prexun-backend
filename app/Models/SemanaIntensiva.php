@@ -32,4 +32,9 @@ class SemanaIntensiva extends Model
     {
        return $this->hasMany(Student::class, 'semana_intensiva_id');   
     }
+
+    public function campuses()
+    {
+        return $this->belongsToMany(Campus::class, 'campus_semana_intensiva_pivot', 'semana_intensiva_id', 'campus_id');
+    }
 }

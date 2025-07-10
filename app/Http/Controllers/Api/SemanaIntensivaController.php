@@ -20,7 +20,7 @@ class SemanaIntensivaController extends Controller
     }
     public function index()
     {
-        $grupos = SemanaIntensiva::with('period')
+        $grupos = SemanaIntensiva::with(['period', 'campuses'])
             ->withCount('students')
             ->get()
             ->map(function ($semana) {
@@ -44,12 +44,19 @@ class SemanaIntensivaController extends Controller
             'start_time' => 'sometimes|date_format:H:i|nullable',
             'end_time' => 'sometimes|date_format:H:i|nullable',
             'start_date' => 'sometimes|date_format:Y-m-d|nullable',
-            'end_date' => 'sometimes|date_format:Y-m-d|nullable'
+            'end_date' => 'sometimes|date_format:Y-m-d|nullable',
+            'campus_ids' => 'nullable|array',
+            'campus_ids.*' => 'exists:campuses,id'
         ]);
 
         $validated['frequency'] = json_encode($validated['frequency']);
         
         $grupo = SemanaIntensiva::create($validated);
+        
+        // Asignar campus a la semana intensiva
+        if ($request->has('campus_ids')) {
+            $grupo->campuses()->sync($request->campus_ids);
+        }
         
         // Crear cohort en Moodle
         try {
@@ -97,6 +104,9 @@ class SemanaIntensivaController extends Controller
             ]);
         }
         
+        // Cargar las relaciones para la respuesta
+        $grupo->load(['period', 'campuses']);
+        
         return response()->json($grupo, 201);
     }
 
@@ -111,7 +121,9 @@ class SemanaIntensivaController extends Controller
             'start_time' => 'sometimes|date_format:H:i|nullable',
             'end_time' => 'sometimes|date_format:H:i|nullable',
             'start_date' => 'sometimes|date_format:Y-m-d|nullable',
-            'end_date' => 'sometimes|date_format:Y-m-d|nullable'
+            'end_date' => 'sometimes|date_format:Y-m-d|nullable',
+            'campus_ids' => 'nullable|array',
+            'campus_ids.*' => 'exists:campuses,id'
         ]);
     
         $dataToUpdate = [];
@@ -131,6 +143,11 @@ class SemanaIntensivaController extends Controller
         $oldPeriodId = $grupo->period_id;
         
         $grupo->update($dataToUpdate);
+        
+        // Actualizar campus asignados a la semana intensiva
+        if ($request->has('campus_ids')) {
+            $grupo->campuses()->sync($request->campus_ids);
+        }
         
         // Actualizar cohort en Moodle si cambió el nombre o el periodo
         if (($oldName !== $grupo->name || $oldPeriodId !== $grupo->period_id) && $grupo->moodle_id) {
@@ -173,6 +190,9 @@ class SemanaIntensivaController extends Controller
                 ]);
             }
         }
+        
+        // Cargar las relaciones para la respuesta
+        $grupo->load(['period', 'campuses']);
         
         return response()->json($grupo);
     }
