@@ -8,7 +8,57 @@ use App\Traits\LogsStudentEvents;
 
 class Student extends Model
 {
-    use SoftDeletes, LogsStudentEvents;
+    use SoftDeletes;
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::created(function ($student) {
+            \App\Models\StudentEvent::createEvent(
+                $student->id,
+                \App\Models\StudentEvent::EVENT_CREATED,
+                null,
+                $student->toArray(),
+                'Estudiante creado',
+                null
+            );
+        });
+
+        static::updating(function ($student) {
+            $original = $student->getOriginal();
+            $changes = array_keys($student->getDirty());
+            \App\Models\StudentEvent::createEvent(
+                $student->id,
+                \App\Models\StudentEvent::EVENT_UPDATED,
+                $original,
+                $student->getDirty(),
+                'Estudiante actualizado',
+                $changes
+            );
+        });
+
+        static::deleted(function ($student) {
+            \App\Models\StudentEvent::createEvent(
+                $student->id,
+                \App\Models\StudentEvent::EVENT_DELETED,
+                $student->toArray(),
+                null,
+                'Estudiante eliminado',
+                null
+            );
+        });
+
+        static::restored(function ($student) {
+            \App\Models\StudentEvent::createEvent(
+                $student->id,
+                \App\Models\StudentEvent::EVENT_RESTORED,
+                null,
+                $student->toArray(),
+                'Estudiante restaurado',
+                null
+            );
+        });
+    }
     protected $table = 'students';
 
     protected $fillable = [

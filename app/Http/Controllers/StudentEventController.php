@@ -19,10 +19,7 @@ class StudentEventController extends Controller
             ->with('user:id,name,email')
             ->paginate(20);
 
-        return response()->json([
-            'student' => $student->only(['id', 'firstname', 'lastname', 'email']),
-            'events' => $events
-        ]);
+        return response()->json($events);
     }
 
     /**

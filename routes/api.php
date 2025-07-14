@@ -30,9 +30,7 @@ use App\Http\Controllers\Api\TeacherAttendanceController;
 use App\Http\Controllers\Api\StudentAssignmentController;
 
 use App\Http\Controllers\AttendanceController;
-
-
-
+use App\Http\Controllers\StudentEventController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'Hello, world!']);
@@ -103,6 +101,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Asistencia
     Route::post('/asistencias', [AttendanceController::class, 'store']);
+
+    // Student Events
+    Route::get('/student-events/{studentId}', [StudentEventController::class, 'getStudentEvents']);
+    Route::get('/student-events/{studentId}/recent/{limit?}', [StudentEventController::class, 'getRecentStudentEvents']);
+    Route::get('/student-events/type/{type}', [StudentEventController::class, 'getEventsByType']);
+    Route::get('/student-events/movement', [StudentEventController::class, 'getMovementEvents']);
 
     // Moodle Cohorts - Nuevas funcionalidades
     Route::prefix('moodle/cohorts')->group(function () {
