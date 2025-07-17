@@ -65,9 +65,9 @@ class StudentController extends Controller
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('firstname', 'LIKE', "%{$search}%")
-                    ->orWhere('lastname', 'LIKE', "%{$search}%")
-                    ->orWhere('email', 'LIKE', "%{$search}%");
+                $q->where('firstname', 'ILIKE', "%{$search}%")
+                    ->orWhere('lastname', 'ILIKE', "%{$search}%")
+                    ->orWhere('email', 'ILIKE', "%{$search}%");
             });
         }
 
@@ -92,8 +92,6 @@ class StudentController extends Controller
                 $q->where('period_id', $assignedPeriod)
                     ->where('is_active', true);
             });
-        } else {
-            $query->orderBy('created_at', 'desc');
         }
 
         if ($grupo) {
@@ -103,6 +101,7 @@ class StudentController extends Controller
         if ($semanaIntensivaId) {
             $query->where('semana_intensiva_id', $semanaIntensivaId);
         }
+        $query->orderBy('created_at', 'desc');
 
         $students = $query->paginate($perPage, ['*'], 'page', $page);
 

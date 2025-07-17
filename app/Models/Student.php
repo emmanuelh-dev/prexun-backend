@@ -161,4 +161,9 @@ class Student extends Model
     {
         return $this->hasMany(StudentEvent::class)->orderBy('created_at', 'desc')->limit($limit);
     }
+
+    public function notes()
+    {
+        return $this->hasMany(Note::class);
+    }
 }

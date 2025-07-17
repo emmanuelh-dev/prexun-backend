@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\StudentAssignmentController;
 
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\StudentEventController;
+use App\Http\Controllers\NoteController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'Hello, world!']);
@@ -107,6 +108,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/student-events/{studentId}/recent/{limit?}', [StudentEventController::class, 'getRecentStudentEvents']);
     Route::get('/student-events/type/{type}', [StudentEventController::class, 'getEventsByType']);
     Route::get('/student-events/movement', [StudentEventController::class, 'getMovementEvents']);
+
+    // Notes
+    Route::get('/notes', [NoteController::class, 'index']);
+    Route::post('/notes', [NoteController::class, 'store']);
+    Route::get('/notes/{note}', [NoteController::class, 'show']);
+    Route::put('/notes/{note}', [NoteController::class, 'update']);
+    Route::delete('/notes/{note}', [NoteController::class, 'destroy']);
+    Route::get('/students/{student}/notes', [NoteController::class, 'getStudentNotes']);
 
     // Moodle Cohorts - Nuevas funcionalidades
     Route::prefix('moodle/cohorts')->group(function () {
