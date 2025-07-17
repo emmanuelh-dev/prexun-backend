@@ -34,6 +34,9 @@ class StudentController extends Controller
     {
         $campus_id = $request->get('campus_id');
         $search = $request->get('search');
+        $searchFirstname = $request->get('searchFirstname');
+        $searchLastname = $request->get('searchLastname');
+        $searchEmail = $request->get('searchEmail');
         $searchDate = $request->get('searchDate');
         $searchPhone = $request->get('searchPhone');
         $searchMatricula = $request->get('searchMatricula');
@@ -44,9 +47,15 @@ class StudentController extends Controller
         $perPage = $request->get('perPage', 10);
         $page = $request->get('page', 1);
 
+        // Check if any specific search field is being used
+        $isSpecificSearch = $searchFirstname || $searchLastname || $searchEmail || $searchPhone || $searchMatricula;
+
         Log::info('Fetching students', [
             'campus_id' => $campus_id,
             'search' => $search,
+            'searchFirstname' => $searchFirstname,
+            'searchLastname' => $searchLastname,
+            'searchEmail' => $searchEmail,
             'searchDate' => $searchDate,
             'searchPhone' => $searchPhone,
             'searchMatricula' => $searchMatricula,
@@ -54,7 +63,8 @@ class StudentController extends Controller
             'assignedPeriod' => $assignedPeriod,
             'perPage' => $perPage,
             'page' => $page,
-            'grupo' => $grupo
+            'grupo' => $grupo,
+            'isSpecificSearch' => $isSpecificSearch
         ]);
 
         $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera', 'grupo']);
@@ -63,12 +73,26 @@ class StudentController extends Controller
             $query->where('campus_id', $campus_id);
         }
 
+        // Legacy search (combined search)
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('firstname', 'ILIKE', "%{$search}%")
-                    ->orWhere('lastname', 'ILIKE', "%{$search}%")
-                    ->orWhere('email', 'ILIKE', "%{$search}%");
+                $q->where('firstname', 'LIKE', "%{$search}%")
+                    ->orWhere('lastname', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%");
             });
+        }
+
+        // Specific field searches
+        if ($searchFirstname) {
+            $query->where('firstname', 'LIKE', "%{$searchFirstname}%");
+        }
+
+        if ($searchLastname) {
+            $query->where('lastname', 'LIKE', "%{$searchLastname}%");
+        }
+
+        if ($searchEmail) {
+            $query->where('email', 'LIKE', "%{$searchEmail}%");
         }
 
         if ($searchPhone) {
@@ -83,24 +107,28 @@ class StudentController extends Controller
             $query->whereDate('created_at', $searchDate);
         }
 
-        if ($period) {
-            $query->where('period_id', $period);
-        }
+        // Only apply other filters if no specific search is being performed
+        if (!$isSpecificSearch) {
+            if ($period) {
+                $query->where('period_id', $period);
+            }
 
-        if ($assignedPeriod) {
-            $query->whereHas('assignments', function ($q) use ($assignedPeriod) {
-                $q->where('period_id', $assignedPeriod)
-                    ->where('is_active', true);
-            });
-        }
+            if ($assignedPeriod) {
+                $query->whereHas('assignments', function ($q) use ($assignedPeriod) {
+                    $q->where('period_id', $assignedPeriod)
+                        ->where('is_active', true);
+                });
+            }
 
-        if ($grupo) {
-            $query->where('grupo_id', $grupo);
-        }
+            if ($grupo) {
+                $query->where('grupo_id', $grupo);
+            }
 
-        if ($semanaIntensivaId) {
-            $query->where('semana_intensiva_id', $semanaIntensivaId);
+            if ($semanaIntensivaId) {
+                $query->where('semana_intensiva_id', $semanaIntensivaId);
+            }
         }
+        
         $query->orderBy('created_at', 'desc');
 
         $students = $query->paginate($perPage, ['*'], 'page', $page);
