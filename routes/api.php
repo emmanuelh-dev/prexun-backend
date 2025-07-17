@@ -43,6 +43,11 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout']);
 
+// Public student registration routes
+Route::post('/public/students/register', [App\Http\Controllers\Api\PublicStudentController::class, 'register']);
+Route::get('/public/students/form-data', [App\Http\Controllers\Api\PublicStudentController::class, 'getFormData']);
+Route::get('/public/campuses', [App\Http\Controllers\Api\PublicStudentController::class, 'getCampuses']);
+
 Route::get('/invoices', [ChargeController::class, 'all']);
 Route::get('/invoice/{id}', [ChargeController::class, 'show']);
 Route::get('/uuid_invoice/{uuid}', [ChargeController::class, 'showByUuid']);
