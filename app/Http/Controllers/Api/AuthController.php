@@ -25,7 +25,7 @@ class AuthController extends Controller
      * @return \Illuminate\Http\JsonResponse
      */
     public function login(LoginRequest $request)
-    {   
+    {
         $user = User::where('email', $request->email)
             ->with([
                 'campuses',
@@ -35,20 +35,22 @@ class AuthController extends Controller
                 'userCampuses.latestCashRegister'
             ])
             ->first();
-    
-        if (! $user || ! Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => __('Contraseña incorrecta.'),
-            ], 401);
-        }
-        
+
+
         if ($user->suspendido) {
             return response()->json([
                 'message' => __('Usuario suspendido.'),
             ], 401);
         }
+
+        if (! $user || ! Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => __('Contraseña incorrecta.'),
+            ], 401);
+        }
+
         $token = $user->createToken('API Token')->plainTextToken;
-    
+
         return response()->json([
             'user' => $user,
             'token' => $token,
@@ -59,7 +61,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
             'password' => ['required', Rules\Password::defaults()],
         ]);
 
@@ -84,7 +86,8 @@ class AuthController extends Controller
      * @return \Illuminate\Http\JsonResponse
      */
 
-     public function user(Request $request) {
+    public function user(Request $request)
+    {
         $user = auth()->user()->load([
             'campuses',
             'campuses.latestCashRegister'
