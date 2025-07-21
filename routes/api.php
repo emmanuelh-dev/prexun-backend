@@ -261,6 +261,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkUpdate']);
     Route::patch('/student-assignments/{id}/toggle-active', [StudentAssignmentController::class, 'toggleActive']);
     
+    // Transaction Dashboard
+    Route::prefix('transaction-dashboard')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\TransactionDashboardController::class, 'index']);
+        Route::get('/campuses', [App\Http\Controllers\Api\TransactionDashboardController::class, 'getCampuses']);
+    });
+
     // Site Settings
     Route::prefix('site-settings')->group(function () {
         Route::get('/', [SiteSettingController::class, 'index']);
