@@ -41,7 +41,12 @@ class AuthController extends Controller
                 'message' => __('Contraseña incorrecta.'),
             ], 401);
         }
-    
+        
+        if ($user->suspendido) {
+            return response()->json([
+                'message' => __('Usuario suspendido.'),
+            ], 401);
+        }
         $token = $user->createToken('API Token')->plainTextToken;
     
         return response()->json([

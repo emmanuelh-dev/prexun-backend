@@ -26,12 +26,14 @@ class UsersController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
             'password' => ['required'],
             'campuses' => ['array'],
+            'suspendido' => ['boolean'],
         ]);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'suspendido' => $request->suspendido ?? false,
         ]);
 
         if ($request->has('campuses')) {
@@ -58,12 +60,17 @@ class UsersController extends Controller
                 'password' => ['nullable', 'string', 'min:8'],
                 'grupos' => ['array', 'nullable'],
                 'grupos.*' => ['exists:grupos,id'],
-                'campuses' => ['array', 'nullable']
+                'campuses' => ['array', 'nullable'],
+                'suspendido' => ['boolean'],
             ]);
 
             $user->name = $validatedData['name'];
             $user->email = $validatedData['email'];
             $user->role = $validatedData['role'];
+            
+            if (isset($validatedData['suspendido'])) {
+                $user->suspendido = $validatedData['suspendido'];
+            }
             
             if (!empty($validatedData['password'])) {
                 $user->password = Hash::make($validatedData['password']);
