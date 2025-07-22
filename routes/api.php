@@ -279,4 +279,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/update-multiple', [SiteSettingController::class, 'updateMultiple']);
         Route::delete('/{id}', [SiteSettingController::class, 'destroy']);
     });
+
+    // WhatsApp Context
+    Route::prefix('context')->group(function () {
+        Route::get('/{whatsapp_id}', [ContextController::class, 'getByWhatsApp']);
+        Route::post('/instructions', [ContextController::class, 'updateInstructions']);
+        Route::post('/user-info', [ContextController::class, 'updateUserInfo']);
+        Route::post('/state', [ContextController::class, 'setState']);
+        Route::post('/reset/{whatsapp_id}', [ContextController::class, 'reset']);
+        Route::post('/deactivate/{whatsapp_id}', [ContextController::class, 'deactivate']);
+        Route::get('/active/list', [ContextController::class, 'getActiveContexts']);
+        Route::get('/stats/summary', [ContextController::class, 'getStats']);
+    });
 });
