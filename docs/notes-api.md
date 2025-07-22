@@ -7,6 +7,7 @@ This document describes the Notes API endpoints that were created for managing s
 The Notes system allows you to create, read, update, and delete notes associated with students. Each note contains:
 - `id`: Unique identifier
 - `student_id`: Foreign key to the students table
+- `user_id`: Foreign key to the users table (automatically set from authenticated user)
 - `text`: The note content (text field)
 - `created_at`: Timestamp when the note was created
 - `updated_at`: Timestamp when the note was last updated
@@ -22,7 +23,10 @@ The Notes system allows you to create, read, update, and delete notes associated
 - **File**: `app/Models/Note.php`
 - **Relationships**: 
   - `belongsTo(Student::class)` - Each note belongs to a student
-- **Fillable**: `['student_id', 'text']`
+- **Fillable**: `['student_id', 'user_id', 'text']`
+- **Relationships**: 
+  - `belongsTo(Student::class)` - Each note belongs to a student
+  - `belongsTo(User::class)` - Each note belongs to a user (creator)
 
 ### Controller
 - **File**: `app/Http/Controllers/NoteController.php`
@@ -65,13 +69,14 @@ POST /api/notes
 ```json
 {
   "student_id": 123,
-  "text": "Student completed assignment successfully"
+  "text": "Student shows excellent progress in mathematics"
 }
 ```
 
 **Validation Rules:**
 - `student_id`: required, must exist in students table
 - `text`: required, string, max 65535 characters
+- `user_id`: automatically set from authenticated user session
 
 ### 3. Show Note
 ```
@@ -82,6 +87,7 @@ GET /api/notes/{note}
 {
   "id": 1,
   "student_id": 123,
+  "user_id": 1,
   "text": "Student shows excellent progress",
   "created_at": "2025-07-17T10:30:00.000000Z",
   "updated_at": "2025-07-17T10:30:00.000000Z",
@@ -89,6 +95,10 @@ GET /api/notes/{note}
     "id": 123,
     "firstname": "Juan",
     "lastname": "Pérez"
+  },
+  "user": {
+    "id": 1,
+    "name": "Admin User"
   }
 }
 ```

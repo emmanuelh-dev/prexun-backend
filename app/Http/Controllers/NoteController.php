@@ -7,6 +7,7 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 class NoteController extends Controller
 {
@@ -16,9 +17,9 @@ class NoteController extends Controller
         
         if ($studentId) {
             $student = Student::findOrFail($studentId);
-            $notes = $student->notes()->latest()->get();
+            $notes = $student->notes()->with('user:id,name')->latest()->get();
         } else {
-            $notes = Note::latest()->get();
+            $notes = Note::with('user:id,name')->latest()->get();
         }
         
         return response()->json($notes);
@@ -38,15 +39,19 @@ class NoteController extends Controller
             ], 422);
         }
 
-        $note = Note::create($request->only(['student_id', 'text']));
-        $note->load('student:id,firstname,lastname');
+        $note = Note::create([
+            'student_id' => $request->student_id,
+            'user_id' => Auth::id(),
+            'text' => $request->text,
+        ]);
+        $note->load(['student:id,firstname,lastname', 'user:id,name']);
 
         return response()->json($note, 201);
     }
 
     public function show(Note $note): JsonResponse
     {
-        $note->load('student:id,firstname,lastname');
+        $note->load(['student:id,firstname,lastname', 'user:id,name']);
         return response()->json($note);
     }
 
@@ -64,7 +69,7 @@ class NoteController extends Controller
         }
 
         $note->update($request->only(['text']));
-        $note->load('student:id,firstname,lastname');
+        $note->load(['student:id,firstname,lastname', 'user:id,name']);
 
         return response()->json($note);
     }
@@ -80,7 +85,7 @@ class NoteController extends Controller
 
     public function getStudentNotes(Student $student): JsonResponse
     {
-        $notes = $student->notes()->latest()->get();
+        $notes = $student->notes()->with('user:id,name')->latest()->get();
         
         return response()->json([
             'student' => $student->only(['id', 'firstname', 'lastname', 'email']),
