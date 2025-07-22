@@ -8,116 +8,180 @@ use Illuminate\Http\JsonResponse;
 
 class ContextController extends Controller
 {
-    public function getByWhatsApp($whatsappId): JsonResponse
+    /**
+     * Listar todos los contextos
+     */
+    public function index(): JsonResponse
     {
-        $context = Context::getOrCreateForWhatsApp($whatsappId);
-        return response()->json($context);
-    }
-
-    public function updateInstructions(Request $request): JsonResponse
-    {
-        $request->validate([
-            'whatsapp_id' => 'required|string',
-            'instructions' => 'required|string|max:5000'
-        ]);
-
-        $context = Context::getOrCreateForWhatsApp($request->whatsapp_id);
-        $context->updateInstructions($request->instructions);
+        $contexts = Context::active()->get();
 
         return response()->json([
             'success' => true,
-            'context' => $context->fresh()
+            'data' => $contexts
         ]);
     }
 
-    public function updateUserInfo(Request $request): JsonResponse
+    /**
+     * Crear nuevo contexto
+     */
+    public function store(Request $request): JsonResponse
     {
         $request->validate([
-            'whatsapp_id' => 'required|string',
-            'user_info' => 'required|array'
+            'name' => 'required|string|unique:contexts,name',
+            'instructions' => 'required|string'
         ]);
 
-        $context = Context::getOrCreateForWhatsApp($request->whatsapp_id);
-        $context->updateUserInfo($request->user_info);
+        $context = Context::create($request->all());
 
         return response()->json([
             'success' => true,
-            'context' => $context->fresh()
-        ]);
+            'message' => 'Contexto creado correctamente',
+            'data' => $context
+        ], 201);
     }
 
-    public function setState(Request $request): JsonResponse
+    /**
+     * Mostrar contexto específico
+     */
+    public function show(Context $context): JsonResponse
     {
-        $request->validate([
-            'whatsapp_id' => 'required|string',
-            'state' => 'required|string',
-            'temp_data' => 'sometimes|array'
-        ]);
-
-        $context = Context::getOrCreateForWhatsApp($request->whatsapp_id);
-        $context->setState($request->state, $request->temp_data);
-
         return response()->json([
             'success' => true,
-            'context' => $context->fresh()
+            'data' => $context
         ]);
     }
 
-    public function reset($whatsappId): JsonResponse
+    /**
+     * Obtener contexto por nombre
+     */
+    public function getByName(Request $request): JsonResponse
     {
-        $context = Context::where('whatsapp_id', $whatsappId)->first();
-        
-        if ($context) {
-            $context->reset();
+        $request->validate([
+            'name' => 'required|string'
+        ]);
+
+        $context = Context::getByName($request->name);
+
+        if (!$context) {
             return response()->json([
-                'success' => true,
-                'message' => 'Context reset successfully'
-            ]);
+                'success' => false,
+                'message' => 'Contexto no encontrado'
+            ], 404);
         }
 
         return response()->json([
-            'success' => false,
-            'message' => 'Context not found'
-        ], 404);
+            'success' => true,
+            'data' => $context
+        ]);
     }
 
-    public function deactivate($whatsappId): JsonResponse
+    /**
+     * Actualizar contexto
+     */
+    public function update(Request $request, Context $context): JsonResponse
     {
-        $context = Context::where('whatsapp_id', $whatsappId)->first();
-        
-        if ($context) {
-            $context->deactivate();
-            return response()->json([
-                'success' => true,
-                'message' => 'Context deactivated successfully'
-            ]);
-        }
+        $request->validate([
+            'name' => 'sometimes|string|unique:contexts,name,' . $context->id,
+            'instructions' => 'sometimes|string'
+        ]);
+
+        $context->update($request->all());
 
         return response()->json([
-            'success' => false,
-            'message' => 'Context not found'
-        ], 404);
+            'success' => true,
+            'message' => 'Contexto actualizado correctamente',
+            'data' => $context->fresh()
+        ]);
     }
 
-    public function getActiveContexts(): JsonResponse
+    /**
+     * Obtener instrucciones del contexto
+     */
+    public function getInstructions(Context $context): JsonResponse
     {
-        $contexts = Context::active()
-            ->recentlyActive()
-            ->select(['id', 'whatsapp_id', 'current_state', 'last_interaction'])
-            ->orderBy('last_interaction', 'desc')
-            ->paginate(20);
-
-        return response()->json($contexts);
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'instructions' => $context->instructions,
+                'context_name' => $context->name
+            ]
+        ]);
     }
 
+    /**
+     * Activar contexto
+     */
+    public function activate(Context $context): JsonResponse
+    {
+        $context->activate();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contexto activado correctamente'
+        ]);
+    }
+
+    /**
+     * Desactivar contexto
+     */
+    public function deactivate(Context $context): JsonResponse
+    {
+        $context->deactivate();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contexto desactivado correctamente'
+        ]);
+    }
+
+    /**
+     * Eliminar contexto
+     */
+    public function destroy(Context $context): JsonResponse
+    {
+        $context->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contexto eliminado correctamente'
+        ]);
+    }
+
+    /**
+     * Obtener estadísticas de contextos
+     */
     public function getStats(): JsonResponse
     {
         $stats = [
-            'total_contexts' => Context::count(),
-            'active_contexts' => Context::active()->count(),
-            'recently_active' => Context::active()->recentlyActive()->count()
+            'total' => Context::count(),
+            'active' => Context::active()->count(),
+            'inactive' => Context::where('is_active', false)->count()
         ];
 
-        return response()->json($stats);
+        return response()->json([
+            'success' => true,
+            'data' => $stats
+        ]);
+    }
+
+    /**
+     * Crear contexto por defecto para WhatsApp
+     */
+    public function createWhatsAppDefault(): JsonResponse
+    {
+        try {
+            $context = Context::createWhatsAppDefault();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Contexto por defecto de WhatsApp creado',
+                'data' => $context
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al crear contexto: ' . $e->getMessage()
+            ], 400);
+        }
     }
 }

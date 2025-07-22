@@ -1,148 +1,161 @@
-# WhatsApp Context API - Guía de Uso
+# Context API Documentation
 
-Este sistema simplificado permite almacenar instrucciones y comportamientos para un chatbot de WhatsApp, sin complicar con historial de conversaciones.
+## Overview
+Sistema simple para almacenar instrucciones para ChatGPT. Solo 3 campos esenciales.
 
-## Estructura del Modelo Context
-
-- `whatsapp_id`: ID único del usuario de WhatsApp
-- `instructions`: Instrucciones de comportamiento para el bot
-- `user_info`: Información básica del usuario (nombre, preferencias)
-- `current_state`: Estado actual (idle, waiting_response, etc.)
-- `temp_data`: Datos temporales para flujos específicos
-- `last_interaction`: Última interacción
-- `is_active`: Si el contexto está activo
-
-## Endpoints API
-
-### 1. Obtener o crear contexto
-```http
-GET /api/context/{whatsapp_id}
-```
-
-### 2. Actualizar instrucciones
-```http
-POST /api/context/instructions
-{
-    "whatsapp_id": "5215512345678",
-    "instructions": "Comportate como un asistente educativo amigable. Siempre saluda con el nombre del usuario."
-}
-```
-
-### 3. Actualizar información del usuario
-```http
-POST /api/context/user-info
-{
-    "whatsapp_id": "5215512345678",
-    "user_info": {
-        "name": "Juan Pérez",
-        "campus": "Campus Norte",
-        "language": "es"
-    }
-}
-```
-
-### 4. Cambiar estado
-```http
-POST /api/context/state
-{
-    "whatsapp_id": "5215512345678",
-    "state": "waiting_response",
-    "temp_data": {
-        "question_type": "enrollment",
-        "step": 1
-    }
-}
-```
-
-### 5. Reiniciar contexto
-```http
-POST /api/context/reset/{whatsapp_id}
-```
-
-### 6. Desactivar contexto
-```http
-POST /api/context/deactivate/{whatsapp_id}
-```
-
-### 7. Obtener contextos activos
-```http
-GET /api/context/active/list
-```
-
-### 8. Obtener estadísticas
-```http
-GET /api/context/stats/summary
-```
-
-## Ejemplo de Uso en Chatbot
+## Context Model Structure
 
 ```php
-// En tu controlador de WhatsApp
+// Fields in the contexts table:
+- name: string (unique) - Nombre de la instrucción
+- instructions: text - Instrucciones para ChatGPT
+- is_active: boolean - Si está activo (default: true)
+- created_at/updated_at: timestamps
+```
+
+## API Endpoints
+
+### 1. List All Contexts
+```
+GET /api/contexts/
+```
+Returns all active contexts.
+
+### 2. Create New Context
+```
+POST /api/contexts/
+Body: {
+    "name": "string" (required, unique),
+    "instructions": "string" (required)
+}
+```
+
+### 3. Get Context by ID
+```
+GET /api/contexts/{context_id}
+```
+
+### 4. Get Context by Name
+```
+POST /api/contexts/by-name
+Body: {
+    "name": "string"
+}
+```
+
+### 5. Update Context
+```
+PUT /api/contexts/{context_id}
+Body: {
+    "name": "string" (optional),
+    "instructions": "string" (optional)
+}
+```
+
+### 6. Get Instructions
+```
+GET /api/contexts/{context_id}/instructions
+```
+Returns the instructions for ChatGPT.
+
+### 7. Activate Context
+```
+POST /api/contexts/{context_id}/activate
+```
+
+### 8. Deactivate Context
+```
+POST /api/contexts/{context_id}/deactivate
+```
+
+### 9. Delete Context
+```
+DELETE /api/contexts/{context_id}
+```
+
+### 10. Get Statistics
+```
+GET /api/contexts/stats/overview
+```
+
+### 11. Create WhatsApp Default Context
+```
+POST /api/contexts/whatsapp/default
+```
+Creates a predefined context optimized for WhatsApp chatbots.
+
+## Usage Example
+
+```php
+// In your WhatsApp chatbot controller
 use App\Models\Context;
 
-class WhatsAppController extends Controller
+class WhatsAppBotController extends Controller
 {
-    public function handleMessage($whatsappId, $message)
+    public function handleMessage($userMessage)
     {
-        // Obtener contexto del usuario
-        $context = Context::getOrCreateForWhatsApp($whatsappId);
+        // Get the WhatsApp context
+        $context = Context::getByName('whatsapp_default');
         
-        // Preparar prompt para ChatGPT
-        $prompt = $this->buildPrompt($context, $message);
+        if (!$context) {
+            // Create default context if it doesn't exist
+            $context = Context::createWhatsAppDefault();
+        }
         
-        // Enviar a ChatGPT y obtener respuesta
+        // Build prompt for ChatGPT using the context
+        $prompt = $this->buildChatGPTPrompt($context, $userMessage);
+        
+        // Send to ChatGPT and get response
         $response = $this->sendToChatGPT($prompt);
-        
-        // Actualizar última interacción
-        $context->touch();
         
         return $response;
     }
     
-    private function buildPrompt($context, $message)
+    private function buildChatGPTPrompt($context, $userMessage)
     {
-        $prompt = "";
+        // Use the instructions directly
+        $prompt = $context->instructions;
         
-        // Agregar instrucciones si existen
-        if ($context->instructions) {
-            $prompt .= "Instrucciones: {$context->instructions}\n\n";
-        }
+        // Add the user message
+        $fullPrompt = $prompt . "\n\nMensaje del usuario: " . $userMessage;
         
-        // Agregar información del usuario
-        if ($context->user_info) {
-            $userInfo = json_encode($context->user_info);
-            $prompt .= "Información del usuario: {$userInfo}\n\n";
-        }
-        
-        // Agregar estado actual
-        $prompt .= "Estado actual: {$context->current_state}\n\n";
-        
-        // Agregar datos temporales si existen
-        if ($context->temp_data) {
-            $tempData = json_encode($context->temp_data);
-            $prompt .= "Datos temporales: {$tempData}\n\n";
-        }
-        
-        $prompt .= "Mensaje del usuario: {$message}";
-        
-        return $prompt;
+        return $fullPrompt;
+    }
+    
+    private function sendToChatGPT($prompt)
+    {
+        // Your ChatGPT API integration here
+        // Example structure:
+        return [
+            'model' => 'gpt-3.5-turbo',
+            'messages' => [
+                ['role' => 'system', 'content' => $prompt],
+                // Add conversation history if needed
+            ]
+        ];
     }
 }
 ```
 
-## Casos de Uso
+## Example Context Creation
 
-1. **Instrucciones personalizadas**: Cada usuario puede tener comportamientos específicos
-2. **Estados de conversación**: Manejar flujos como inscripciones, consultas, etc.
-3. **Información del usuario**: Recordar nombre, campus, preferencias
-4. **Datos temporales**: Almacenar información durante procesos específicos
-5. **Gestión de contextos**: Ver usuarios activos, estadísticas, etc.
+```php
+// Create a customer service context
+$context = Context::create([
+    'name' => 'customer_service',
+    'instructions' => 'Eres un asistente de atención al cliente profesional y empático. Responde siempre de manera cortés y busca resolver los problemas del cliente.'
+]);
+```
 
-## Ventajas del Sistema Simplificado
+## Use Cases
 
-- ✅ Fácil de implementar
-- ✅ No almacena historial completo (más eficiente)
-- ✅ Enfocado en instrucciones y comportamientos
-- ✅ Flexible para diferentes tipos de datos
-- ✅ Estados simples para manejar flujos
-- ✅ API RESTful clara y directa
+1. **Instrucciones simples**: Diferentes comportamientos para el chatbot
+2. **Reutilizable**: Usar la misma instrucción en múltiples conversaciones
+3. **Fácil gestión**: Solo nombre e instrucciones
+
+## Advantages
+
+- ✅ Súper simple (solo 3 campos)
+- ✅ Fácil de usar
+- ✅ Sin complicaciones
+- ✅ Directo al grano

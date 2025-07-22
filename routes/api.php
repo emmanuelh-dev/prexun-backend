@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\TeacherAttendanceController;
 use App\Http\Controllers\Api\StudentAssignmentController;
 
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\ContextController;
 use App\Http\Controllers\StudentEventController;
 use App\Http\Controllers\NoteController;
 
@@ -280,15 +281,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/{id}', [SiteSettingController::class, 'destroy']);
     });
 
-    // WhatsApp Context
-    Route::prefix('context')->group(function () {
-        Route::get('/{whatsapp_id}', [ContextController::class, 'getByWhatsApp']);
-        Route::post('/instructions', [ContextController::class, 'updateInstructions']);
-        Route::post('/user-info', [ContextController::class, 'updateUserInfo']);
-        Route::post('/state', [ContextController::class, 'setState']);
-        Route::post('/reset/{whatsapp_id}', [ContextController::class, 'reset']);
-        Route::post('/deactivate/{whatsapp_id}', [ContextController::class, 'deactivate']);
-        Route::get('/active/list', [ContextController::class, 'getActiveContexts']);
-        Route::get('/stats/summary', [ContextController::class, 'getStats']);
-    });
+    // Context routes
+Route::prefix('contexts')->group(function () {
+    Route::get('/', [ContextController::class, 'index']);
+    Route::post('/', [ContextController::class, 'store']);
+    Route::get('/{context}', [ContextController::class, 'show']);
+    Route::put('/{context}', [ContextController::class, 'update']);
+    Route::delete('/{context}', [ContextController::class, 'destroy']);
+    Route::post('/by-name', [ContextController::class, 'getByName']);
+    Route::get('/{context}/instructions', [ContextController::class, 'getInstructions']);
+    Route::post('/{context}/activate', [ContextController::class, 'activate']);
+    Route::post('/{context}/deactivate', [ContextController::class, 'deactivate']);
+    Route::get('/stats/overview', [ContextController::class, 'getStats']);
+    Route::post('/whatsapp/default', [ContextController::class, 'createWhatsAppDefault']);
+});
 });

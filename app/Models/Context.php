@@ -8,87 +8,54 @@ use Carbon\Carbon;
 class Context extends Model
 {
     protected $fillable = [
-        'whatsapp_id',
+        'name',
         'instructions',
-        'user_info',
-        'current_state',
-        'temp_data',
-        'last_interaction',
         'is_active'
     ];
 
     protected $casts = [
-        'user_info' => 'array',
-        'temp_data' => 'array',
-        'last_interaction' => 'datetime',
         'is_active' => 'boolean'
     ];
 
-    public static function getOrCreateForWhatsApp($whatsappId)
+    /**
+     * Obtener contexto por nombre
+     */
+    public static function getByName($name)
     {
-        return self::firstOrCreate(
-            ['whatsapp_id' => $whatsappId],
-            [
-                'current_state' => 'idle',
-                'is_active' => true,
-                'last_interaction' => now()
-            ]
-        );
+        return self::where('name', $name)->where('is_active', true)->first();
     }
 
-    public function updateInstructions($instructions)
+    /**
+     * Crear contexto predeterminado para WhatsApp
+     */
+    public static function createWhatsAppDefault()
     {
-        $this->update([
-            'instructions' => $instructions,
-            'last_interaction' => now()
+        return self::create([
+            'name' => 'whatsapp_default',
+            'instructions' => 'Eres un asistente virtual útil y amigable para WhatsApp. Responde de manera concisa y clara.',
+            'is_active' => true
         ]);
     }
 
-    public function updateUserInfo($info)
+    /**
+     * Activar contexto
+     */
+    public function activate()
     {
-        $currentInfo = $this->user_info ?? [];
-        $this->update([
-            'user_info' => array_merge($currentInfo, $info),
-            'last_interaction' => now()
-        ]);
+        $this->update(['is_active' => true]);
     }
 
-    public function setState($state, $tempData = null)
-    {
-        $this->update([
-            'current_state' => $state,
-            'temp_data' => $tempData,
-            'last_interaction' => now()
-        ]);
-    }
-
-    public function reset()
-    {
-        $this->update([
-            'instructions' => null,
-            'current_state' => 'idle',
-            'temp_data' => null,
-            'last_interaction' => now()
-        ]);
-    }
-
+    /**
+     * Desactivar contexto
+     */
     public function deactivate()
     {
         $this->update(['is_active' => false]);
     }
 
+    // Scopes
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
-    }
-
-    public function scopeByState($query, $state)
-    {
-        return $query->where('current_state', $state);
-    }
-
-    public function scopeRecentlyActive($query, $hours = 24)
-    {
-        return $query->where('last_interaction', '>=', now()->subHours($hours));
     }
 }
