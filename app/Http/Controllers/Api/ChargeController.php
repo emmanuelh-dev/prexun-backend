@@ -137,9 +137,10 @@ class ChargeController extends Controller
             'campus_id' => 'required|exists:campuses,id',
             'amount' => 'required|numeric|min:0',
             'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
-            'expiration_date' => 'required',
+            'expiration_date' => 'nullable|date',
             'notes' => 'nullable|string|max:255',
-            'paid' => 'required|boolean'
+            'paid' => 'required|boolean',
+            'debt_id' => 'nullable|exists:debts,id'
         ]);
 
 
@@ -154,9 +155,18 @@ class ChargeController extends Controller
                     'notes' => $validated['notes'] ?? null,
                     'paid' => $validated['paid'],
                     'transaction_type' => 'payment',
-                    'expiration_date' => $validated['expiration_date'],
+                    'expiration_date' => $validated['expiration_date'] ?? Carbon::now()->addDays(15)->format('Y-m-d'),
                     'uuid' => Str::uuid(),
+                    'debt_id' => $validated['debt_id'] ?? null,
                 ]);
+
+                // Si la transacción está asociada a un adeudo y está pagada, actualizar el estado del adeudo
+                if ($validated['debt_id'] && $validated['paid']) {
+                    $debt = \App\Models\Debt::find($validated['debt_id']);
+                    if ($debt) {
+                        $debt->updatePaymentStatus();
+                    }
+                }
 
                 if ($validated['payment_method'] === 'cash' && !empty($validated['denominations'])) {
                     foreach ($validated['denominations'] as $value => $quantity) {

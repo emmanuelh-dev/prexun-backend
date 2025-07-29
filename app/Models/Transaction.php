@@ -23,7 +23,8 @@ class Transaction extends Model
         'image',
         'card_id',
         'sat',
-        'folio_sat'
+        'folio_sat',
+        'debt_id'
     ];
 
 
@@ -53,5 +54,10 @@ class Transaction extends Model
     public function cashRegister()
     {
         return $this->belongsTo(CashRegister::class, 'cash_register_id');
+    }
+
+    public function debt()
+    {
+        return $this->belongsTo(Debt::class);
     }
 }

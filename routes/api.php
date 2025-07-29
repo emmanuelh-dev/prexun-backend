@@ -1,4 +1,4 @@
-<?php
+s<?php
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampusController;
@@ -33,6 +33,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ContextController;
 use App\Http\Controllers\StudentEventController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\Api\DebtController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'Hello, world!']);
@@ -147,6 +148,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/charges/{id}', [ChargeController::class, 'destroy']);
     Route::post('/charges/import-folios', [ChargeController::class, 'importFolios']);
     Route::put('/charges/{id}/update-folio', [ChargeController::class, 'updateFolio']);
+
+    // Debts (Adeudos)
+    Route::get('/debts', [DebtController::class, 'index']);
+    Route::post('/debts', [DebtController::class, 'store']);
+    Route::get('/debts/{id}', [DebtController::class, 'show']);
+    Route::put('/debts/{id}', [DebtController::class, 'update']);
+    Route::delete('/debts/{id}', [DebtController::class, 'destroy']);
+    Route::get('/debts/student/{studentId}', [DebtController::class, 'getByStudent']);
+    Route::get('/debts/period/{periodId}', [DebtController::class, 'getByPeriod']);
+    Route::post('/debts/{id}/update-payment-status', [DebtController::class, 'updatePaymentStatus']);
+    Route::get('/debts/overdue/list', [DebtController::class, 'getOverdueDebts']);
+    Route::get('/debts/summary/stats', [DebtController::class, 'getDebtSummary']);
 
     // Municipios
     Route::get('/municipios', [MunicipioController::class, 'index']);

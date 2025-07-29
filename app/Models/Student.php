@@ -128,6 +128,11 @@ class Student extends Model
         return $this->hasMany(Transaction::class, 'student_id');
     }
 
+    public function debts()
+    {
+        return $this->hasMany(Debt::class);
+    }
+
     public function promo()
     {
         return $this->belongsTo(Promocion::class, 'promo_id');

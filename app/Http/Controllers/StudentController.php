@@ -214,7 +214,7 @@ class StudentController extends Controller
             DB::rollBack();
             Log::error('Error creating student', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString() // Added trace for better debugging
+                'trace' => $e->getTraceAsString()
             ]);
             return response()->json([
                 'message' => 'Error creating student',
