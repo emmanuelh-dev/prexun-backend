@@ -44,6 +44,9 @@ class StudentController extends Controller
         $assignedPeriod = $request->get('assignedPeriod');
         $grupo = $request->get('grupo');
         $semanaIntensivaId = $request->get('semanaIntensivaFilter');
+        $carrera = $request->get('carrera');
+        $facultad = $request->get('facultad');
+        $modulo = $request->get('modulo');
         $perPage = $request->get('perPage', 10);
         $page = $request->get('page', 1);
 
@@ -64,6 +67,9 @@ class StudentController extends Controller
             'perPage' => $perPage,
             'page' => $page,
             'grupo' => $grupo,
+            'carrera' => $carrera,
+            'facultad' => $facultad,
+            'modulo' => $modulo,
             'isSpecificSearch' => $isSpecificSearch
         ]);
 
@@ -126,6 +132,18 @@ class StudentController extends Controller
 
             if ($semanaIntensivaId) {
                 $query->where('semana_intensiva_id', $semanaIntensivaId);
+            }
+
+            if ($carrera) {
+                $query->where('carrer_id', $carrera);
+            }
+
+            if ($facultad) {
+                $query->where('facultad_id', $facultad);
+            }
+
+            if ($modulo) {
+                $query->where('modulo_id', $modulo);
             }
         }
         
