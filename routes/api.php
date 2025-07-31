@@ -34,6 +34,8 @@ use App\Http\Controllers\ContextController;
 use App\Http\Controllers\StudentEventController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\Api\DebtController;
+use App\Http\Controllers\WhatsAppController;
+use App\Http\Controllers\TemplateController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'Hello, world!']);
@@ -48,6 +50,16 @@ Route::post('/logout', [AuthController::class, 'logout']);
 // Public student registration routes
 Route::post('/public/students/register', [App\Http\Controllers\Api\PublicStudentController::class, 'register']);
 Route::get('/public/students/form-data', [App\Http\Controllers\Api\PublicStudentController::class, 'getFormData']);
+
+// WhatsApp routes
+Route::prefix('whatsapp')->group(function () {
+    Route::post('/send-message', [WhatsAppController::class, 'sendMessage']);
+    Route::post('/send-template', [WhatsAppController::class, 'sendTemplateMessage']);
+    Route::get('/status', [WhatsAppController::class, 'getStatus']);
+    
+    // Template routes
+    Route::apiResource('templates', TemplateController::class);
+});
 Route::get('/public/campuses', [App\Http\Controllers\Api\PublicStudentController::class, 'getCampuses']);
 
 Route::get('/invoices', [ChargeController::class, 'all']);
