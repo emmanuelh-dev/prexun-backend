@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 
@@ -36,16 +37,21 @@ class AuthController extends Controller
             ])
             ->first();
 
+        if (!$user) {
+            return response()->json([
+                'message' => __('Credenciales incorrectas.'),
+            ], 401);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => __('Credenciales incorrectas.'),
+            ], 401);
+        }
 
         if ($user->suspendido) {
             return response()->json([
                 'message' => __('Usuario suspendido.'),
-            ], 401);
-        }
-
-        if (! $user || ! Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => __('Contraseña incorrecta.'),
             ], 401);
         }
 
@@ -54,7 +60,7 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user,
             'token' => $token,
-        ]);
+        ], 200);
     }
 
     public function register(Request $request)
@@ -88,7 +94,7 @@ class AuthController extends Controller
 
     public function user(Request $request)
     {
-        $user = auth()->user()->load([
+        $user = Auth::user()->load([
             'campuses',
             'campuses.latestCashRegister'
         ]);
@@ -97,7 +103,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $token = auth()->user()->currentAccessToken();
+        $token = Auth::user()->currentAccessToken();
         $token->delete();
 
         return response()->json([
