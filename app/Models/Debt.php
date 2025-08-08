@@ -11,6 +11,7 @@ class Debt extends Model
     protected $fillable = [
         'student_id',
         'period_id',
+        'assignment_id',
         'concept',
         'total_amount',
         'paid_amount',
@@ -36,6 +37,11 @@ class Debt extends Model
     public function period(): BelongsTo
     {
         return $this->belongsTo(Period::class);
+    }
+
+    public function assignment(): BelongsTo
+    {
+        return $this->belongsTo(StudentAssignment::class, 'assignment_id');
     }
 
     public function transactions(): HasMany

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Debt;
 use App\Models\Student;
 use App\Models\Period;
+use App\Models\StudentAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,7 @@ class DebtController extends Controller
         $validated = $request->validate([
             'student_id' => 'nullable|exists:students,id',
             'period_id' => 'nullable|exists:periods,id',
+            'assignment_id' => 'nullable|exists:student_assignments,id',
             'status' => 'nullable|in:pending,partial,paid,overdue',
             'campus_id' => 'nullable|exists:campuses,id',
             'search' => 'nullable|string|max:255',
@@ -25,7 +27,7 @@ class DebtController extends Controller
             'page' => 'nullable|integer|min:1'
         ]);
 
-        $query = Debt::with(['student', 'period', 'transactions'])
+        $query = Debt::with(['student', 'period', 'assignment.period', 'assignment.grupo', 'assignment.semanaIntensiva', 'transactions'])
             ->orderBy('due_date', 'asc');
 
         // Filtros
@@ -35,6 +37,10 @@ class DebtController extends Controller
 
         if ($validated['period_id'] ?? null) {
             $query->where('period_id', $validated['period_id']);
+        }
+
+        if ($validated['assignment_id'] ?? null) {
+            $query->where('assignment_id', $validated['assignment_id']);
         }
 
         if ($validated['status'] ?? null) {
@@ -70,18 +76,28 @@ class DebtController extends Controller
     {
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
-            'period_id' => 'required|exists:periods,id',
+            'period_id' => 'nullable|exists:periods,id',
+            'assignment_id' => 'nullable|exists:student_assignments,id',
             'concept' => 'required|string|max:255',
             'total_amount' => 'required|numeric|min:0',
             'due_date' => 'required|date|after_or_equal:today',
             'description' => 'nullable|string|max:1000'
         ]);
 
+        // Validar que al menos uno de period_id o assignment_id esté presente
+        if (empty($validated['period_id']) && empty($validated['assignment_id'])) {
+            return response()->json([
+                'message' => 'Debe especificar un período o una asignación',
+                'errors' => ['assignment_id' => ['Debe seleccionar una asignación o período']]
+            ], 422);
+        }
+
         try {
             $debt = DB::transaction(function () use ($validated) {
                 $debt = Debt::create([
                     'student_id' => $validated['student_id'],
-                    'period_id' => $validated['period_id'],
+                    'period_id' => $validated['period_id'] ?? null,
+                    'assignment_id' => $validated['assignment_id'] ?? null,
                     'concept' => $validated['concept'],
                     'total_amount' => $validated['total_amount'],
                     'remaining_amount' => $validated['total_amount'],
@@ -90,7 +106,7 @@ class DebtController extends Controller
                     'status' => 'pending'
                 ]);
 
-                return $debt->load(['student', 'period']);
+                return $debt->load(['student', 'period', 'assignment.period', 'assignment.grupo', 'assignment.semanaIntensiva']);
             });
 
             return response()->json([
@@ -107,7 +123,7 @@ class DebtController extends Controller
 
     public function show($id): JsonResponse
     {
-        $debt = Debt::with(['student', 'period', 'transactions.cashRegister'])
+        $debt = Debt::with(['student', 'period', 'assignment.period', 'assignment.grupo', 'assignment.semanaIntensiva', 'transactions.cashRegister'])
             ->findOrFail($id);
 
         return response()->json($debt);
@@ -122,7 +138,9 @@ class DebtController extends Controller
             'total_amount' => 'sometimes|numeric|min:0',
             'due_date' => 'sometimes|date',
             'description' => 'nullable|string|max:1000',
-            'status' => ['sometimes', Rule::in(['pending', 'partial', 'paid', 'overdue'])]
+            'status' => ['sometimes', Rule::in(['pending', 'partial', 'paid', 'overdue'])],
+            'assignment_id' => 'sometimes|nullable|exists:student_assignments,id',
+            'period_id' => 'sometimes|nullable|exists:periods,id'
         ]);
 
         try {
@@ -138,7 +156,7 @@ class DebtController extends Controller
 
             return response()->json([
                 'message' => 'Adeudo actualizado exitosamente',
-                'debt' => $debt->load(['student', 'period'])
+                'debt' => $debt->load(['student', 'period', 'assignment.period', 'assignment.grupo', 'assignment.semanaIntensiva'])
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -177,7 +195,7 @@ class DebtController extends Controller
     {
         $student = Student::findOrFail($studentId);
         
-        $debts = Debt::with(['period', 'transactions'])
+        $debts = Debt::with(['period', 'assignment.period', 'assignment.grupo', 'assignment.semanaIntensiva', 'transactions'])
             ->where('student_id', $studentId)
             ->orderBy('due_date', 'asc')
             ->get();
@@ -192,13 +210,28 @@ class DebtController extends Controller
     {
         $period = Period::findOrFail($periodId);
         
-        $debts = Debt::with(['student', 'transactions'])
+        $debts = Debt::with(['student', 'assignment.grupo', 'assignment.semanaIntensiva', 'transactions'])
             ->where('period_id', $periodId)
             ->orderBy('due_date', 'asc')
             ->get();
 
         return response()->json([
             'period' => $period,
+            'debts' => $debts
+        ]);
+    }
+
+    public function getByAssignment($assignmentId): JsonResponse
+    {
+        $assignment = StudentAssignment::with(['period', 'grupo', 'semanaIntensiva'])->findOrFail($assignmentId);
+        
+        $debts = Debt::with(['student', 'period', 'transactions'])
+            ->where('assignment_id', $assignmentId)
+            ->orderBy('due_date', 'asc')
+            ->get();
+
+        return response()->json([
+            'assignment' => $assignment,
             'debts' => $debts
         ]);
     }

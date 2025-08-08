@@ -11,9 +11,13 @@ class ContextController extends Controller
     /**
      * Listar todos los contextos
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $contexts = Context::active()->get();
+        if ($request->query('all') === 'true') {
+            $contexts = Context::all();
+        } else {
+            $contexts = Context::active()->get();
+        }
 
         return response()->json([
             'success' => true,

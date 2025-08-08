@@ -1,4 +1,4 @@
-s<?php
+<?php
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampusController;
@@ -36,11 +36,9 @@ use App\Http\Controllers\NoteController;
 use App\Http\Controllers\Api\DebtController;
 use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\TemplateController;
+use App\Http\Controllers\Api\ChatController;
 
 Route::get('/test', function () {
-    return response()->json(['message' => 'Hello, world!']);
-});
-Route::post('/test', function () {
     return response()->json(['message' => 'Hello, world!']);
 });
 Route::post('/login', [AuthController::class, 'login']);
@@ -169,6 +167,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/debts/{id}', [DebtController::class, 'destroy']);
     Route::get('/debts/student/{studentId}', [DebtController::class, 'getByStudent']);
     Route::get('/debts/period/{periodId}', [DebtController::class, 'getByPeriod']);
+    Route::get('/debts/assignment/{assignmentId}', [DebtController::class, 'getByAssignment']);
     Route::post('/debts/{id}/update-payment-status', [DebtController::class, 'updatePaymentStatus']);
     Route::get('/debts/overdue/list', [DebtController::class, 'getOverdueDebts']);
     Route::get('/debts/summary/stats', [DebtController::class, 'getDebtSummary']);
@@ -320,4 +319,20 @@ Route::prefix('contexts')->group(function () {
     Route::get('/stats/overview', [ContextController::class, 'getStats']);
     Route::post('/whatsapp/default', [ContextController::class, 'createWhatsAppDefault']);
 });
+
+    // Chat routes
+    Route::prefix('chat')->group(function () {
+        Route::post('/send', [ChatController::class, 'sendMessage']);
+        Route::get('/history', [ChatController::class, 'getHistory']);
+        Route::delete('/history', [ChatController::class, 'clearHistory']);
+        Route::get('/all-conversations', [ChatController::class, 'getAllConversations']);
+        Route::get('/history/{userId}', [ChatController::class, 'getUserHistory']);
+        Route::delete('/history/{userId}', [ChatController::class, 'clearUserHistory']);
+        
+        // Nuevas rutas para gestión de sesiones
+        Route::get('/sessions', [ChatController::class, 'getUserSessions']);
+        Route::post('/sessions', [ChatController::class, 'createSession']);
+        Route::get('/sessions/{sessionId}', [ChatController::class, 'getSessionHistory']);
+        Route::get('/conversations/type/{type}', [ChatController::class, 'getConversationsByType']);
+    });
 });

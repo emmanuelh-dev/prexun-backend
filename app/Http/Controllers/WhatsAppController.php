@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
+use App\Models\ChatMessage;
 
 class WhatsAppController extends Controller
 {
@@ -88,6 +90,15 @@ class WhatsAppController extends Controller
                     'phone_number' => $request->phone_number,
                     'response' => $response->json()
                 ]);
+
+                // Registrar en el sistema de chat
+                $this->logWhatsAppMessage(
+                    $request->phone_number,
+                    $request->message,
+                    'text',
+                    null,
+                    false
+                );
 
                 return response()->json([
                     'success' => true,
@@ -202,6 +213,15 @@ class WhatsAppController extends Controller
                     'response' => $response->json()
                 ]);
 
+                // Registrar en el sistema de chat
+                $this->logWhatsAppMessage(
+                    $request->phone_number,
+                    '', // No hay mensaje de texto en templates
+                    'template',
+                    $request->template_name,
+                    true
+                );
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Template message sent successfully',
@@ -261,5 +281,57 @@ class WhatsAppController extends Controller
         }
         
         return $cleaned;
+    }
+
+    /**
+     * Registrar mensaje de WhatsApp en el sistema de chat
+     */
+    private function logWhatsAppMessage($phoneNumber, $message, $messageType = 'text', $templateName = null, $isTemplate = false)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                Log::warning('No hay usuario autenticado para registrar mensaje de WhatsApp');
+                return;
+            }
+
+            // Crear o obtener session_id para WhatsApp
+            $sessionId = ChatMessage::createSession($user->id, 'whatsapp_outbound', null);
+
+            // Preparar el contenido del mensaje
+            $content = $isTemplate 
+                ? "📱 Plantilla WhatsApp enviada: '{$templateName}' a {$phoneNumber}"
+                : "📱 Mensaje WhatsApp enviado a {$phoneNumber}: {$message}";
+
+            // Crear registro en chat_messages
+            ChatMessage::create([
+                'user_id' => $user->id,
+                'role' => 'user', // El usuario que envía el mensaje
+                'content' => $content,
+                'conversation_type' => 'whatsapp_outbound',
+                'related_id' => null,
+                'session_id' => $sessionId,
+                'metadata' => [
+                    'platform' => 'whatsapp',
+                    'phone_number' => $phoneNumber,
+                    'message_type' => $messageType,
+                    'template_name' => $templateName,
+                    'is_template' => $isTemplate,
+                    'sent_at' => now()->toISOString()
+                ]
+            ]);
+
+            Log::info('Mensaje de WhatsApp registrado en chat', [
+                'user_id' => $user->id,
+                'phone_number' => $phoneNumber,
+                'message_type' => $messageType
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al registrar mensaje de WhatsApp en chat', [
+                'error' => $e->getMessage(),
+                'phone_number' => $phoneNumber
+            ]);
+        }
     }
 }
