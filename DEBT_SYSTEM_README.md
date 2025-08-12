@@ -111,7 +111,7 @@ public function debt()
 
 ## Integración con Transacciones
 
-### ChargeController.php (Modificado)
+### TransactionController.php (Modificado)
 Se actualizó el método `store()` para:
 1. Aceptar `debt_id` en la validación
 2. Asociar transacciones con adeudos
@@ -272,7 +272,7 @@ const response = await axios.get('/api/debts', {
 - `app/Http/Controllers/DebtController.php`
 - `app/Models/Student.php` (modificado)
 - `app/Models/Transaction.php` (modificado)
-- `app/Http/Controllers/ChargeController.php` (modificado)
+- `app/Http/Controllers/TransactionController.php` (modificado)
 - `routes/api.php` (modificado)
 
 ### Frontend

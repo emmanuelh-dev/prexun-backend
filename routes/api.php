@@ -5,7 +5,7 @@ use App\Http\Controllers\Api\CampusController;
 use App\Http\Controllers\Api\CardController;
 use App\Http\Controllers\Api\CarreraController;
 use App\Http\Controllers\Api\CashCutController;
-use App\Http\Controllers\Api\ChargeController;
+use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\CohortController;
 use App\Http\Controllers\Api\MoodleCohortController;
 use App\Http\Controllers\Api\FacultadController;
@@ -60,9 +60,9 @@ Route::prefix('whatsapp')->group(function () {
 });
 Route::get('/public/campuses', [App\Http\Controllers\Api\PublicStudentController::class, 'getCampuses']);
 
-Route::get('/invoices', [ChargeController::class, 'all']);
-Route::get('/invoice/{id}', [ChargeController::class, 'show']);
-Route::get('/uuid_invoice/{uuid}', [ChargeController::class, 'showByUuid']);
+Route::get('/invoices', [TransactionController::class, 'all']);
+Route::get('/invoice/{id}', [TransactionController::class, 'show']);
+Route::get('/uuid_invoice/{uuid}', [TransactionController::class, 'showByUuid']);
 
 
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -151,13 +151,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/periods/{id}', [PeriodController::class, 'destroy']);
 
     // charges
-    Route::get('/charges/not-paid', [ChargeController::class, 'notPaid']);
-    Route::get('/charges/{campus_id}', [ChargeController::class, 'index']);
-    Route::post('/charges', [ChargeController::class, 'store']);
-    Route::put('/charges/{id}', [ChargeController::class, 'update']);
-    Route::delete('/charges/{id}', [ChargeController::class, 'destroy']);
-    Route::post('/charges/import-folios', [ChargeController::class, 'importFolios']);
-    Route::put('/charges/{id}/update-folio', [ChargeController::class, 'updateFolio']);
+    Route::get('/charges/not-paid', [TransactionController::class, 'notPaid']);
+    Route::get('/charges/{campus_id}', [TransactionController::class, 'index']);
+    Route::post('/charges', [TransactionController::class, 'store']);
+    Route::put('/charges/{id}', [TransactionController::class, 'update']);
+    Route::delete('/charges/{id}', [TransactionController::class, 'destroy']);
+    Route::post('/charges/import-folios', [TransactionController::class, 'importFolios']);
+    Route::put('/charges/{id}/update-folio', [TransactionController::class, 'updateFolio']);
 
     // Debts (Adeudos)
     Route::get('/debts', [DebtController::class, 'index']);
