@@ -166,6 +166,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/debts/{id}', [DebtController::class, 'update']);
     Route::delete('/debts/{id}', [DebtController::class, 'destroy']);
     Route::get('/debts/student/{studentId}', [DebtController::class, 'getByStudent']);
+    Route::get('/debts/campus/{campusId}', [DebtController::class, 'getByCampus']);
     Route::get('/debts/period/{periodId}', [DebtController::class, 'getByPeriod']);
     Route::get('/debts/assignment/{assignmentId}', [DebtController::class, 'getByAssignment']);
     Route::post('/debts/{id}/update-payment-status', [DebtController::class, 'updatePaymentStatus']);
