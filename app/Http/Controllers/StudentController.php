@@ -73,7 +73,8 @@ class StudentController extends Controller
             'isSpecificSearch' => $isSpecificSearch
         ]);
 
-        $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera', 'grupo']);
+        $query = Student::with(['period', 'transactions', 'municipio', 'prepa', 'facultad', 'carrera', 'grupo', 'debts'
+      ]);
 
         if ($campus_id) {
             $query->where('campus_id', $campus_id);
@@ -1700,13 +1701,11 @@ class StudentController extends Controller
             $students = Student::whereIn('id', $studentIds)->get();
             $moodleUsers = [];
 
-            // Preparar datos para Moodle y actualizar estado local
             foreach ($students as $student) {
+
                 try {
-                    // Capture data before update for event logging
                     $beforeData = $student->toArray();
 
-                    // Asegurar que el estudiante tenga moodle_id
                     $this->ensureStudentHasMoodleId($student);
 
                     // Actualizar status local
