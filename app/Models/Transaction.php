@@ -24,6 +24,9 @@ class Transaction extends Model
         'card_id',
         'sat',
         'folio_sat',
+        'folio_new',
+        'folio_cash',
+        'folio_card',
         'debt_id'
     ];
 
