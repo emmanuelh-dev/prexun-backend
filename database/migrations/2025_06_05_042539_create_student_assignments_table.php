@@ -32,11 +32,8 @@ return new class extends Migration
             $table->boolean('is_active')->default(true); // Whether this assignment is currently active
             $table->text('notes')->nullable(); // Any additional notes about the assignment
             
-            $table->timestamps();
-            
-            // Ensure unique combinations for active assignments
-            $table->unique(['student_id', 'period_id', 'grupo_id', 'semana_intensiva_id'], 'unique_student_assignment');
-        });
+            $table->timestamps();  
+          });
     }
 
     /**
