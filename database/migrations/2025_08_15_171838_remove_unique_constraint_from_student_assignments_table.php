@@ -13,21 +13,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('student_assignments', function (Blueprint $table) {
-            // First, temporarily disable foreign key checks
-            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-            
-            try {
-                // Drop the unique constraint
-                $table->dropUnique('unique_student_assignment');
-            } catch (\Exception $e) {
-                // If the constraint doesn't exist or can't be dropped, continue
-                Log::warning('Could not drop unique constraint: ' . $e->getMessage());
-            }
-            
-            // Re-enable foreign key checks
-            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-        });
+        // Use raw SQL to handle the constraint removal more safely
+        try {
+            DB::statement('ALTER TABLE student_assignments DROP INDEX unique_student_assignment');
+            Log::info('Successfully dropped unique_student_assignment constraint');
+        } catch (\Exception $e) {
+            // If the constraint doesn't exist, that's fine - it means it was already removed
+            Log::warning('Could not drop unique constraint (may not exist): ' . $e->getMessage());
+        }
     }
 
     /**
@@ -35,13 +28,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('student_assignments', function (Blueprint $table) {
-            // Only add the constraint back if it doesn't already exist
-            try {
-                $table->unique(['student_id', 'period_id', 'grupo_id', 'semana_intensiva_id'], 'unique_student_assignment');
-            } catch (\Exception $e) {
-                Log::warning('Could not recreate unique constraint: ' . $e->getMessage());
-            }
-        });
+        // Only add the constraint back if it doesn't already exist
+        try {
+            DB::statement('ALTER TABLE student_assignments ADD UNIQUE unique_student_assignment (student_id, period_id, grupo_id, semana_intensiva_id)');
+            Log::info('Successfully recreated unique_student_assignment constraint');
+        } catch (\Exception $e) {
+            Log::warning('Could not recreate unique constraint (may already exist): ' . $e->getMessage());
+        }
     }
 };
