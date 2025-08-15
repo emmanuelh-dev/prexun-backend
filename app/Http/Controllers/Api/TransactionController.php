@@ -152,7 +152,8 @@ class TransactionController extends Controller
               $folio = null;
               $folioNew = null;
               
-              if (!$shouldGenerateSpecificFolio) {
+              // Solo generar folio si la transacción está pagada
+              if ($validated['paid'] && !$shouldGenerateSpecificFolio) {
                   $folio = $this->generateMonthlyFolio($validated['campus_id']);
                   $folioNew = $this->folioNew($validated['campus_id'], now(), $folio);
               }
@@ -276,12 +277,18 @@ class TransactionController extends Controller
               if ($transaction->paid && ($paidStatusChanged || $paymentMethodChanged || $cardChanged)) {
                   $shouldGenerateSpecificFolio = $this->shouldGenerateSpecificFolio($transaction->payment_method, $transaction->card_id);
                   
-                  $transaction->folio_transfer = null;
-                  $transaction->folio_cash = null;
-                  $transaction->folio_card = null;
+                  // Si el método de pago cambió, limpiar folios específicos
+                  if ($paymentMethodChanged || $cardChanged) {
+                      $transaction->folio_transfer = null;
+                      $transaction->folio_cash = null;
+                      $transaction->folio_card = null;
+                  }
   
                   if ($shouldGenerateSpecificFolio) {
-                      $transaction->folio_new = null;
+                      // Si cambió a método específico, limpiar folio general
+                      if ($paymentMethodChanged || $cardChanged) {
+                          $transaction->folio_new = null;
+                      }
                       
                       $paymentFolio = $this->generatePaymentMethodFolio(
                           $transaction->campus_id,
@@ -293,7 +300,8 @@ class TransactionController extends Controller
                           $transaction->{$paymentFolio['column']} = $paymentFolio['value'];
                       }
                   } else {
-                      if (!$transaction->folio_new) {
+                      // Solo generar folio general si no tiene uno ya
+                      if (!$transaction->folio && !$transaction->folio_new) {
                           $folio = $this->generateMonthlyFolio($transaction->campus_id);
                           $transaction->folio = $folio;
                           $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_date ?? now(), $folio);
@@ -304,6 +312,9 @@ class TransactionController extends Controller
               }
   
               if ($oldPaid && !$transaction->paid) {
+                  // Si la transacción cambia de pagada a no pagada, limpiar todos los folios
+                  $transaction->folio = null;
+                  $transaction->folio_new = null;
                   $transaction->folio_transfer = null;
                   $transaction->folio_cash = null;
                   $transaction->folio_card = null;
