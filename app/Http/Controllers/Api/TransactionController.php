@@ -133,253 +133,259 @@ class TransactionController extends Controller
 
   public function store(Request $request)
   {
-      $validated = $request->validate([
-          'student_id' => 'required|exists:students,id',
-          'campus_id' => 'required|exists:campuses,id',
-          'amount' => 'required|numeric|min:0',
-          'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
-          'expiration_date' => 'nullable|date',
-          'notes' => 'nullable|string|max:255',
-          'paid' => 'required|boolean',
-          'debt_id' => 'nullable|exists:debts,id',
-          'card_id' => 'nullable|exists:cards,id'
-      ]);
-  
-      try {
-          return DB::transaction(function () use ($validated) {
-              $shouldGenerateSpecificFolio = $this->shouldGenerateSpecificFolio($validated['payment_method'], $validated['card_id'] ?? null);
-              
-              $folio = null;
-              $folioNew = null;
-              
-              // Solo generar folio si la transacción está pagada
-              if ($validated['paid'] && !$shouldGenerateSpecificFolio) {
-                  $folio = $this->generateMonthlyFolio($validated['campus_id']);
-                  $folioNew = $this->folioNew($validated['campus_id'], now(), $folio);
-              }
-              Log::info('Folio generado', ['folio' => $folio, 'folio_new' => $folioNew]);
+    $validated = $request->validate([
+      'student_id' => 'required|exists:students,id',
+      'campus_id' => 'required|exists:campuses,id',
+      'amount' => 'required|numeric|min:0',
+      'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
+      'expiration_date' => 'nullable|date',
+      'notes' => 'nullable|string|max:255',
+      'paid' => 'required|boolean',
+      'debt_id' => 'nullable|exists:debts,id',
+      'image' => 'nullable|image',
+      'card_id' => 'nullable|exists:cards,id',
+      'sat' => 'nullable|boolean',
+    ]);
 
-              $transaction = Transaction::create([
-                  'student_id' => $validated['student_id'],
-                  'campus_id' => $validated['campus_id'],
-                  'amount' => $validated['amount'],
-                  'payment_method' => $validated['payment_method'],
-                  'notes' => $validated['notes'] ?? null,
-                  'paid' => $validated['paid'],
-                  'transaction_type' => 'payment',
-                  'expiration_date' => $validated['expiration_date'] ?? Carbon::now()->addDays(15)->format('Y-m-d'),
-                  'uuid' => Str::uuid(),
-                  'debt_id' => $validated['debt_id'] ?? null,
-                  'card_id' => $validated['card_id'] ?? null,
-                  'folio' => $folio,
-                  'folio_new' => $folioNew,
+    if ($request->hasFile('image')) {
+      $validated['image'] = $request->file('image')->store('transactions', 'public');
+    }
+
+    try {
+      return DB::transaction(function () use ($validated) {
+        $shouldGenerateSpecificFolio = $this->shouldGenerateSpecificFolio($validated['payment_method'], $validated['card_id'] ?? null);
+
+        $folio = null;
+        $folioNew = null;
+
+        // Solo generar folio si la transacción está pagada
+        if ($validated['paid'] && !$shouldGenerateSpecificFolio) {
+          $folio = $this->generateMonthlyFolio($validated['campus_id']);
+          $folioNew = $this->folioNew($validated['campus_id'], now(), $folio);
+        }
+        Log::info('Folio generado', ['folio' => $folio, 'folio_new' => $folioNew]);
+
+        $transaction = Transaction::create([
+          'student_id' => $validated['student_id'],
+          'campus_id' => $validated['campus_id'],
+          'amount' => $validated['amount'],
+          'payment_method' => $validated['payment_method'],
+          'notes' => $validated['notes'] ?? null,
+          'paid' => $validated['paid'],
+          'transaction_type' => 'payment',
+          'expiration_date' => $validated['expiration_date'] ?? Carbon::now()->addDays(15)->format('Y-m-d'),
+          'uuid' => Str::uuid(),
+          'debt_id' => $validated['debt_id'] ?? null,
+          'card_id' => $validated['card_id'] ?? null,
+          'folio' => $folio,
+          'folio_new' => $folioNew,
+          'image' => $validated['image'] ?? null,
+        ]);
+
+        Log::info($transaction);
+
+        if ($validated['paid'] && $shouldGenerateSpecificFolio) {
+          $paymentFolio = $this->generatePaymentMethodFolio(
+            $validated['campus_id'],
+            $validated['payment_method'],
+            $validated['card_id'] ?? null
+          );
+
+          if ($paymentFolio) {
+            $transaction->{$paymentFolio['column']} = $paymentFolio['value'];
+            $transaction->save();
+
+            Log::info("Folio específico generado", [
+              'transaction_id' => $transaction->id,
+              'campus_id' => $validated['campus_id'],
+              'payment_method' => $validated['payment_method'],
+              'column' => $paymentFolio['column'],
+              'value' => $paymentFolio['value'],
+              'formatted' => $paymentFolio['formatted']
+            ]);
+          }
+        }
+
+        if ($validated['debt_id'] && $validated['paid']) {
+          $debt = \App\Models\Debt::find($validated['debt_id']);
+          if ($debt) {
+            $debt->updatePaymentStatus();
+          }
+        }
+
+        if ($validated['payment_method'] === 'cash' && !empty($validated['denominations'])) {
+          foreach ($validated['denominations'] as $value => $quantity) {
+            $denomination = Denomination::firstOrCreate(
+              ['value' => $value],
+              ['type' => $value >= 100 ? 'billete' : 'moneda']
+            );
+
+            if ($quantity > 0) {
+              TransactionDetail::create([
+                'transaction_id' => $transaction->id,
+                'denomination_id' => $denomination->id,
+                'quantity' => $quantity
               ]);
-  
-              Log::info($transaction);
+            }
+          }
+        }
 
-              if ($validated['paid'] && $shouldGenerateSpecificFolio) {
-                  $paymentFolio = $this->generatePaymentMethodFolio(
-                      $validated['campus_id'],
-                      $validated['payment_method'],
-                      $validated['card_id'] ?? null
-                  );
-  
-                  if ($paymentFolio) {
-                      $transaction->{$paymentFolio['column']} = $paymentFolio['value'];
-                      $transaction->save();
-  
-                      Log::info("Folio específico generado", [
-                          'transaction_id' => $transaction->id,
-                          'campus_id' => $validated['campus_id'],
-                          'payment_method' => $validated['payment_method'],
-                          'column' => $paymentFolio['column'],
-                          'value' => $paymentFolio['value'],
-                          'formatted' => $paymentFolio['formatted']
-                      ]);
-                  }
-              }
-  
-              if ($validated['debt_id'] && $validated['paid']) {
-                  $debt = \App\Models\Debt::find($validated['debt_id']);
-                  if ($debt) {
-                      $debt->updatePaymentStatus();
-                  }
-              }
-  
-              if ($validated['payment_method'] === 'cash' && !empty($validated['denominations'])) {
-                  foreach ($validated['denominations'] as $value => $quantity) {
-                      $denomination = Denomination::firstOrCreate(
-                          ['value' => $value],
-                          ['type' => $value >= 100 ? 'billete' : 'moneda']
-                      );
-  
-                      if ($quantity > 0) {
-                          TransactionDetail::create([
-                              'transaction_id' => $transaction->id,
-                              'denomination_id' => $denomination->id,
-                              'quantity' => $quantity
-                          ]);
-                      }
-                  }
-              }
-  
-              if ($transaction->image) {
-                  $transaction->image = asset('storage/' . $transaction->image);
-              }
-              
-              return response()->json(
-                  $transaction->load('transactionDetails.denomination'),
-                  201
-              );
-          });
-      } catch (\Exception $e) {
-          return response()->json([
-              'message' => 'Error al procesar la transacción',
-              'error' => $e->getMessage()
-          ], 500);
-      }
+        if ($transaction->image) {
+          $transaction->image = asset('storage/' . $transaction->image);
+        }
+
+        return response()->json(
+          $transaction->load('transactionDetails.denomination'),
+          201
+        );
+      });
+    } catch (\Exception $e) {
+      return response()->json([
+        'message' => 'Error al procesar la transacción',
+        'error' => $e->getMessage()
+      ], 500);
+    }
   }
-  
+
   public function update($id, Request $request)
   {
-      $validated = $request->validate([
-          'student_id' => 'nullable|exists:students,id',
-          'campus_id' => 'nullable|exists:campuses,id',
-          'amount' => 'nullable|numeric|min:0',
-          'payment_method' => ['nullable', Rule::in(['cash', 'transfer', 'card'])],
-          'denominations' => 'nullable|array',
-          'notes' => 'nullable|string|max:255',
-          'paid' => 'nullable|boolean',
-          'cash_register_id' => 'nullable|exists:cash_registers,id',
-          'payment_date' => 'nullable|date_format:Y-m-d',
-          'image' => 'nullable|image',
-          'card_id' => 'nullable|exists:cards,id',
-          'sat' => 'nullable|boolean'
-      ]);
-  
-      if ($request->hasFile('image')) {
-          $validated['image'] = $request->file('image')->store('transactions', 'public');
-      }
-  
-      try {
-          return DB::transaction(function () use ($id, $validated) {
-              $transaction = Transaction::findOrFail($id);
-              $oldPaid = $transaction->paid;
-              $oldPaymentMethod = $transaction->payment_method;
-              $oldCardId = $transaction->card_id;
-  
-              $transaction->update($validated);
-  
-              $paymentMethodChanged = $oldPaymentMethod !== $transaction->payment_method;
-              $cardChanged = $oldCardId !== $transaction->card_id;
-              $paidStatusChanged = !$oldPaid && $transaction->paid;
-  
-              if ($transaction->paid && ($paidStatusChanged || $paymentMethodChanged || $cardChanged)) {
-                  $shouldGenerateSpecificFolio = $this->shouldGenerateSpecificFolio($transaction->payment_method, $transaction->card_id);
-                  
-                  // Si el método de pago cambió, limpiar folios específicos
-                  if ($paymentMethodChanged || $cardChanged) {
-                      $transaction->folio_transfer = null;
-                      $transaction->folio_cash = null;
-                      $transaction->folio_card = null;
-                  }
-  
-                  if ($shouldGenerateSpecificFolio) {
-                      // Si cambió a método específico, limpiar folio general
-                      if ($paymentMethodChanged || $cardChanged) {
-                          $transaction->folio_new = null;
-                      }
-                      
-                      $paymentFolio = $this->generatePaymentMethodFolio(
-                          $transaction->campus_id,
-                          $transaction->payment_method,
-                          $transaction->card_id
-                      );
-  
-                      if ($paymentFolio) {
-                          $transaction->{$paymentFolio['column']} = $paymentFolio['value'];
-                      }
-                  } else {
-                      // Solo generar folio general si no tiene uno ya
-                      if (!$transaction->folio && !$transaction->folio_new) {
-                          $folio = $this->generateMonthlyFolio($transaction->campus_id);
-                          $transaction->folio = $folio;
-                          $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_date ?? now(), $folio);
-                      }
-                  }
-  
-                  $transaction->save();
-              }
-  
-              if ($oldPaid && !$transaction->paid) {
-                  // Si la transacción cambia de pagada a no pagada, limpiar todos los folios
-                  $transaction->folio = null;
-                  $transaction->folio_new = null;
-                  $transaction->folio_transfer = null;
-                  $transaction->folio_cash = null;
-                  $transaction->folio_card = null;
-                  $transaction->save();
-              }
-  
-              if (isset($validated['payment_method']) && $validated['payment_method'] === 'cash' && isset($validated['denominations'])) {
-                  $transaction->transactionDetails()->delete();
-  
-                  foreach ($validated['denominations'] as $value => $quantity) {
-                      if ($quantity > 0) {
-                          $denomination = Denomination::firstOrCreate(
-                              ['value' => $value],
-                              ['type' => $value >= 100 ? 'billete' : 'moneda']
-                          );
-  
-                          TransactionDetail::create([
-                              'transaction_id' => $transaction->id,
-                              'denomination_id' => $denomination->id,
-                              'quantity' => $quantity
-                          ]);
-                      }
-                  }
-              }
-  
-              if ($transaction->image) {
-                  $transaction->image = asset('storage/' . $transaction->image);
-              }
-  
-              return response()->json(
-                  $transaction->load('transactionDetails.denomination'),
-                  200
+    $validated = $request->validate([
+      'student_id' => 'nullable|exists:students,id',
+      'campus_id' => 'nullable|exists:campuses,id',
+      'amount' => 'nullable|numeric|min:0',
+      'payment_method' => ['nullable', Rule::in(['cash', 'transfer', 'card'])],
+      'notes' => 'nullable|string|max:255',
+      'paid' => 'nullable|boolean',
+      'cash_register_id' => 'nullable|exists:cash_registers,id',
+      'payment_date' => 'nullable|date_format:Y-m-d',
+      'image' => 'nullable|image',
+      'card_id' => 'nullable|exists:cards,id',
+      'sat' => 'nullable|boolean'
+    ]);
+
+    if ($request->hasFile('image')) {
+      $validated['image'] = $request->file('image')->store('transactions', 'public');
+    }
+
+    try {
+      return DB::transaction(function () use ($id, $validated) {
+        $transaction = Transaction::findOrFail($id);
+        $oldPaid = $transaction->paid;
+        $oldPaymentMethod = $transaction->payment_method;
+        $oldCardId = $transaction->card_id;
+
+        $transaction->update($validated);
+
+        $paymentMethodChanged = $oldPaymentMethod !== $transaction->payment_method;
+        $cardChanged = $oldCardId !== $transaction->card_id;
+        $paidStatusChanged = !$oldPaid && $transaction->paid;
+
+        if ($transaction->paid && ($paidStatusChanged || $paymentMethodChanged || $cardChanged)) {
+          $shouldGenerateSpecificFolio = $this->shouldGenerateSpecificFolio($transaction->payment_method, $transaction->card_id);
+
+          // Si el método de pago cambió, limpiar folios específicos
+          if ($paymentMethodChanged || $cardChanged) {
+            $transaction->folio_transfer = null;
+            $transaction->folio_cash = null;
+            $transaction->folio_card = null;
+          }
+
+          if ($shouldGenerateSpecificFolio) {
+            // Si cambió a método específico, limpiar folio general
+            if ($paymentMethodChanged || $cardChanged) {
+              $transaction->folio_new = null;
+            }
+
+            $paymentFolio = $this->generatePaymentMethodFolio(
+              $transaction->campus_id,
+              $transaction->payment_method,
+              $transaction->card_id
+            );
+
+            if ($paymentFolio) {
+              $transaction->{$paymentFolio['column']} = $paymentFolio['value'];
+            }
+          } else {
+            // Solo generar folio general si no tiene uno ya
+            if (!$transaction->folio && !$transaction->folio_new) {
+              $folio = $this->generateMonthlyFolio($transaction->campus_id);
+              $transaction->folio = $folio;
+              $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_date ?? now(), $folio);
+            }
+          }
+
+          $transaction->save();
+        }
+
+        if ($oldPaid && !$transaction->paid) {
+          // Si la transacción cambia de pagada a no pagada, limpiar todos los folios
+          $transaction->folio = null;
+          $transaction->folio_new = null;
+          $transaction->folio_transfer = null;
+          $transaction->folio_cash = null;
+          $transaction->folio_card = null;
+          $transaction->save();
+        }
+
+        if (isset($validated['payment_method']) && $validated['payment_method'] === 'cash' && isset($validated['denominations'])) {
+          $transaction->transactionDetails()->delete();
+
+          foreach ($validated['denominations'] as $value => $quantity) {
+            if ($quantity > 0) {
+              $denomination = Denomination::firstOrCreate(
+                ['value' => $value],
+                ['type' => $value >= 100 ? 'billete' : 'moneda']
               );
-          });
-      } catch (\Exception $e) {
-          return response()->json([
-              'message' => 'Error al actualizar la transacción',
-              'error' => $e->getMessage()
-          ], 500);
-      }
+
+              TransactionDetail::create([
+                'transaction_id' => $transaction->id,
+                'denomination_id' => $denomination->id,
+                'quantity' => $quantity
+              ]);
+            }
+          }
+        }
+
+        if ($transaction->image) {
+          $transaction->image = asset('storage/' . $transaction->image);
+        }
+
+        return response()->json(
+          $transaction->load('transactionDetails.denomination'),
+          200
+        );
+      });
+    } catch (\Exception $e) {
+      return response()->json([
+        'message' => 'Error al actualizar la transacción',
+        'error' => $e->getMessage()
+      ], 500);
+    }
   }
-  
+
   private function shouldGenerateSpecificFolio($paymentMethod, $cardId = null)
   {
-      if ($paymentMethod === 'cash') {
-          return true;
-      }
-      
-      if ($paymentMethod === 'transfer') {
-          if (!$cardId) return true;
-          
-          $card = \App\Models\Card::find($cardId);
-          return !($card && $card->sat);
-      }
-      
-      if ($paymentMethod === 'card') {
-          if (!$cardId) return false;
-          
-          $card = \App\Models\Card::find($cardId);
-          return !($card && $card->sat);
-      }
-      
-      return false;
+    if ($paymentMethod === 'cash') {
+      return true;
+    }
+
+    if ($paymentMethod === 'transfer') {
+      if (!$cardId) return true;
+
+      $card = \App\Models\Card::find($cardId);
+      return !($card && $card->sat);
+    }
+
+    if ($paymentMethod === 'card') {
+      if (!$cardId) return false;
+
+      $card = \App\Models\Card::find($cardId);
+      return !($card && $card->sat);
+    }
+
+    return false;
   }
-  
+
   public function all()
   {
     $charges = Transaction::with('student', 'campus', 'student.grupo')->get();
