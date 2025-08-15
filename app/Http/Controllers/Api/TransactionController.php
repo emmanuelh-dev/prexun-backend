@@ -252,7 +252,7 @@ class TransactionController extends Controller
           'paid' => 'nullable|boolean',
           'cash_register_id' => 'nullable|exists:cash_registers,id',
           'payment_date' => 'nullable|date_format:Y-m-d',
-          'image' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp,jfif',
+          'image' => 'nullable|image',
           'card_id' => 'nullable|exists:cards,id',
           'sat' => 'nullable|boolean'
       ]);
