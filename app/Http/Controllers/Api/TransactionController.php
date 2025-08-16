@@ -139,6 +139,7 @@ class TransactionController extends Controller
       'amount' => 'required|numeric|min:0',
       'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
       'expiration_date' => 'nullable|date',
+      'payment_date' => 'nullable|date',
       'notes' => 'nullable|string|max:255',
       'paid' => 'required|boolean',
       'debt_id' => 'nullable|exists:debts,id',
@@ -161,7 +162,10 @@ class TransactionController extends Controller
         // Solo generar folio si la transacción está pagada
         if ($validated['paid'] && !$shouldGenerateSpecificFolio) {
           $folio = $this->generateMonthlyFolio($validated['campus_id']);
-          $folioNew = $this->folioNew($validated['campus_id'], now(), $folio);
+        }
+        if ($validated['paid']) {
+          // Generar folio nuevo con prefijo y mes/año
+          $folioNew = $this->folioNew($validated['campus_id'], $validated['payment_date'] ?? now());
         }
         Log::info('Folio generado', ['folio' => $folio, 'folio_new' => $folioNew]);
 
@@ -182,7 +186,6 @@ class TransactionController extends Controller
           'image' => $validated['image'] ?? null,
         ]);
 
-        Log::info($transaction);
 
         if ($validated['paid'] && $shouldGenerateSpecificFolio) {
           $paymentFolio = $this->generatePaymentMethodFolio(
@@ -233,9 +236,10 @@ class TransactionController extends Controller
         if ($transaction->image) {
           $transaction->image = asset('storage/' . $transaction->image);
         }
+        Log::info($transaction);
 
         return response()->json(
-          $transaction->load('transactionDetails.denomination'),
+          $transaction->load('transactionDetails'),
           201
         );
       });
@@ -310,10 +314,10 @@ class TransactionController extends Controller
             if (!$transaction->folio && !$transaction->folio_new) {
               $folio = $this->generateMonthlyFolio($transaction->campus_id);
               $transaction->folio = $folio;
-              $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_date ?? now(), $folio);
             }
           }
 
+          $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_date ?? now());
           $transaction->save();
         }
 
@@ -579,27 +583,19 @@ class TransactionController extends Controller
   /**
    * Mantiene la generación de folio_new por compatibilidad
    */
-  protected function folioNew($campusId, $payment_date = null, $folio)
+  protected function folioNew($campusId, $payment_date = null)
   {
 
-    // Obtener el mes y año actual
     $date = $payment_date ? Carbon::parse($payment_date) : now();
-    $mesAnio = $date->format('my'); // Formato 0425 para abril 2025
+    $mesAnio = $date->format('my');
 
-    // Obtener la primera letra del campus
     $campus = \App\Models\Campus::findOrFail($campusId);
     $letraCampus = strtoupper(substr($campus->name, 0, 1));
 
     // Prefijo del folio
     $prefix = $letraCampus . 'I-' . $mesAnio . ' | ';
 
-    // Formatear el número con ceros a la izquierda (4 dígitos)
-    $formattedNumber = str_pad($folio, 4, '0', STR_PAD_LEFT);
-
-    // Generar el folio completo
-    $folio = $prefix . $formattedNumber;
-
-    return $folio;
+    return $prefix;
   }
 
 
