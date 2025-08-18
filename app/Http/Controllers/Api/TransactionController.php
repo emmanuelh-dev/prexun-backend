@@ -139,7 +139,7 @@ class TransactionController extends Controller
       'amount' => 'required|numeric|min:0',
       'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
       'expiration_date' => 'nullable|date',
-      'payment_date' => 'nullable|date',
+      'payment_date' => 'nullable|date_format:Y-m-d',
       'notes' => 'nullable|string|max:255',
       'paid' => 'required|boolean',
       'debt_id' => 'nullable|exists:debts,id',
@@ -184,6 +184,7 @@ class TransactionController extends Controller
           'folio' => $folio,
           'folio_new' => $folioNew,
           'image' => $validated['image'] ?? null,
+          'payment_date' => $validated['payment_date'] ?? null
         ]);
 
 
@@ -591,7 +592,7 @@ class TransactionController extends Controller
 
     $campus = \App\Models\Campus::findOrFail($campusId);
     $letraCampus = strtoupper(substr($campus->name, 0, 1));
-    
+
     // Prefijo del folio
     $prefix = $letraCampus . 'I-' . $mesAnio . ' | ';
 
