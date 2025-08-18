@@ -323,7 +323,6 @@ class TransactionController extends Controller
         }
 
         if ($oldPaid && !$transaction->paid) {
-          // Si la transacción cambia de pagada a no pagada, limpiar todos los folios
           $transaction->folio = null;
           $transaction->folio_new = null;
           $transaction->folio_transfer = null;
