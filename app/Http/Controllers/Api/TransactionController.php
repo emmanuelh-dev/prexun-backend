@@ -165,9 +165,8 @@ class TransactionController extends Controller
         }
         if ($validated['paid']) {
           // Generar folio nuevo con prefijo y mes/año
-          $folioNew = $this->folioNew($validated['campus_id'], $validated['payment_date'] ?? now());
+          $folioNew = $this->folioNew($validated['campus_id'], $validated['payment_method'], $validated['card_id'] ?? null, $validated['payment_date'] ?? now());
         }
-        Log::info('Folio generado', ['folio' => $folio, 'folio_new' => $folioNew]);
 
         $transaction = Transaction::create([
           'student_id' => $validated['student_id'],
@@ -198,15 +197,6 @@ class TransactionController extends Controller
           if ($paymentFolio) {
             $transaction->{$paymentFolio['column']} = $paymentFolio['value'];
             $transaction->save();
-
-            Log::info("Folio específico generado", [
-              'transaction_id' => $transaction->id,
-              'campus_id' => $validated['campus_id'],
-              'payment_method' => $validated['payment_method'],
-              'column' => $paymentFolio['column'],
-              'value' => $paymentFolio['value'],
-              'formatted' => $paymentFolio['formatted']
-            ]);
           }
         }
 
@@ -237,7 +227,6 @@ class TransactionController extends Controller
         if ($transaction->image) {
           $transaction->image = asset('storage/' . $transaction->image);
         }
-        Log::info($transaction);
 
         return response()->json(
           $transaction->load('transactionDetails'),
@@ -318,7 +307,7 @@ class TransactionController extends Controller
             }
           }
 
-          $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_date ?? now());
+          $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->card_id ?? null, $transaction->payment_date ?? now());
           $transaction->save();
         }
 
@@ -433,7 +422,7 @@ class TransactionController extends Controller
 
     $transaction = Transaction::findOrFail($id);
 
-    $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_date, $request->folio);
+    $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->paymentMethod, $transaction->payment_date, $request->folio);
 
     $transaction->folio = $request->folio;
     $transaction->save();
@@ -582,7 +571,7 @@ class TransactionController extends Controller
   /**
    * Mantiene la generación de folio_new por compatibilidad
    */
-  protected function folioNew($campusId, $payment_date = null)
+  protected function folioNew($campusId, $paymentMethod, $cardId = null, $payment_date = null)
   {
 
     $date = $payment_date ? Carbon::parse($payment_date) : now();
@@ -590,9 +579,31 @@ class TransactionController extends Controller
 
     $campus = \App\Models\Campus::findOrFail($campusId);
     $letraCampus = strtoupper(substr($campus->name, 0, 1));
+    $folioColumn = null;
 
-    // Prefijo del folio
-    $prefix = $letraCampus . 'I-' . $mesAnio . ' | ';
+    $card = \App\Models\Card::find($cardId);
+
+
+    switch ($paymentMethod) {
+      case 'transfer':
+        if ($card->sat) {
+          $folioColumn = 'I';
+        } else {
+          $folioColumn = 'A';
+        }
+        break;
+      case 'cash':
+        $folioColumn = 'E';
+        break;
+      case 'card':
+        $folioColumn = 'I';
+        break;
+      default:
+        return null;
+    }
+
+
+    $prefix = $letraCampus . $folioColumn . $mesAnio . ' | ';
 
     return $prefix;
   }
