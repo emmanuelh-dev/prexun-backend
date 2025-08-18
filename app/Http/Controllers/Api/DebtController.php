@@ -80,7 +80,7 @@ class DebtController extends Controller
       'assignment_id' => 'nullable|exists:student_assignments,id',
       'concept' => 'required|string|max:255',
       'total_amount' => 'required|numeric|min:0',
-      'due_date' => 'required|date|after_or_equal:today',
+      'due_date' => 'required|date',
       'description' => 'nullable|string|max:1000'
     ]);
 
