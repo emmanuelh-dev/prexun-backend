@@ -447,7 +447,6 @@ class TransactionController extends Controller
    */
   private function generateMonthlyFolio($campusId)
   {
-    // Obtenemos la fecha actual
     $now = now();
     $currentMonth = $now->month;
     $currentYear = $now->year;
@@ -457,8 +456,8 @@ class TransactionController extends Controller
     $maxFolio = Transaction::where('campus_id', $campusId)
       ->whereNotNull('folio')
       ->where('folio', '>', 0) // Asegurar que solo tomemos valores válidos
-      ->whereMonth('created_at', $currentMonth) // Usar created_at en lugar de payment_date
-      ->whereYear('created_at', $currentYear)   // para evitar problemas con pagos futuros
+      ->whereMonth('payment_date', $currentMonth)
+      ->whereYear('payment_date', $currentYear)
       ->max(DB::raw("CAST(folio AS UNSIGNED)"));
 
     if (!$maxFolio) {
