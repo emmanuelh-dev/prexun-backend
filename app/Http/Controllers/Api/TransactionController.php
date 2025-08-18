@@ -591,7 +591,7 @@ class TransactionController extends Controller
 
     $campus = \App\Models\Campus::findOrFail($campusId);
     $letraCampus = strtoupper(substr($campus->name, 0, 1));
-
+    
     // Prefijo del folio
     $prefix = $letraCampus . 'I-' . $mesAnio . ' | ';
 
