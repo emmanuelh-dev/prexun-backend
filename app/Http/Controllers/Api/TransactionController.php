@@ -267,14 +267,15 @@ class TransactionController extends Controller
         $oldPaid = $transaction->paid;
         $oldPaymentMethod = $transaction->payment_method;
         $oldCardId = $transaction->card_id;
+        $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->card_id ?? null, $transaction->payment_date ?? now());
 
         $transaction->update($validated);
-
+        Log::info('Transaction updated', ['transaction' => $transaction]);
         $paymentMethodChanged = $oldPaymentMethod !== $transaction->payment_method;
         $cardChanged = $oldCardId !== $transaction->card_id;
         $paidStatusChanged = !$oldPaid && $transaction->paid;
 
-        if ($transaction->paid && ($paidStatusChanged || $paymentMethodChanged || $cardChanged)) {
+        if ($transaction->paid) {
           $shouldGenerateSpecificFolio = $this->shouldGenerateSpecificFolio($transaction->payment_method, $transaction->card_id);
 
           // Si el método de pago cambió, limpiar folios específicos
@@ -573,6 +574,13 @@ class TransactionController extends Controller
    */
   protected function folioNew($campusId, $paymentMethod, $cardId = null, $payment_date = null)
   {
+
+    Log::info([
+      'campus_id' => $campusId,
+      'payment_method' => $paymentMethod,
+      'card_id' => $cardId,
+      'payment_date' => $payment_date,
+    ]);
 
     $date = $payment_date ? Carbon::parse($payment_date) : now();
     $mesAnio = $date->format('my');
