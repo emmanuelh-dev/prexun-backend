@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\DebtController;
 use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\MensajeController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'Hello, world!']);
@@ -54,7 +55,7 @@ Route::prefix('whatsapp')->group(function () {
     Route::post('/send-message', [WhatsAppController::class, 'sendMessage']);
     Route::post('/send-template', [WhatsAppController::class, 'sendTemplateMessage']);
     Route::get('/status', [WhatsAppController::class, 'getStatus']);
-    
+
     // Template routes
     Route::apiResource('templates', TemplateController::class);
 });
@@ -81,6 +82,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Campuses
     Route::get('/campuses', [CampusController::class, 'index']);
+
+    //mensajes
+    Route::post('/mensajes', [MensajeController::class, 'guardarmensaje']);
+    Route::get('/mensajes', [MensajeController::class, 'index']); // NUEVA
+
 
     // Add admin
     Route::post('/campuses/add-admin', [CampusController::class, 'addAdmin']);
@@ -114,7 +120,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/cohorts/sync', [CohortController::class, 'syncWithMoodle']);
 
     //planteles
-   
+
     Route::get('/grupos/{id}/students', [GrupoController::class, 'getStudents']);
 
     // Asistencia
@@ -142,7 +148,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/users', [MoodleCohortController::class, 'addUsersToCohorts']);
         Route::get('/user/{userId}', [MoodleCohortController::class, 'getUserCohorts']);
     });
-    
+
 
     // Periods
     Route::get('/periods', [PeriodController::class, 'index']);
@@ -267,26 +273,26 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/current/{campus}', [CashCutController::class, 'current']);
         Route::put('/{cashRegister}', [CashCutController::class, 'update']);
     });
-    
+
     // Student Assignments
     Route::get('/student-assignments', [StudentAssignmentController::class, 'index']);
     Route::post('/student-assignments', [StudentAssignmentController::class, 'store']);
     Route::get('/student-assignments/{id}', [StudentAssignmentController::class, 'show']);
     Route::put('/student-assignments/{id}', [StudentAssignmentController::class, 'update']);
     Route::delete('/student-assignments/{id}', [StudentAssignmentController::class, 'destroy']);
-    
+
     // Student Assignment specialized endpoints
     Route::get('/student-assignments/student/{student_id}', [StudentAssignmentController::class, 'getByStudent']);
     Route::get('/student-assignments/period/{period_id}', [StudentAssignmentController::class, 'getByPeriod']);
     Route::get('/student-assignments/grupo/{grupo_id}', [StudentAssignmentController::class, 'getByGrupo']);
     Route::get('/student-assignments/semana/{semana_intensiva_id}', [StudentAssignmentController::class, 'getBySemanaIntensiva']);
     Route::get('/student-assignments/students-by-period/{period_id}', [StudentAssignmentController::class, 'getStudentsByAssignedPeriod']);
-    
+
     // Student Assignment bulk operations
     Route::post('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkStore']);
     Route::put('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkUpdate']);
     Route::patch('/student-assignments/{id}/toggle-active', [StudentAssignmentController::class, 'toggleActive']);
-    
+
     // Transaction Dashboard
     Route::prefix('transaction-dashboard')->group(function () {
         Route::get('/', [App\Http\Controllers\Api\TransactionDashboardController::class, 'index']);
@@ -307,19 +313,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     // Context routes
-Route::prefix('contexts')->group(function () {
-    Route::get('/', [ContextController::class, 'index']);
-    Route::post('/', [ContextController::class, 'store']);
-    Route::get('/{context}', [ContextController::class, 'show']);
-    Route::put('/{context}', [ContextController::class, 'update']);
-    Route::delete('/{context}', [ContextController::class, 'destroy']);
-    Route::post('/by-name', [ContextController::class, 'getByName']);
-    Route::get('/{context}/instructions', [ContextController::class, 'getInstructions']);
-    Route::post('/{context}/activate', [ContextController::class, 'activate']);
-    Route::post('/{context}/deactivate', [ContextController::class, 'deactivate']);
-    Route::get('/stats/overview', [ContextController::class, 'getStats']);
-    Route::post('/whatsapp/default', [ContextController::class, 'createWhatsAppDefault']);
-});
+    Route::prefix('contexts')->group(function () {
+        Route::get('/', [ContextController::class, 'index']);
+        Route::post('/', [ContextController::class, 'store']);
+        Route::get('/{context}', [ContextController::class, 'show']);
+        Route::put('/{context}', [ContextController::class, 'update']);
+        Route::delete('/{context}', [ContextController::class, 'destroy']);
+        Route::post('/by-name', [ContextController::class, 'getByName']);
+        Route::get('/{context}/instructions', [ContextController::class, 'getInstructions']);
+        Route::post('/{context}/activate', [ContextController::class, 'activate']);
+        Route::post('/{context}/deactivate', [ContextController::class, 'deactivate']);
+        Route::get('/stats/overview', [ContextController::class, 'getStats']);
+        Route::post('/whatsapp/default', [ContextController::class, 'createWhatsAppDefault']);
+    });
 
     // Chat routes
     Route::prefix('chat')->group(function () {
@@ -329,7 +335,7 @@ Route::prefix('contexts')->group(function () {
         Route::get('/all-conversations', [ChatController::class, 'getAllConversations']);
         Route::get('/history/{userId}', [ChatController::class, 'getUserHistory']);
         Route::delete('/history/{userId}', [ChatController::class, 'clearUserHistory']);
-        
+
         // Nuevas rutas para gestión de sesiones
         Route::get('/sessions', [ChatController::class, 'getUserSessions']);
         Route::post('/sessions', [ChatController::class, 'createSession']);
