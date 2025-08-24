@@ -55,6 +55,13 @@ Route::prefix('whatsapp')->group(function () {
     Route::post('/send-message', [WhatsAppController::class, 'sendMessage']);
     Route::post('/send-template', [WhatsAppController::class, 'sendTemplateMessage']);
     Route::get('/status', [WhatsAppController::class, 'getStatus']);
+    Route::get('/conversation', [WhatsAppController::class, 'getConversation']);
+    Route::get('/conversations', [WhatsAppController::class, 'getAllConversations']);
+    Route::delete('/conversation', [WhatsAppController::class, 'deleteConversation']);
+    
+    // Webhook routes (sin middleware de autenticación)
+    Route::post('/webhook', [WhatsAppController::class, 'receiveMessage']);
+    Route::get('/webhook', [WhatsAppController::class, 'verifyWebhook']);
 
     // Template routes
     Route::apiResource('templates', TemplateController::class);
