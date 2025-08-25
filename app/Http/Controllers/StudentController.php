@@ -40,8 +40,9 @@ class StudentController extends Controller
     $searchDate = $request->get('searchDate');
     $searchPhone = $request->get('searchPhone');
     $searchMatricula = $request->get('searchMatricula');
-    $period = $request->get('period');
     $assignedPeriod = $request->get('assignedPeriod');
+    $assignedGrupo = $request->get('assignedGrupo');
+    $period = $request->get('period');
     $grupo = $request->get('grupo');
     $semanaIntensivaId = $request->get('semanaIntensivaFilter');
     $carrera = $request->get('carrera');
@@ -128,16 +129,22 @@ class StudentController extends Controller
         $query->where('period_id', $period);
       }
 
-      if ($assignedPeriod) {
-        $query->whereHas('assignments', function ($q) use ($assignedPeriod) {
-          $q->where('period_id', $assignedPeriod)
-            ->where('is_active', true);
-        });
-      }
-
       if ($grupo) {
         $query->where('grupo_id', $grupo);
       }
+
+      if ($assignedPeriod) {
+        $query->whereHas('assignments', function ($q) use ($assignedPeriod) {
+          $q->where('period_id', $assignedPeriod);
+        });
+      }
+
+      if ($assignedGrupo) {
+        $query->whereHas('assignments', function ($q) use ($assignedGrupo) {
+          $q->where('grupo_id', $assignedGrupo);
+        });
+      }
+
 
       if ($semanaIntensivaId) {
         $query->where('semana_intensiva_id', $semanaIntensivaId);
