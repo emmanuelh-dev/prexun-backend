@@ -26,7 +26,7 @@ class TransactionController extends Controller
     $payment_method = $request->query('payment_method');
     $card_id = $request->query('card_id');
 
-    $query = Transaction::with(['student', 'campus', 'student.grupo', 'card', 'student.assignment', 'student.assignment.grupo'])
+    $query = Transaction::with(['student', 'campus', 'student.grupo', 'card'])
       ->where('campus_id', $campus_id)
       ->where('paid', true);
 
