@@ -349,4 +349,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/sessions/{sessionId}', [ChatController::class, 'getSessionHistory']);
         Route::get('/conversations/type/{type}', [ChatController::class, 'getConversationsByType']);
     });
+
+    // WhatsApp Chat Integration routes
+    Route::prefix('whatsapp')->group(function () {
+        Route::get('/chat/conversations', [App\Http\Controllers\Api\WhatsAppChatController::class, 'getConversations']);
+        Route::get('/chat/history/{phoneNumber}', [App\Http\Controllers\Api\WhatsAppChatController::class, 'getHistory']);
+        Route::post('/chat/send', [App\Http\Controllers\Api\WhatsAppChatController::class, 'sendMessage']);
+        Route::delete('/chat/history/{phoneNumber}', [App\Http\Controllers\Api\WhatsAppChatController::class, 'clearHistory']);
+    });
 });
