@@ -23,7 +23,6 @@ class WhatsAppChatController extends Controller
       $page = $request->get('page', 1);
       $search = $request->get('search');
 
-      // Obtener conversaciones agrupadas por número de teléfono desde mensajes
       $query = Mensaje::select([
         'phone_number',
         DB::raw('MAX(created_at) as last_message_time'),
@@ -41,7 +40,6 @@ class WhatsAppChatController extends Controller
       $conversations = $query->orderBy('last_message_time', 'desc')
         ->paginate($limit, ['*'], 'page', $page);
 
-      // Formatear conversaciones para compatibilidad con el frontend
       $conversationsWithMessages = collect($conversations->items())->map(function ($conversation) {
         $lastMessage = Mensaje::where('phone_number', $conversation->phone_number)
           ->orderBy('created_at', 'desc')
@@ -53,7 +51,7 @@ class WhatsAppChatController extends Controller
           'received_count' => $conversation->received_count,
           'sent_count' => $conversation->sent_count,
           'last_message_time' => $conversation->last_message_time,
-          'user' => ['phone_number' => $conversation->phone_number], // Para compatibilidad con sendMessage
+          'user' => ['phone_number' => $conversation->phone_number],
           'last_message' => $lastMessage ? [
             'id' => $lastMessage->id,
             'content' => $lastMessage->mensaje,
@@ -62,7 +60,7 @@ class WhatsAppChatController extends Controller
             'created_at' => $lastMessage->created_at
           ] : null,
           'contact_info' => $this->getContactInfo($conversation->phone_number),
-          'messages' => [] // Se cargarán por separado
+          'messages' => []
         ];
       });
 
@@ -103,7 +101,6 @@ class WhatsAppChatController extends Controller
         ->orderBy('created_at', 'asc')
         ->get();
 
-      // Convertir mensajes de WhatsApp al formato que espera el frontend
       $formattedMessages = $messages->map(function ($message) {
         return [
           'id' => $message->id,
