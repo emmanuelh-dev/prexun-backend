@@ -23,9 +23,6 @@ class WhatsAppChatController extends Controller
       $page = $request->get('page', 1);
       $search = $request->get('search');
 
-      // Obtener conversaciones de WhatsApp
-      $whatsappConversations = collect();
-
       // Obtener conversaciones agrupadas por número de teléfono desde mensajes
       $query = Mensaje::select([
         'phone_number',
@@ -44,32 +41,26 @@ class WhatsAppChatController extends Controller
       $conversations = $query->orderBy('last_message_time', 'desc')
         ->paginate($limit, ['*'], 'page', $page);
 
-      // Formatear conversaciones para compatibilidad con el chat
+      // Formatear conversaciones para compatibilidad con el frontend
       $conversationsWithMessages = collect($conversations->items())->map(function ($conversation) {
         $lastMessage = Mensaje::where('phone_number', $conversation->phone_number)
           ->orderBy('created_at', 'desc')
           ->first();
 
-        // Crear un usuario ficticio para compatibilidad
-        $user = $this->createVirtualUserFromPhone($conversation->phone_number);
-
         return [
-          'user_id' => $user['id'], // ID virtual basado en teléfono
-          'user' => $user,
+          'phone_number' => $conversation->phone_number,
+          'message_count' => $conversation->message_count,
+          'received_count' => $conversation->received_count,
+          'sent_count' => $conversation->sent_count,
+          'last_message_time' => $conversation->last_message_time,
+          'user' => ['phone_number' => $conversation->phone_number], // Para compatibilidad con sendMessage
           'last_message' => $lastMessage ? [
             'id' => $lastMessage->id,
-            'user_id' => $user['id'],
-            'role' => $lastMessage->direction === 'sent' ? 'assistant' : 'user',
             'content' => $lastMessage->mensaje,
-            'created_at' => $lastMessage->created_at,
-            'images' => [],
-            'metadata' => [
-              'platform' => 'whatsapp',
-              'phone_number' => $conversation->phone_number,
-              'message_type' => $lastMessage->message_type
-            ]
+            'direction' => $lastMessage->direction,
+            'message_type' => $lastMessage->message_type,
+            'created_at' => $lastMessage->created_at
           ] : null,
-          'unread_count' => $conversation->received_count, // Mensajes recibidos como no leídos
           'contact_info' => $this->getContactInfo($conversation->phone_number),
           'messages' => [] // Se cargarán por separado
         ];
@@ -112,31 +103,26 @@ class WhatsAppChatController extends Controller
         ->orderBy('created_at', 'asc')
         ->get();
 
-      // Convertir mensajes de WhatsApp a formato de chat
+      // Convertir mensajes de WhatsApp al formato que espera el frontend
       $formattedMessages = $messages->map(function ($message) {
-        $user = $this->createVirtualUserFromPhone($message->phone_number);
-
         return [
           'id' => $message->id,
-          'user_id' => $user['id'],
-          'role' => $message->direction === 'sent' ? 'assistant' : 'user',
-          'content' => $message->mensaje,
-          'images' => [],
-          'metadata' => [
-            'platform' => 'whatsapp',
-            'phone_number' => $message->phone_number,
-            'message_type' => $message->message_type,
-            'direction' => $message->direction
-          ],
+          'mensaje' => $message->mensaje,
+          'phone_number' => $message->phone_number,
+          'direction' => $message->direction,
+          'message_type' => $message->message_type,
           'created_at' => $message->created_at,
-          'user' => $user
+          'user_id' => $message->user_id
         ];
       });
 
       return response()->json([
         'success' => true,
-        'messages' => $formattedMessages,
-        'session_id' => 'whatsapp_' . $phoneNumber . '_' . time()
+        'data' => [
+          'phone_number' => $phoneNumber,
+          'message_count' => $formattedMessages->count(),
+          'messages' => $formattedMessages
+        ]
       ]);
     } catch (\Exception $e) {
       Log::error('Error obteniendo historial de WhatsApp', [
@@ -157,8 +143,8 @@ class WhatsAppChatController extends Controller
   public function sendMessage(Request $request)
   {
     $request->validate([
-      'content' => 'required|string',
-      'target_user_id' => 'required|string', // En realidad será el número de teléfono codificado
+      'message' => 'required|string',
+      'phone_number' => 'required|string',
     ]);
 
     try {
@@ -170,21 +156,11 @@ class WhatsAppChatController extends Controller
         ], 401);
       }
 
-      // Decodificar el número de teléfono del target_user_id
-      $phoneNumber = $this->decodePhoneFromUserId($request->target_user_id);
-
-      if (!$phoneNumber) {
-        return response()->json([
-          'success' => false,
-          'message' => 'Número de teléfono inválido'
-        ], 400);
-      }
-
       // Enviar mensaje a través del controlador de WhatsApp
       $whatsappController = new \App\Http\Controllers\WhatsAppController();
       $whatsappRequest = new Request([
-        'phone_number' => $phoneNumber,
-        'message' => $request->content
+        'phone_number' => $request->phone_number,
+        'message' => $request->message
       ]);
 
       $response = $whatsappController->sendMessage($whatsappRequest);
@@ -228,13 +204,10 @@ class WhatsAppChatController extends Controller
         ], 401);
       }
 
-      // Decodificar teléfono si viene codificado
-      $actualPhoneNumber = $this->decodePhoneFromUserId($phoneNumber) ?: $phoneNumber;
-
-      $deletedCount = Mensaje::where('phone_number', $actualPhoneNumber)->delete();
+      $deletedCount = Mensaje::where('phone_number', $phoneNumber)->delete();
 
       Log::info('Conversación de WhatsApp eliminada desde chat', [
-        'phone_number' => $actualPhoneNumber,
+        'phone_number' => $phoneNumber,
         'deleted_messages' => $deletedCount,
         'user_id' => $user->id
       ]);
@@ -255,45 +228,6 @@ class WhatsAppChatController extends Controller
         'message' => 'Error al eliminar conversación: ' . $e->getMessage()
       ], 500);
     }
-  }
-
-  /**
-   * Crear usuario virtual basado en número de teléfono
-   */
-  private function createVirtualUserFromPhone($phoneNumber)
-  {
-    // Crear un ID único basado en el número de teléfono
-    $virtualId = crc32($phoneNumber);
-
-    // Obtener información del contacto
-    $contactInfo = $this->getContactInfo($phoneNumber);
-
-    return [
-      'id' => $virtualId,
-      'name' => $contactInfo['display_name'],
-      'email' => $phoneNumber . '@whatsapp.contact',
-      'role' => 'WhatsApp Contact',
-      'phone_number' => $phoneNumber,
-      'is_virtual' => true
-    ];
-  }
-
-  /**
-   * Decodificar número de teléfono desde user_id virtual
-   */
-  private function decodePhoneFromUserId($userId)
-  {
-    // Si ya es un número de teléfono, devolverlo
-    if (str_starts_with($userId, '+') || preg_match('/^\d+$/', $userId)) {
-      return $userId;
-    }
-
-    // Intentar buscar en mensajes por user_id virtual
-    $message = Mensaje::select('phone_number')
-      ->whereRaw('CRC32(phone_number) = ?', [$userId])
-      ->first();
-
-    return $message ? $message->phone_number : null;
   }
 
   /**
