@@ -611,7 +611,7 @@ class TransactionController extends Controller
     }
 
 
-    $prefix = $letraCampus . $folioColumn . $mesAnio . ' | ';
+    $prefix = $letraCampus . $folioColumn . '-' . $mesAnio . ' | ';
 
     return $prefix;
   }
