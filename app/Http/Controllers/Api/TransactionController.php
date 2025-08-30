@@ -54,17 +54,17 @@ class TransactionController extends Controller
       $query->where('card_id', $card_id);
     }
 
-    $charges = $query->orderBy('payment_date', 'desc')
+    $transactions = $query->orderBy('payment_date', 'desc')
       ->orderBy('folio', 'desc')
       ->paginate($perPage, ['*'], 'page', $page);
 
-    $charges->getCollection()->each(function ($charge) {
-      if ($charge->image) {
-        $charge->image = asset('storage/' . $charge->image);
+    $transactions->getCollection()->each(function ($transaction) {
+      if ($transaction->image) {
+        $transaction->image = asset('storage/' . $transaction->image);
       }
     });
 
-    return response()->json($charges, 200);
+    return response()->json($transactions, 200);
   }
 
 
@@ -139,7 +139,7 @@ class TransactionController extends Controller
       'amount' => 'required|numeric|min:0',
       'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
       'expiration_date' => 'nullable|date',
-      'payment_date' => 'nullable|date_format:Y-m-d',
+      'payment_date' => 'nullable|date_format:Y-m-d H:i:s',
       'notes' => 'nullable|string|max:255',
       'paid' => 'required|boolean',
       'debt_id' => 'nullable|exists:debts,id',
@@ -183,7 +183,7 @@ class TransactionController extends Controller
           'folio' => $folio,
           'folio_new' => $folioNew,
           'image' => $validated['image'] ?? null,
-          'payment_date' => $validated['payment_date'] ?? null
+          'payment_date' => $validated['payment_date'] ?? ($validated['paid'] ? now() : null)
         ]);
 
 
@@ -251,7 +251,7 @@ class TransactionController extends Controller
       'notes' => 'nullable|string|max:255',
       'paid' => 'nullable|boolean',
       'cash_register_id' => 'nullable|exists:cash_registers,id',
-      'payment_date' => 'nullable|date_format:Y-m-d',
+      'payment_date' => 'nullable|date_format:Y-m-d H:i:s',
       'image' => 'nullable|image',
       'card_id' => 'nullable|exists:cards,id',
       'sat' => 'nullable|boolean'
@@ -267,7 +267,7 @@ class TransactionController extends Controller
         $oldPaid = $transaction->paid;
         $oldPaymentMethod = $transaction->payment_method;
         $oldCardId = $transaction->card_id;
-        $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->card_id ?? null, $transaction->payment_date ?? now());
+        $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_method, $transaction->card_id ?? null, $transaction->payment_date ?? now());
 
         $transaction->update($validated);
         Log::info('Transaction updated', ['transaction' => $transaction]);
@@ -308,7 +308,7 @@ class TransactionController extends Controller
             }
           }
 
-          $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->card_id ?? null, $transaction->payment_date ?? now());
+          $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_method, $transaction->card_id ?? null, $transaction->payment_date ?? now());
           $transaction->save();
         }
 
@@ -423,7 +423,7 @@ class TransactionController extends Controller
 
     $transaction = Transaction::findOrFail($id);
 
-    $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->paymentMethod, $transaction->payment_date, $request->folio);
+    $transaction->folio_new = $this->folioNew($transaction->campus_id, $transaction->payment_method, $transaction->card_id ?? null, $transaction->payment_date ?? now());
 
     $transaction->folio = $request->folio;
     $transaction->save();

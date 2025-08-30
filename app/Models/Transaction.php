@@ -30,6 +30,13 @@ class Transaction extends Model
         'debt_id'
     ];
 
+    protected $casts = [
+        'payment_date' => 'datetime',
+        'expiration_date' => 'date',
+        'paid' => 'boolean',
+        'sat' => 'boolean',
+    ];
+
 
     public function campus()
     {
