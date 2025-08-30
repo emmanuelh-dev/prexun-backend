@@ -358,3 +358,4 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/chat/history/{phoneNumber}', [App\Http\Controllers\Api\WhatsAppChatController::class, 'clearHistory']);
     });
 });
+
