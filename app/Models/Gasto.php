@@ -15,6 +15,7 @@ class Gasto extends Model
         'date',
         'method',
         'image',
+        'signature',
         'campus_id',
         'admin_id',
         'user_id',

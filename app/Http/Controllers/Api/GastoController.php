@@ -25,6 +25,9 @@ class GastoController extends Controller
             if ($gasto->image) {
                 $gasto->image = asset('storage/' . $gasto->image);
             }
+            if ($gasto->signature) {
+                $gasto->signature = asset('storage/' . $gasto->signature);
+            }
             return $gasto;
         });
 
@@ -50,6 +53,7 @@ class GastoController extends Controller
                 'category' => 'required|string',
                 'campus_id' => 'required|exists:campuses,id',
                 'image' => 'nullable|image',
+                'signature' => 'nullable|string', // Base64 encoded signature
                 'cash_register_id' => 'nullable|exists:cash_registers,id',
             ])->validate();
 
@@ -59,10 +63,34 @@ class GastoController extends Controller
                 $data['image'] = null;
             }
 
-            $gasto = Gasto::create(array_merge($validated, ['image' => $validated['image'] ?? null]));
+            // Handle signature if provided (base64 encoded)
+            if (isset($validated['signature']) && !empty($validated['signature'])) {
+                // Decode base64 signature
+                $signatureData = $validated['signature'];
+                if (strpos($signatureData, 'data:image/') === 0) {
+                    $signatureData = substr($signatureData, strpos($signatureData, ',') + 1);
+                }
+                $signatureData = base64_decode($signatureData);
+                
+                $fileName = 'signature_' . time() . '_' . uniqid() . '.png';
+                $signaturePath = 'gastos/signatures/' . $fileName;
+                
+                Storage::disk('public')->put($signaturePath, $signatureData);
+                $data['signature'] = $signaturePath;
+            } else {
+                $data['signature'] = null;
+            }
+
+            $gasto = Gasto::create(array_merge($validated, [
+                'image' => $data['image'],
+                'signature' => $data['signature']
+            ]));
 
             if ($gasto->image) {
                 $gasto->image = asset('storage/' . $gasto->image);
+            }
+            if ($gasto->signature) {
+                $gasto->signature = asset('storage/' . $gasto->signature);
             }
 
             return response()->json($gasto->load('gastoDetails.denomination'), 201);
@@ -83,8 +111,13 @@ class GastoController extends Controller
     public function show($id)
     {
         $gasto = Gasto::find($id);
-        if ($gasto && $gasto->image) {
-            $gasto->image = asset('storage/' . $gasto->image);
+        if ($gasto) {
+            if ($gasto->image) {
+                $gasto->image = asset('storage/' . $gasto->image);
+            }
+            if ($gasto->signature) {
+                $gasto->signature = asset('storage/' . $gasto->signature);
+            }
         }
         return response()->json($gasto);
     }
@@ -100,9 +133,10 @@ class GastoController extends Controller
             'user_id' => 'sometimes|exists:users,id',
             'admin_id' => 'sometimes|exists:users,id',
             'category' => 'sometimes|string',
-            'campus_id' => 'sometimes|exists:campus,id',
+            'campus_id' => 'sometimes|exists:campuses,id',
             'image' => 'nullable|image',
-            'cash_register_id' => 'nullable|exists:cash_cuts,id'
+            'signature' => 'nullable|string', // Base64 encoded signature
+            'cash_register_id' => 'nullable|exists:cash_registers,id'
         ]);
 
         if ($request->hasFile('image')) {
@@ -114,11 +148,35 @@ class GastoController extends Controller
             $data['image'] = $path;
         }
 
+        // Handle signature update
+        if (isset($data['signature']) && !empty($data['signature'])) {
+            // Delete old signature if exists
+            if ($gasto->signature) {
+                Storage::disk('public')->delete($gasto->signature);
+            }
+
+            // Decode and save new signature
+            $signatureData = $data['signature'];
+            if (strpos($signatureData, 'data:image/') === 0) {
+                $signatureData = substr($signatureData, strpos($signatureData, ',') + 1);
+            }
+            $signatureData = base64_decode($signatureData);
+            
+            $fileName = 'signature_' . time() . '_' . uniqid() . '.png';
+            $signaturePath = 'gastos/signatures/' . $fileName;
+            
+            Storage::disk('public')->put($signaturePath, $signatureData);
+            $data['signature'] = $signaturePath;
+        }
+
         $gasto->update($data);
 
-        // Return full URL for image
+        // Return full URL for image and signature
         if ($gasto->image) {
             $gasto->image = asset('storage/' . $gasto->image);
+        }
+        if ($gasto->signature) {
+            $gasto->signature = asset('storage/' . $gasto->signature);
         }
 
         return response()->json($gasto);
@@ -128,9 +186,12 @@ class GastoController extends Controller
     {
         $gasto = Gasto::find($id);
 
-        // Delete image if exists
+        // Delete image and signature if exists
         if ($gasto->image) {
             Storage::disk('public')->delete($gasto->image);
+        }
+        if ($gasto->signature) {
+            Storage::disk('public')->delete($gasto->signature);
         }
 
         $gasto->delete();
