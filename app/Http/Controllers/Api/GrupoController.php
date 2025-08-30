@@ -131,9 +131,13 @@ class GrupoController extends Controller
 
     return response()->json($grupo, 201);
   }
+
   public function getStudents($id)
   {
-    $grupo = Grupo::with(['activeAssignments.student'])->findOrFail($id);
+    $grupo = Grupo::with([
+      'activeAssignments.student.carrera',
+      'activeAssignments.student.period'
+    ])->findOrFail($id);
     
     // Obtener solo los estudiantes que tienen asignaciones activas y vigentes
     $students = $grupo->activeAssignments->map(function ($assignment) {

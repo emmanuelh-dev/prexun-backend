@@ -14,12 +14,6 @@ class TeacherGroupController extends Controller
     {
         try {
             $teacher = User::findOrFail($id);
-            
-            if ($teacher->role !== 'maestro' && $teacher->role !== 'teacher') {
-                return response()->json([
-                    'message' => 'El usuario no es un maestro'
-                ], 400);
-            }
 
             $grupos = $teacher->grupos()
                 ->with(['students' => function($query) {
@@ -51,12 +45,6 @@ class TeacherGroupController extends Controller
             DB::beginTransaction();
 
             $teacher = User::findOrFail($id);
-            
-            if ($teacher->role !== 'teacher' && $teacher->role !== 'maestro') {
-                return response()->json([
-                    'message' => 'El usuario no es un maestro'
-                ], 400);
-            }
 
             $request->validate([
                 'grupo_ids' => 'required|array',
