@@ -23,10 +23,11 @@ class TeacherAttendanceController extends Controller
             $attendanceCount = 0;
             $presentCount = 0;
             $absentCount = 0;
-            foreach ($request->attendance as $studentId => $isPresent) {
-                if (!is_bool($isPresent)) {
-                    throw new \Exception("El valor de asistencia para el estudiante $studentId no es un booleano.");
-                }
+
+            foreach ($request->attendance as $record) {
+                $studentId = $record['student_id'];
+                $isPresent = $record['present'];
+                $attendanceTime = $record['attendance_time'] ?? now()->toISOString();
 
                 $attendance = Attendance::updateOrCreate(
                     [
@@ -35,7 +36,8 @@ class TeacherAttendanceController extends Controller
                         'date' => $request->date,
                     ],
                     [
-                        'present' => $isPresent
+                        'present' => $isPresent,
+                        'attendance_time' => $attendanceTime
                     ]
                 );
 
@@ -52,14 +54,6 @@ class TeacherAttendanceController extends Controller
             }
 
             DB::commit();
-            echo "\n=== Asistencia guardada ===\n";
-            echo "Fecha: {$request->date}\n";
-            echo "Grupo ID: {$request->grupo_id}\n";
-            echo "Total estudiantes: {$attendanceCount}\n";
-            echo "Presentes: {$presentCount}\n";
-            echo "Ausentes: {$absentCount}\n";
-            echo "Guardado exitosamente a las: " . now()->format('Y-m-d H:i:s') . "\n";
-            echo "==========================\n\n";
 
             Log::info('Asistencia guardada exitosamente', [
                 'fecha' => $request->date,
@@ -76,12 +70,6 @@ class TeacherAttendanceController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            echo "\n=== ERROR AL GUARDAR ASISTENCIA ===\n";
-            echo "Error: {$e->getMessage()}\n";
-            echo "Fecha: {$request->date}\n";
-            echo "Grupo ID: {$request->grupo_id}\n";
-            echo "Timestamp: " . now()->format('Y-m-d H:i:s') . "\n";
-            echo "================================\n\n";
 
             Log::error('Error al guardar asistencia:', [
                 'error' => $e->getMessage(),

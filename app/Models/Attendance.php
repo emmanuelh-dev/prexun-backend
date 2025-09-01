@@ -12,12 +12,14 @@ class Attendance extends Model
         'grupo_id',
         'date',
         'present',
-        'user_id'
+        'user_id',
+        'attendance_time' // 
     ];
 
     protected $casts = [
         'date' => 'date',
-        'present' => 'boolean'
+        'present' => 'boolean',
+        'attendance_time' => 'datetime' // 
     ];
 
     public function student(): BelongsTo
