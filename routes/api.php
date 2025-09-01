@@ -258,6 +258,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/{id}/groups/assign', [TeacherGroupController::class, 'assignGroups']);
         Route::post('/attendance', [TeacherAttendanceController::class, 'store']);
         Route::get('/attendance/{grupo_id}/{date}', [TeacherAttendanceController::class, 'getAttendance']);
+        Route::get('/student/{student}', [TeacherAttendanceController::class, 'findStudent']);
+        Route::post('/attendance/quick', [TeacherAttendanceController::class, 'quickStore']);
+        Route::get('/attendance/today/{date}', [TeacherAttendanceController::class, 'getTodayAttendance']);
+        Route::put('/attendance/{attendance}', [TeacherAttendanceController::class, 'updateAttendance']);
+        Route::get('/attendance/student/{student}/report', [TeacherAttendanceController::class, 'getStudentAttendanceReport']);
+        Route::get('/attendance/group/{group}/report', [TeacherAttendanceController::class, 'getGroupAttendanceReport']);
     });
     // Products
     Route::get('/products', [ProductsController::class, 'index']);
