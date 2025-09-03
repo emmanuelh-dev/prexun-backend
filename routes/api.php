@@ -38,6 +38,7 @@ use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\MensajeController;
+use Illuminate\Support\Facades\Log;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'Hello, world!']);
@@ -46,6 +47,10 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout']);
 
+Route::post('/alumnos/calif', function () {
+  Log::info('Calificaciones');
+  return response()->json(['ok' => true]);
+});
 // Public student registration routes
 Route::post('/public/students/register', [App\Http\Controllers\Api\PublicStudentController::class, 'register']);
 Route::get('/public/students/form-data', [App\Http\Controllers\Api\PublicStudentController::class, 'getFormData']);
