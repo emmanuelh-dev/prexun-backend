@@ -280,13 +280,9 @@ class StudentController extends Controller
 
       // Capture original values before update for event logging
       $beforeData = $student->toArray();
-      $oldGrupoId = $student->grupo_id;
-      $oldSemanaIntensivaId = $student->semana_intensiva_id;
-      $newGrupoId = $request->input('grupo_id');
-      $newSemanaIntensivaId = $request->input('semana_intensiva_id');
-
+  
       // Update student basic info
-      $student->update($request->only(['email', 'firstname', 'lastname', 'grupo_id', 'semana_intensiva_id']));
+      $student->update($request->only(['email', 'firstname', 'lastname']));
 
       // Capture updated values for event logging
       $afterData = $student->fresh()->toArray();
@@ -304,11 +300,6 @@ class StudentController extends Controller
 
       // Sync basic info with Moodle
       $this->syncMoodleUserEmail($student);
-
-      // Handle cohort changes if grupo or semana intensiva changed
-      if ($oldGrupoId !== $newGrupoId || $oldSemanaIntensivaId !== $newSemanaIntensivaId) {
-        $this->updateStudentCohorts($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId);
-      }
 
       // Log student update event
       if (!empty($changedFields)) {
