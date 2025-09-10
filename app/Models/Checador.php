@@ -22,7 +22,8 @@ class Checador extends Model
         'break_end_at',
         'break_duration',
         'hours_worked',
-        'is_complete_day'
+        'is_complete_day',
+        'client_timezone'
     ];
 
     protected $casts = [
@@ -44,20 +45,39 @@ class Checador extends Model
             return;
         }
     
-
-        $checkIn = Carbon::createFromFormat('Y-m-d H:i:s', $this->work_date->format('Y-m-d') . ' ' . $this->check_in_at);
-        $checkOut = $this->check_out_at 
-            ? Carbon::createFromFormat('Y-m-d H:i:s', $this->work_date->format('Y-m-d') . ' ' . $this->check_out_at)
-            : now();
+        // Usar el timezone del cliente si está disponible
+        $timezone = $this->client_timezone ?? config('app.timezone');
         
-        $totalMinutes = $checkIn->diffInMinutes($checkOut);
-        if ($this->break_duration) {
-            $totalMinutes -= $this->break_duration;
+        try {
+            $checkIn = Carbon::createFromFormat('Y-m-d H:i:s', $this->work_date->format('Y-m-d') . ' ' . $this->check_in_at, $timezone);
+            $checkOut = $this->check_out_at 
+                ? Carbon::createFromFormat('Y-m-d H:i:s', $this->work_date->format('Y-m-d') . ' ' . $this->check_out_at, $timezone)
+                : Carbon::now($timezone);
+            
+            $totalMinutes = $checkIn->diffInMinutes($checkOut);
+            if ($this->break_duration) {
+                $totalMinutes -= $this->break_duration;
+            }
+            
+            $this->hours_worked = round($totalMinutes / 60, 2);
+            $this->is_complete_day = $this->hours_worked >= 6;
+            $this->save();
+        } catch (\Exception $e) {
+            // Fallback si hay error con timezone
+            $checkIn = Carbon::createFromFormat('Y-m-d H:i:s', $this->work_date->format('Y-m-d') . ' ' . $this->check_in_at);
+            $checkOut = $this->check_out_at 
+                ? Carbon::createFromFormat('Y-m-d H:i:s', $this->work_date->format('Y-m-d') . ' ' . $this->check_out_at)
+                : now();
+            
+            $totalMinutes = $checkIn->diffInMinutes($checkOut);
+            if ($this->break_duration) {
+                $totalMinutes -= $this->break_duration;
+            }
+            
+            $this->hours_worked = round($totalMinutes / 60, 2);
+            $this->is_complete_day = $this->hours_worked >= 6;
+            $this->save();
         }
-        
-        $this->hours_worked = round($totalMinutes / 60, 2);
-        $this->is_complete_day = $this->hours_worked >= 6;
-        $this->save();
     }
 
     public function updateHoursWorked()

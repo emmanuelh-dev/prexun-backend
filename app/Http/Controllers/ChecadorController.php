@@ -12,11 +12,17 @@ class ChecadorController extends Controller
     public function checkIn(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|exists:users,id'
+            'user_id' => 'required|exists:users,id',
+            'timestamp' => 'required|date',
+            'timezone' => 'required|string'
         ]);
     
-        $today = now()->toDateString();
-        $currentTime = now();
+        // Convertir el timestamp del frontend a Carbon con timezone
+        $clientTime = Carbon::parse($request->timestamp)
+                           ->setTimezone($request->timezone);
+        
+        $today = $clientTime->toDateString();
+        $currentTime = $clientTime;
       
         $existingChecador = Checador::where('user_id', $request->user_id)
                                    ->where('work_date', $today)
@@ -24,7 +30,9 @@ class ChecadorController extends Controller
     
        
         if ($existingChecador && $existingChecador->check_out_at) {
-            $checkOutTime = Carbon::parse($today . ' ' . $existingChecador->check_out_at);
+            // Usar el timezone del cliente para calcular correctamente la diferencia
+            $timezone = $request->timezone;
+            $checkOutTime = Carbon::createFromFormat('Y-m-d H:i:s', $today . ' ' . $existingChecador->check_out_at, $timezone);
             $timeDifference = $checkOutTime->diffInMinutes($currentTime);
             
             
@@ -35,7 +43,8 @@ class ChecadorController extends Controller
                     'break_end_at' => $currentTime->toTimeString(),
                     'break_duration' => $breakDuration,
                     'check_out_at' => null, 
-                    'status' => 'present'
+                    'status' => 'present',
+                    'client_timezone' => $request->timezone
                 ]);
                 
                 return response()->json([
@@ -61,7 +70,8 @@ class ChecadorController extends Controller
                 'user_id' => $request->user_id,
                 'work_date' => $today,
                 'check_in_at' => $currentTime->toTimeString(),
-                'status' => 'present'
+                'status' => 'present',
+                'client_timezone' => $request->timezone
             ]);
             
             return response()->json([
@@ -80,10 +90,16 @@ class ChecadorController extends Controller
     public function checkOut(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|exists:users,id'
+            'user_id' => 'required|exists:users,id',
+            'timestamp' => 'required|date',
+            'timezone' => 'required|string'
         ]);
     
-        $today = now()->toDateString();
+        // Convertir el timestamp del frontend a Carbon con timezone
+        $clientTime = Carbon::parse($request->timestamp)
+                           ->setTimezone($request->timezone);
+        
+        $today = $clientTime->toDateString();
         $checador = Checador::where('user_id', $request->user_id)
                            ->where('work_date', $today)
                            ->first();
@@ -103,8 +119,9 @@ class ChecadorController extends Controller
         }
     
         $checador->update([
-            'check_out_at' => now()->toTimeString(),
-            'status' => 'checked_out'
+            'check_out_at' => $clientTime->toTimeString(),
+            'status' => 'checked_out',
+            'client_timezone' => $request->timezone
         ]);
     
         $checador->calculateHoursWorked();
@@ -119,7 +136,9 @@ class ChecadorController extends Controller
     public function startBreak(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id'
+            'user_id' => 'required|exists:users,id',
+            'timestamp' => 'nullable|date',
+            'timezone' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -130,7 +149,15 @@ class ChecadorController extends Controller
             ], 400);
         }
 
-        $today = Carbon::today();
+        // Si se proporciona timestamp, usar timezone del cliente
+        if ($request->timestamp && $request->timezone) {
+            $clientTime = Carbon::parse($request->timestamp)
+                               ->setTimezone($request->timezone);
+            $today = $clientTime->toDateString();
+        } else {
+            $today = Carbon::today();
+            $clientTime = now();
+        }
         
         $checador = Checador::where('user_id', $request->user_id)
                            ->where('work_date', $today)
@@ -150,7 +177,11 @@ class ChecadorController extends Controller
             ], 400);
         }
 
-        $checador->startBreak();
+        $checador->update([
+            'break_start_at' => $clientTime->toTimeString(),
+            'status' => 'on_break',
+            'client_timezone' => $request->timezone ?? $checador->client_timezone
+        ]);
 
         return response()->json([
             'success' => true,
@@ -162,7 +193,9 @@ class ChecadorController extends Controller
     public function endBreak(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id'
+            'user_id' => 'required|exists:users,id',
+            'timestamp' => 'nullable|date',
+            'timezone' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -173,7 +206,15 @@ class ChecadorController extends Controller
             ], 400);
         }
 
-        $today = Carbon::today();
+        // Si se proporciona timestamp, usar timezone del cliente
+        if ($request->timestamp && $request->timezone) {
+            $clientTime = Carbon::parse($request->timestamp)
+                               ->setTimezone($request->timezone);
+            $today = $clientTime->toDateString();
+        } else {
+            $today = Carbon::today();
+            $clientTime = now();
+        }
         
         $checador = Checador::where('user_id', $request->user_id)
                            ->where('work_date', $today)
@@ -186,12 +227,29 @@ class ChecadorController extends Controller
             ], 400);
         }
 
-        $checador->endBreak();
+        if ($checador->break_start_at) {
+            // Usar el timezone del cliente para calcular correctamente la duración
+            $timezone = $request->timezone ?? $checador->client_timezone ?? config('app.timezone');
+            
+            $breakStart = Carbon::createFromFormat('Y-m-d H:i:s', $today . ' ' . $checador->break_start_at, $timezone);
+            $breakEnd = $clientTime;
+            
+            $breakDuration = $breakStart->diffInMinutes($breakEnd);
+            
+            $checador->update([
+                'break_end_at' => $clientTime->toTimeString(),
+                'break_duration' => $breakDuration,
+                'status' => 'present',
+                'client_timezone' => $request->timezone ?? $checador->client_timezone
+            ]);
+            
+            $checador->calculateHoursWorked();
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Descanso terminado',
-            'data' => $checador
+            'data' => $checador->fresh()
         ]);
     }
 
@@ -199,7 +257,9 @@ class ChecadorController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
-            'work_date' => 'nullable|date'
+            'work_date' => 'nullable|date',
+            'timestamp' => 'nullable|date',
+            'timezone' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -210,7 +270,14 @@ class ChecadorController extends Controller
             ], 400);
         }
 
-        $workDate = $request->work_date ? Carbon::parse($request->work_date) : Carbon::today();
+        // Si se proporciona timestamp, usar timezone del cliente
+        if ($request->timestamp && $request->timezone) {
+            $clientTime = Carbon::parse($request->timestamp)
+                               ->setTimezone($request->timezone);
+            $workDate = $clientTime->toDateString();
+        } else {
+            $workDate = $request->work_date ? Carbon::parse($request->work_date) : Carbon::today();
+        }
         
         $checador = Checador::updateOrCreate(
             [
@@ -220,7 +287,8 @@ class ChecadorController extends Controller
             [
                 'status' => 'rest_day',
                 'hours_worked' => 0,
-                'is_complete_day' => false
+                'is_complete_day' => false,
+                'client_timezone' => $request->timezone ?? config('app.timezone')
             ]
         );
 
@@ -277,7 +345,9 @@ class ChecadorController extends Controller
     public function getCurrentStatus(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id'
+            'user_id' => 'required|exists:users,id',
+            'timestamp' => 'nullable|date',
+            'timezone' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -288,7 +358,14 @@ class ChecadorController extends Controller
             ], 400);
         }
 
-        $today = Carbon::today();
+        // Si se proporciona timestamp, usar timezone del cliente
+        if ($request->timestamp && $request->timezone) {
+            $clientTime = Carbon::parse($request->timestamp)
+                               ->setTimezone($request->timezone);
+            $today = $clientTime->toDateString();
+        } else {
+            $today = Carbon::today();
+        }
         
         $checador = Checador::where('user_id', $request->user_id)
                            ->where('work_date', $today)
