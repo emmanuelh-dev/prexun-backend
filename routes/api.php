@@ -39,6 +39,7 @@ use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\MensajeController;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\ChecadorController;
 
 Route::get('/test', function () {
   return response()->json(['message' => 'Hello, world!']);
@@ -81,6 +82,16 @@ Route::get('/invoices', [TransactionController::class, 'all']);
 Route::get('/invoice/{id}', [TransactionController::class, 'show']);
 Route::get('/uuid_invoice/{uuid}', [TransactionController::class, 'showByUuid']);
 
+// Rutas del Checador (sin autenticación) - Mover aquí
+Route::prefix('checador')->group(function () {
+    Route::post('/check-in', [ChecadorController::class, 'checkIn']);
+    Route::post('/check-out', [ChecadorController::class, 'checkOut']);
+    Route::post('/start-break', [ChecadorController::class, 'startBreak']);
+    Route::post('/end-break', [ChecadorController::class, 'endBreak']);
+    Route::post('/rest-day', [ChecadorController::class, 'markRestDay']);
+    Route::get('/daily-report', [ChecadorController::class, 'getDailyReport']);
+    Route::get('/status', [ChecadorController::class, 'getCurrentStatus']);
+});
 
 Route::middleware(['auth:sanctum'])->group(function () {
 
@@ -357,7 +368,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/history/{userId}', [ChatController::class, 'getUserHistory']);
     Route::delete('/history/{userId}', [ChatController::class, 'clearUserHistory']);
 
-    // Nuevas rutas para gestión de sesiones
+    // Rutas del Checador (sin autenticación)
+    Route::prefix('checador')->group(function () {
+        Route::post('/check-in', [ChecadorController::class, 'checkIn']);
+        Route::post('/check-out', [ChecadorController::class, 'checkOut']);
+        Route::post('/start-break', [ChecadorController::class, 'startBreak']);
+        Route::post('/end-break', [ChecadorController::class, 'endBreak']);
+        Route::post('/rest-day', [ChecadorController::class, 'markRestDay']);
+        Route::get('/daily-report', [ChecadorController::class, 'getDailyReport']);
+        Route::get('/status', [ChecadorController::class, 'getCurrentStatus']);
+    });
+
+    // Remover las rutas del checador de aquí
     Route::get('/sessions', [ChatController::class, 'getUserSessions']);
     Route::post('/sessions', [ChatController::class, 'createSession']);
     Route::get('/sessions/{sessionId}', [ChatController::class, 'getSessionHistory']);
