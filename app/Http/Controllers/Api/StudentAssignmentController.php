@@ -50,6 +50,14 @@ class StudentAssignmentController extends Controller
             $query->where('is_active', $request->boolean('is_active'));
         }
 
+        if ($request->has('book_delivery_type')) {
+            $query->where('book_delivery_type', $request->book_delivery_type);
+        }
+
+        if ($request->has('book_delivered')) {
+            $query->where('book_delivered', $request->boolean('book_delivered'));
+        }
+
         // Apply scopes
         if ($request->has('only_active') && $request->boolean('only_active')) {
             $query->active();
@@ -82,6 +90,10 @@ class StudentAssignmentController extends Controller
             'valid_until' => 'nullable|date|after_or_equal:assigned_at',
             'is_active' => 'boolean',
             'notes' => 'nullable|string|max:1000',
+            'book_delivered' => 'boolean',
+            'book_delivery_type' => 'nullable|in:digital,fisico,paqueteria',
+            'book_delivery_date' => 'nullable|date',
+            'book_notes' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
@@ -135,6 +147,10 @@ class StudentAssignmentController extends Controller
             'valid_until' => 'nullable|date|after_or_equal:assigned_at',
             'is_active' => 'sometimes|boolean',
             'notes' => 'nullable|string|max:1000',
+            'book_delivered' => 'boolean',
+            'book_delivery_type' => 'nullable|in:digital,fisico,paqueteria',
+            'book_delivery_date' => 'nullable|date',
+            'book_notes' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {

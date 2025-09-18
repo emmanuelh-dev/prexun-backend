@@ -31,7 +31,9 @@ class StudentController extends Controller
    * Display a listing of students.
    */
   public function index(Request $request)
-  {
+    {
+    $bookDeliveryType = $request->get('book_delivery_type');
+    $bookDelivered = $request->get('book_delivered');
     $campus_id = $request->get('campus_id');
     $search = $request->get('search');
     $searchFirstname = $request->get('searchFirstname');
@@ -82,8 +84,20 @@ class StudentController extends Controller
       'facultad',
       'carrera',
       'grupo',
-      'debts'
+      'debts',
+      'assignments'
     ]);
+    
+    if ($bookDeliveryType) {
+      $query->whereHas('assignments', function ($q) use ($bookDeliveryType) {
+        $q->where('book_delivery_type', $bookDeliveryType);
+      });
+    }
+    if ($bookDelivered !== null && $bookDelivered !== '') {
+      $query->whereHas('assignments', function ($q) use ($bookDelivered) {
+        $q->where('book_delivered', filter_var($bookDelivered, FILTER_VALIDATE_BOOLEAN));
+      });
+    }
 
     if ($campus_id) {
       $query->where('campus_id', $campus_id);

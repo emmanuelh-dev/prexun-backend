@@ -20,12 +20,18 @@ class StudentAssignment extends Model
         'valid_until',
         'is_active',
         'notes',
+           'book_delivered',
+           'book_delivery_type',
+           'book_delivery_date',
+           'book_notes',
     ];
 
     protected $casts = [
         'assigned_at' => 'date',
         'valid_until' => 'date',
         'is_active' => 'boolean',
+           'book_delivered' => 'boolean',
+           'book_delivery_date' => 'date',
     ];
 
     /**
