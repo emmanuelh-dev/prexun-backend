@@ -136,6 +136,7 @@ class TeacherAttendanceController extends Controller
         'student_id' => 'required|exists:students,id',
         'date' => 'required|date',
         'present' => 'required|boolean',
+        'attendance_time' => 'nullable|date'
       ]);
 
       $student = Student::with('assignments')->findOrFail($validated['student_id']);
@@ -156,6 +157,7 @@ class TeacherAttendanceController extends Controller
           'student_id' => $validated['student_id'],
           'grupo_id' => $student->assignments->first()->grupo_id,
           'date' => $date,
+          'attendance_time' => $validated['attendance_time'] ?? null,
         ],
         [
           'present' => $validated['present'],
