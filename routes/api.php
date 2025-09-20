@@ -55,6 +55,9 @@ Route::post('/alumnos/calif', function (Request $request) {
   return response()->json(['ok' => true]);
 });
 
+// Webhook routes (sin middleware de autenticación)
+Route::post('/webhook', [WhatsAppController::class, 'receiveMessage']);
+Route::get('/webhook', [WhatsAppController::class, 'verifyWebhook']);
 
 // Public student registration routes
 Route::post('/public/students/register', [App\Http\Controllers\Api\PublicStudentController::class, 'register']);
@@ -69,9 +72,7 @@ Route::prefix('whatsapp')->group(function () {
   Route::get('/conversations', [WhatsAppController::class, 'getAllConversations']);
   Route::delete('/conversation', [WhatsAppController::class, 'deleteConversation']);
 
-  // Webhook routes (sin middleware de autenticación)
-  Route::post('/webhook', [WhatsAppController::class, 'receiveMessage']);
-  Route::get('/webhook', [WhatsAppController::class, 'verifyWebhook']);
+
 
   // Template routes
   Route::apiResource('templates', TemplateController::class);
