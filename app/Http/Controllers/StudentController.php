@@ -389,7 +389,7 @@ class StudentController extends Controller
    */
   public function show(Student $student)
   {
-    return response()->json($student->load('transactions'));
+    return response()->json($student->load(['grupo','transactions']));
   }
 
   /**

@@ -125,12 +125,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
   // Students
   Route::get('/students', [StudentController::class, 'index']);
   Route::post('/students', [StudentController::class, 'store']);
+  Route::put('/students/{id}', [StudentController::class, 'update']);
+  Route::get('/student/{student}', [StudentController::class, 'show']);
   Route::get('/students/export-email-group', [StudentController::class, 'exportCsv']);
   Route::post('/students/sync-module', [StudentController::class, 'syncMoodle']);
   Route::post('/students/sync-modules', [StudentController::class, 'syncStudentModules']);
   Route::get('/students/cohort/{cohort_id}', [StudentController::class, 'getByCohort']);
-  Route::put('/students/{id}', [StudentController::class, 'update']);
-  Route::get('/student/{student}', [StudentController::class, 'show']);
   Route::delete('/students/{student}', [StudentController::class, 'destroy']);
   Route::post('/students/bulk-destroy', [StudentController::class, 'bulkDestroy']);
   Route::post('/students/bulk-update-semana-intensiva', [StudentController::class, 'bulkUpdateSemanaIntensiva']);

@@ -200,7 +200,7 @@ class TeacherAttendanceController extends Controller
       ]);
 
       $attendance = Attendance::findOrFail($attendanceId);
-      
+
       $attendance->update([
         'present' => $validated['present'],
         'notes' => $validated['notes'],
@@ -220,7 +220,6 @@ class TeacherAttendanceController extends Controller
         'message' => 'Asistencia actualizada correctamente',
         'data' => $attendance->load('student')
       ]);
-
     } catch (\Exception $e) {
       Log::error('Error al actualizar asistencia:', [
         'error' => $e->getMessage(),
@@ -265,125 +264,23 @@ class TeacherAttendanceController extends Controller
    * Generar reporte de asistencia de un estudiante
    * Calcula días presentes y ausentes en un rango de fechas
    */
-  public function getStudentAttendanceReport($studentId, Request $request)
+  public function getStudentAttendanceReport($studentID, Request $request)
   {
+    
+    $student = Student::with(['grupo.period'])->find($studentID);
+
     try {
-      $validatedData = $request->validate([
-        'start_date' => 'required|date_format:Y-m-d',
-        'end_date' => 'required|date_format:Y-m-d',
-        'exclude_weekends' => 'boolean', // Opcional: excluir fines de semana
-        'exclude_holidays' => 'boolean', // Opcional: excluir días festivos
-      ]);
-
-      $student = Student::with(['grupo.period'])->findOrFail($studentId);
-      $startDate = new \DateTime($request->start_date);
-      $endDate = new \DateTime($request->end_date);
       $excludeWeekends = $request->exclude_weekends ?? true;
-      
-      // Obtener todas las asistencias registradas del estudiante en el rango
-      $attendanceRecords = Attendance::where('student_id', $studentId)
-        ->whereBetween('date', [$request->start_date, $request->end_date])
+
+      // Obtener todos los registros de asistencia del estudiante
+      $attendanceRecords = Attendance::where('student_id', $student->id)
         ->orderBy('date')
-        ->get()
-        ->keyBy('date');
-
-      // Generar todos los días del rango
-      $allDays = [];
-      $presentDays = [];
-      $absentDays = [];
-      $totalDays = 0;
-      $presentCount = 0;
-      $absentCount = 0;
-
-      $currentDate = clone $startDate;
-      while ($currentDate <= $endDate) {
-        $dateString = $currentDate->format('Y-m-d');
-        $dayOfWeek = $currentDate->format('N'); // 1 = Lunes, 7 = Domingo
-        
-        // Excluir fines de semana si está habilitado
-        if ($excludeWeekends && ($dayOfWeek == 6 || $dayOfWeek == 7)) {
-          $currentDate->add(new \DateInterval('P1D'));
-          continue;
-        }
-
-        $totalDays++;
-        
-        if (isset($attendanceRecords[$dateString])) {
-          // Hay registro de asistencia
-          $record = $attendanceRecords[$dateString];
-          $dayData = [
-            'date' => $dateString,
-            'day_name' => $currentDate->format('l'),
-            'day_name_es' => $this->getDayNameInSpanish($currentDate->format('N')),
-            'status' => $record->present ? 'present' : 'absent',
-            'attendance_time' => $record->attendance_time,
-            'created_at' => $record->created_at,
-          ];
-          
-          if ($record->present) {
-            $presentDays[] = $dayData;
-            $presentCount++;
-          } else {
-            $absentDays[] = $dayData;
-            $absentCount++;
-          }
-        } else {
-          // No hay registro = ausente
-          $dayData = [
-            'date' => $dateString,
-            'day_name' => $currentDate->format('l'),
-            'day_name_es' => $this->getDayNameInSpanish($currentDate->format('N')),
-            'status' => 'absent',
-            'attendance_time' => null,
-            'created_at' => null,
-          ];
-          
-          $absentDays[] = $dayData;
-          $absentCount++;
-        }
-        
-        $allDays[] = $dayData;
-        $currentDate->add(new \DateInterval('P1D'));
-      }
-
-      // Calcular estadísticas
-      $attendancePercentage = $totalDays > 0 ? round(($presentCount / $totalDays) * 100, 2) : 0;
-      $absentPercentage = $totalDays > 0 ? round(($absentCount / $totalDays) * 100, 2) : 0;
-
-      $report = [
-        'student' => [
-          'id' => $student->id,
-          'firstname' => $student->firstname,
-          'lastname' => $student->lastname,
-          'matricula' => $student->matricula,
-          'grupo' => $student->grupo ? $student->grupo->name : null,
-          'period' => $student->grupo && $student->grupo->period ? $student->grupo->period->name : null,
-        ],
-        'period' => [
-          'start_date' => $request->start_date,
-          'end_date' => $request->end_date,
-          'total_days' => $totalDays,
-          'exclude_weekends' => $excludeWeekends,
-        ],
-        'statistics' => [
-          'present_count' => $presentCount,
-          'absent_count' => $absentCount,
-          'total_days' => $totalDays,
-          'attendance_percentage' => $attendancePercentage,
-          'absent_percentage' => $absentPercentage,
-        ],
-        'attendance_details' => [
-          'all_days' => $allDays,
-          'present_days' => $presentDays,
-          'absent_days' => $absentDays,
-        ]
-      ];
+        ->get();
 
       return response()->json([
         'success' => true,
-        'data' => $report
+        'data' => $attendanceRecords
       ]);
-
     } catch (\Exception $e) {
       Log::error('Error al generar reporte de asistencia:', [
         'error' => $e->getMessage(),
@@ -398,6 +295,40 @@ class TeacherAttendanceController extends Controller
     }
   }
 
+  private function getEmptyReport($student, $excludeWeekends)
+  {
+    // Cargar relaciones si es necesario para el reporte
+    $student->loadMissing('grupo.period');
+
+    return [
+      'student' => [
+        'id' => $student->id,
+        'firstname' => $student->firstname,
+        'lastname' => $student->lastname,
+        'matricula' => $student->matricula,
+        'grupo' => $student->grupo ? $student->grupo->name : null,
+        'period' => $student->grupo && $student->grupo->period ? $student->grupo->period->name : null,
+      ],
+      'period' => [
+        'start_date' => null,
+        'end_date' => null,
+        'total_days' => 0,
+        'exclude_weekends' => $excludeWeekends,
+      ],
+      'statistics' => [
+        'present_count' => 0,
+        'absent_count' => 0,
+        'total_days' => 0,
+        'attendance_percentage' => 0,
+        'absent_percentage' => 0,
+      ],
+      'attendance_details' => [
+        'all_days' => [],
+        'present_days' => [],
+        'absent_days' => [],
+      ]
+    ];
+  }
   /**
    * Generar reporte de asistencia de un grupo completo
    */
@@ -412,9 +343,9 @@ class TeacherAttendanceController extends Controller
 
       $grupo = \App\Models\Grupo::with(['students', 'period'])->findOrFail($groupId);
       $excludeWeekends = $request->exclude_weekends ?? true;
-      
+
       $studentsReports = [];
-      
+
       foreach ($grupo->students as $student) {
         // Crear una request temporal para cada estudiante
         $studentRequest = new Request([
@@ -422,10 +353,10 @@ class TeacherAttendanceController extends Controller
           'end_date' => $request->end_date,
           'exclude_weekends' => $excludeWeekends,
         ]);
-        
+
         $studentReportResponse = $this->getStudentAttendanceReport($student->id, $studentRequest);
         $studentReportData = json_decode($studentReportResponse->getContent(), true);
-        
+
         if ($studentReportData['success']) {
           $studentsReports[] = $studentReportData['data'];
         }
@@ -436,7 +367,7 @@ class TeacherAttendanceController extends Controller
       $totalPresentDays = array_sum(array_column(array_column($studentsReports, 'statistics'), 'present_count'));
       $totalAbsentDays = array_sum(array_column(array_column($studentsReports, 'statistics'), 'absent_count'));
       $totalPossibleDays = array_sum(array_column(array_column($studentsReports, 'statistics'), 'total_days'));
-      
+
       $groupAttendancePercentage = $totalPossibleDays > 0 ? round(($totalPresentDays / $totalPossibleDays) * 100, 2) : 0;
 
       $groupReport = [
@@ -465,7 +396,6 @@ class TeacherAttendanceController extends Controller
         'success' => true,
         'data' => $groupReport
       ]);
-
     } catch (\Exception $e) {
       Log::error('Error al generar reporte de grupo:', [
         'error' => $e->getMessage(),
@@ -487,14 +417,14 @@ class TeacherAttendanceController extends Controller
   {
     $days = [
       1 => 'Lunes',
-      2 => 'Martes', 
+      2 => 'Martes',
       3 => 'Miércoles',
       4 => 'Jueves',
       5 => 'Viernes',
       6 => 'Sábado',
       7 => 'Domingo'
     ];
-    
+
     return $days[$dayNumber] ?? 'Desconocido';
   }
 }
