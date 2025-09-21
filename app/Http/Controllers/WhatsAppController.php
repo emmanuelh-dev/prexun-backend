@@ -588,17 +588,8 @@ class WhatsAppController extends Controller
   public function testAutoResponse(Request $request)
   {
     $validator = Validator::make($request->all(), [
-      'phone_number' => [
-        'required',
-        'string',
-        'regex:/^\+?[1-9]\d{1,14}$/',
-      ],
-      'message' => [
-        'required',
-        'string',
-        'min:1',
-        'max:1000'
-      ],
+      'phone_number' => 'required|string|regex:/^\+?[1-9]\d{1,14}$/',
+      'message' => 'required|string|min:1|max:1000',
       'send_response' => 'boolean'
     ]);
 
@@ -625,10 +616,7 @@ class WhatsAppController extends Controller
       $contextMessages = $this->formatConversationForAI($conversationHistory);
       
       // Mensaje del usuario
-      $userMessage = [
-        'role' => 'user',
-        'content' => $message
-      ];
+      $userMessage = ['role' => 'user', 'content' => $message];
 
       // Generar respuesta
       $response = $this->sendToOpenAIForWhatsApp($systemMessage, $contextMessages, $userMessage);
@@ -662,7 +650,7 @@ class WhatsAppController extends Controller
           'generated_response' => $generatedResponse,
           'sent' => $sendResponse,
           'conversation_length' => count($contextMessages),
-          'system_message' => $systemMessage,
+          'active_contexts' => Context::where('is_active', true)->pluck('name'),
           'tokens_used' => $response['tokens_used'] ?? null
         ]
       ]);
@@ -750,9 +738,12 @@ class WhatsAppController extends Controller
    */
   public function getAutoResponseConfig()
   {
+    $defaultEnabled = config('services.whatsapp.auto_response.enabled', false);
+    $defaultInstructions = config('services.whatsapp.auto_response.default_instructions', '');
+    
     $config = cache()->get('whatsapp_auto_response_config', [
-      'enabled' => false,
-      'instructions' => '',
+      'enabled' => $defaultEnabled,
+      'instructions' => $defaultInstructions,
       'excluded_numbers' => [],
       'updated_by' => null,
       'updated_at' => null
@@ -765,11 +756,63 @@ class WhatsAppController extends Controller
   }
 
   /**
+   * Resetear configuración a valores por defecto
+   */
+  public function resetAutoResponseConfig()
+  {
+    try {
+      $user = Auth::user();
+      if (!$user) {
+        return response()->json([
+          'success' => false,
+          'message' => 'Usuario no autenticado'
+        ], 401);
+      }
+
+      $defaultEnabled = config('services.whatsapp.auto_response.enabled', false);
+      $defaultInstructions = config('services.whatsapp.auto_response.default_instructions', '');
+
+      $config = [
+        'enabled' => $defaultEnabled,
+        'instructions' => $defaultInstructions,
+        'excluded_numbers' => [],
+        'updated_by' => $user->id,
+        'updated_at' => now()
+      ];
+
+      cache()->put('whatsapp_auto_response_config', $config, now()->addDays(30));
+
+      Log::info('Configuración de respuestas automáticas reseteada', [
+        'reset_by' => $user->id,
+        'default_enabled' => $defaultEnabled
+      ]);
+
+      return response()->json([
+        'success' => true,
+        'message' => 'Configuración reseteada a valores por defecto',
+        'config' => $config
+      ]);
+
+    } catch (\Exception $e) {
+      Log::error('Error reseteando configuración de respuestas automáticas', [
+        'error' => $e->getMessage(),
+        'user_id' => $user->id ?? null
+      ]);
+
+      return response()->json([
+        'success' => false,
+        'message' => 'Error reseteando configuración: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
    * Verificar si las respuestas automáticas están habilitadas para un número
    */
   private function isAutoResponseEnabled($phoneNumber = null)
   {
-    $config = cache()->get('whatsapp_auto_response_config', ['enabled' => false]);
+    $defaultEnabled = config('services.whatsapp.auto_response.enabled', false);
+    $config = cache()->get('whatsapp_auto_response_config', ['enabled' => $defaultEnabled]);
     
     if (!$config['enabled']) {
       return false;
@@ -792,17 +835,12 @@ class WhatsAppController extends Controller
   /**
    * Generar respuesta automática con IA para un mensaje de WhatsApp recibido
    */
+  /**
+   * Generar respuesta automática con IA para un mensaje de WhatsApp recibido
+   */
   public function generateAutoResponse($phoneNumber, $incomingMessage, $messageType = 'text')
   {
     try {
-      // Verificar si las respuestas automáticas están habilitadas para este número
-      if (!$this->isAutoResponseEnabled($phoneNumber)) {
-        Log::info('Respuestas automáticas deshabilitadas para este número', [
-          'phone_number' => $phoneNumber
-        ]);
-        return false;
-      }
-
       // Obtener los últimos 10 mensajes de la conversación para contexto
       $conversationHistory = $this->getWhatsAppConversationHistory($phoneNumber, 10);
       
@@ -898,10 +936,6 @@ class WhatsAppController extends Controller
    */
   private function buildWhatsAppSystemMessage()
   {
-    // Obtener configuración personalizada
-    $config = cache()->get('whatsapp_auto_response_config', []);
-    $customInstructions = $config['instructions'] ?? '';
-    
     // Obtener contextos activos del sistema
     $activeContexts = Context::where('is_active', true)->get();
     
@@ -912,23 +946,16 @@ class WhatsAppController extends Controller
     $baseInstructions .= "Siempre sé útil y orientativo. ";
     $baseInstructions .= "Usa emojis ocasionalmente para hacer la conversación más amigable.";
 
-    $finalInstructions = $baseInstructions;
-
-    // Agregar instrucciones personalizadas si existen
-    if (!empty($customInstructions)) {
-      $finalInstructions .= "\n\nInstrucciones específicas:\n" . $customInstructions;
-    }
-
-    // Agregar contextos activos
+    // Si hay contextos activos, usarlos como instrucciones principales
     if ($activeContexts->isNotEmpty()) {
       $contextInstructions = $activeContexts->map(function ($context) {
         return "{$context->name}: {$context->instructions}";
       })->join('\n\n');
       
-      $finalInstructions .= "\n\nContextos adicionales del sistema:\n\n" . $contextInstructions;
+      return $baseInstructions . "\n\nInstrucciones específicas:\n\n" . $contextInstructions;
     }
 
-    return $finalInstructions;
+    return $baseInstructions;
   }
 
   /**

@@ -72,9 +72,7 @@ Route::prefix('whatsapp')->group(function () {
   Route::get('/conversations', [WhatsAppController::class, 'getAllConversations']);
   Route::delete('/conversation', [WhatsAppController::class, 'deleteConversation']);
   
-  // Auto response configuration routes
-  Route::post('/auto-response/config', [WhatsAppController::class, 'configureAutoResponse']);
-  Route::get('/auto-response/config', [WhatsAppController::class, 'getAutoResponseConfig']);
+  // Auto response testing (las respuestas siempre están activas)
   Route::post('/auto-response/test', [WhatsAppController::class, 'testAutoResponse']);
 
   // Template routes

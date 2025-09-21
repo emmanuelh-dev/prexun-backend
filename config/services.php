@@ -39,4 +39,10 @@ return [
         'api_key' => env('OPENAI_API_KEY'),
     ],
 
+    'whatsapp' => [
+        'token' => env('WHATSAPP_TOKEN'),
+        'phone_number_id' => env('PHONE_NUMBER_ID'),
+        'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
+    ],
+
 ];
