@@ -976,13 +976,6 @@ class WhatsAppController extends Controller
   public function generateAutoResponse($phoneNumber, $incomingMessage, $messageType = 'text')
   {
     try {
-      // Verificar si las respuestas automáticas están habilitadas
-      if (!$this->isAutoResponseEnabled($phoneNumber)) {
-        Log::info('Respuestas automáticas deshabilitadas', [
-          'phone_number' => $phoneNumber
-        ]);
-        return false;
-      }
 
       // Obtener historial de conversación
       $conversationHistory = $this->getWhatsAppConversationHistory($phoneNumber, 10);
