@@ -772,35 +772,141 @@ class WhatsAppController extends Controller
   }
 
   /**
-   * Obtener información completa de un estudiante usando MCP
+   * Probar respuesta en español (endpoint de testing)
    */
-  public function getStudentProfile(Request $request)
+  public function testSpanishResponse(Request $request)
   {
     $validator = Validator::make($request->all(), [
-      'student_id' => 'required|integer'
+      'phone_number' => 'required|string',
+      'message' => 'required|string'
     ]);
 
     if ($validator->fails()) {
       return response()->json([
         'success' => false,
-        'message' => 'ID del estudiante es requerido',
         'errors' => $validator->errors()
       ], 422);
     }
 
     try {
-      $result = $this->mcpServer->executeFunction('get_student_profile', [
-        'student_id' => $request->student_id
+      $phoneNumber = $this->normalizePhoneNumber($request->phone_number);
+      $message = $request->message;
+
+      // Test directo con instrucciones reforzadas en español
+      $systemMessage = "Eres un asistente de WhatsApp para una institución educativa en México. ";
+      $systemMessage .= "INSTRUCCIÓN CRÍTICA: Debes responder ÚNICAMENTE en español mexicano. ";
+      $systemMessage .= "Está PROHIBIDO usar inglés, incluso palabras sueltas. ";
+      $systemMessage .= "Usa expresiones mexicanas cuando sea apropiado. ";
+      $systemMessage .= "Sé amigable, profesional y conciso. ";
+      $systemMessage .= "Máximo 2-3 párrafos. Usa emojis apropiados. ";
+
+      // Buscar estudiante
+      $studentResult = $this->mcpServer->executeFunction('get_student_by_phone', [
+        'phone_number' => $phoneNumber
       ]);
 
-      return response()->json($result);
+      if ($studentResult['success']) {
+        $student = $studentResult['data'];
+        $systemMessage .= "El usuario es {$student['name']} con matrícula {$student['matricula']}. ";
+        $systemMessage .= "Salúdalo por su nombre de manera amigable. ";
+      }
 
-    } catch (\Exception $e) {
+      $response = Http::withHeaders([
+        'Authorization' => 'Bearer ' . config('services.openai.api_key'),
+        'Content-Type' => 'application/json'
+      ])->post('https://api.openai.com/v1/chat/completions', [
+        'model' => 'gpt-4o-mini',
+        'messages' => [
+          ['role' => 'system', 'content' => $systemMessage],
+          ['role' => 'user', 'content' => $message]
+        ],
+        'max_tokens' => 300,
+        'temperature' => 0.7,
+        'presence_penalty' => 0.1,
+        'frequency_penalty' => 0.1
+      ]);
+
+      if ($response->successful()) {
+        $data = $response->json();
+        $responseMessage = $data['choices'][0]['message']['content'];
+
+        return response()->json([
+          'success' => true,
+          'data' => [
+            'phone_number' => $phoneNumber,
+            'incoming_message' => $message,
+            'response_message' => $responseMessage,
+            'student_found' => $studentResult['success'],
+            'student_info' => $studentResult['success'] ? $studentResult['data'] : null,
+            'system_message_used' => $systemMessage,
+            'language_check' => [
+              'contains_english' => $this->containsEnglish($responseMessage),
+              'is_spanish' => $this->isSpanish($responseMessage)
+            ]
+          ]
+        ]);
+      }
+
       return response()->json([
         'success' => false,
-        'message' => 'Error obteniendo perfil: ' . $e->getMessage()
+        'message' => 'Error al generar respuesta'
+      ], 500);
+
+    } catch (\Exception $e) {
+      Log::error('Error en test de respuesta en español', [
+        'error' => $e->getMessage(),
+        'phone_number' => $request->phone_number
+      ]);
+
+      return response()->json([
+        'success' => false,
+        'message' => 'Error interno: ' . $e->getMessage()
       ], 500);
     }
+  }
+
+  /**
+   * Verificar si el texto contiene palabras en inglés
+   */
+  private function containsEnglish($text): bool
+  {
+    $englishWords = [
+      'hello', 'hi', 'how', 'are', 'you', 'what', 'where', 'when', 'why', 'how',
+      'good', 'bad', 'yes', 'no', 'please', 'thank', 'thanks', 'welcome',
+      'student', 'payment', 'grade', 'schedule', 'attendance', 'profile',
+      'information', 'help', 'support', 'contact', 'phone', 'email'
+    ];
+
+    $textLower = strtolower($text);
+    foreach ($englishWords as $word) {
+      if (strpos($textLower, $word) !== false) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Verificar si el texto está principalmente en español
+   */
+  private function isSpanish($text): bool
+  {
+    $spanishWords = [
+      'hola', 'cómo', 'estás', 'qué', 'dónde', 'cuándo', 'por qué', 'cómo',
+      'bueno', 'malo', 'sí', 'no', 'por favor', 'gracias', 'de nada',
+      'estudiante', 'pago', 'calificación', 'horario', 'asistencia', 'perfil',
+      'información', 'ayuda', 'apoyo', 'contacto', 'teléfono', 'correo',
+      'matricula', 'matrícula', 'universidad', 'escuela', 'instituto'
+    ];
+
+    $textLower = strtolower($text);
+    $spanishCount = 0;
+    foreach ($spanishWords as $word) {
+      if (strpos($textLower, $word) !== false) {
+        $spanishCount++;
+      }
+    }
+    return $spanishCount > 0;
   }
 
   /**
@@ -1092,7 +1198,8 @@ class WhatsAppController extends Controller
     // Obtener contextos activos del sistema
     $activeContexts = Context::where('is_active', true)->get();
     
-    $baseInstructions = "Eres un asistente de WhatsApp para una institución educativa. ";
+    $baseInstructions = "Eres un asistente de WhatsApp para una institución educativa en México. ";
+    $baseInstructions .= "IMPORTANTE: SIEMPRE responde en ESPAÑOL. Nunca uses inglés. ";
     $baseInstructions .= "Responde de manera amigable, profesional y concisa. ";
     $baseInstructions .= "Mantén las respuestas cortas ya que es WhatsApp (máximo 2-3 párrafos). ";
     $baseInstructions .= "Si necesitas información específica del estudiante, pide que se comuniquen por otros medios. ";

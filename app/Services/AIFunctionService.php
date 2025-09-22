@@ -81,10 +81,12 @@ class AIFunctionService
      */
     private function buildDynamicSystemMessage(array $studentInfo): string
     {
-        $baseMessage = "Eres un asistente de WhatsApp para una institución educativa. ";
+        $baseMessage = "Eres un asistente de WhatsApp para una institución educativa en México. ";
+        $baseMessage .= "IMPORTANTE: SIEMPRE responde en ESPAÑOL. Nunca uses inglés. ";
         $baseMessage .= "Responde de manera amigable, profesional y concisa. ";
         $baseMessage .= "Mantén las respuestas cortas ya que es WhatsApp (máximo 2-3 párrafos). ";
-        $baseMessage .= "Usa emojis ocasionalmente para hacer la conversación más amigable.\n\n";
+        $baseMessage .= "Usa emojis ocasionalmente para hacer la conversación más amigable. ";
+        $baseMessage .= "Saluda por su nombre cuando sea posible.\n\n";
 
         // Agregar información del estudiante si está disponible
         if ($studentInfo['success']) {
@@ -319,12 +321,17 @@ class AIFunctionService
                 'phone_number' => $phoneNumber
             ]);
 
-            $systemMessage = "Eres un asistente de WhatsApp para una institución educativa. ";
+            $systemMessage = "Eres un asistente de WhatsApp para una institución educativa en México. ";
+            $systemMessage .= "IMPORTANTE: SIEMPRE responde en ESPAÑOL. Nunca uses inglés. ";
             $systemMessage .= "Responde de manera amigable y profesional. ";
+            $systemMessage .= "Usa emojis ocasionalmente para hacer la conversación más amigable. ";
             
             if ($studentInfo['success']) {
                 $student = $studentInfo['data'];
                 $systemMessage .= "El usuario es el estudiante {$student['name']} con matrícula {$student['matricula']}. ";
+                $systemMessage .= "Salúdalo por su nombre y sé amigable. ";
+            } else {
+                $systemMessage .= "El número no está registrado como estudiante, pero aún puedes ayudar. ";
             }
 
             $messages = [
