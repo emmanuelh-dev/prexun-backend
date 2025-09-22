@@ -11,18 +11,24 @@ use Illuminate\Support\Facades\DB;
 use App\Models\ChatMessage;
 use App\Models\Mensaje;
 use App\Models\Context;
+use App\Services\MCPServerService;
+use App\Services\AIFunctionService;
 
 class WhatsAppController extends Controller
 {
   private $whatsappToken;
   private $phoneNumberId;
   private $apiUrl;
+  private MCPServerService $mcpServer;
+  private AIFunctionService $aiFunctionService;
 
-  public function __construct()
+  public function __construct(MCPServerService $mcpServer, AIFunctionService $aiFunctionService)
   {
     $this->whatsappToken = env('WHATSAPP_TOKEN');
     $this->phoneNumberId = env('PHONE_NUMBER_ID');
     $this->apiUrl = "https://graph.facebook.com/v20.0/{$this->phoneNumberId}/messages";
+    $this->mcpServer = $mcpServer;
+    $this->aiFunctionService = $aiFunctionService;
   }
 
   /**
@@ -583,9 +589,9 @@ class WhatsAppController extends Controller
   }
 
   /**
-   * Probar generación de respuesta automática (para testing)
+   * Probar respuesta automática con MCP Server (para testing)
    */
-  public function testAutoResponse(Request $request)
+  public function testAutoResponseMCP(Request $request)
   {
     $validator = Validator::make($request->all(), [
       'phone_number' => 'required|string|regex:/^\+?[1-9]\d{1,14}$/',
@@ -609,26 +615,21 @@ class WhatsAppController extends Controller
       // Obtener historial de conversación
       $conversationHistory = $this->getWhatsAppConversationHistory($phoneNumber, 10);
       
-      // Construir mensaje del sistema
-      $systemMessage = $this->buildWhatsAppSystemMessage();
-      
-      // Preparar contexto
-      $contextMessages = $this->formatConversationForAI($conversationHistory);
-      
-      // Mensaje del usuario
-      $userMessage = ['role' => 'user', 'content' => $message];
-
-      // Generar respuesta
-      $response = $this->sendToOpenAIForWhatsApp($systemMessage, $contextMessages, $userMessage);
+      // Usar el servicio MCP para generar respuesta
+      $response = $this->aiFunctionService->processWhatsAppMessage(
+        $phoneNumber,
+        $message,
+        $conversationHistory->toArray()
+      );
 
       if (!$response['success']) {
         return response()->json([
           'success' => false,
-          'message' => 'Error generando respuesta: ' . $response['error']
+          'message' => 'Error generando respuesta MCP: ' . $response['error']
         ], 500);
       }
 
-      $generatedResponse = $response['content'];
+      $generatedResponse = $response['response_message'];
 
       // Enviar respuesta si se solicita
       if ($sendResponse) {
@@ -649,14 +650,15 @@ class WhatsAppController extends Controller
           'incoming_message' => $message,
           'generated_response' => $generatedResponse,
           'sent' => $sendResponse,
-          'conversation_length' => count($contextMessages),
-          'active_contexts' => Context::where('is_active', true)->pluck('name'),
-          'tokens_used' => $response['tokens_used'] ?? null
+          'conversation_length' => $conversationHistory->count(),
+          'student_info' => $response['student_info'],
+          'functions_called' => $response['functions_called'],
+          'tokens_used' => $response['tokens_used']
         ]
       ]);
 
     } catch (\Exception $e) {
-      Log::error('Error en test de respuesta automática', [
+      Log::error('Error en test de respuesta automática MCP', [
         'error' => $e->getMessage(),
         'phone_number' => $request->phone_number
       ]);
@@ -664,6 +666,139 @@ class WhatsAppController extends Controller
       return response()->json([
         'success' => false,
         'message' => 'Error interno: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
+   * Ejecutar una función MCP específica
+   */
+  public function executeMCPFunction(Request $request)
+  {
+    $validator = Validator::make($request->all(), [
+      'function_name' => 'required|string',
+      'parameters' => 'required|array'
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Datos de entrada inválidos',
+        'errors' => $validator->errors()
+      ], 422);
+    }
+
+    try {
+      $functionName = $request->function_name;
+      $parameters = $request->parameters;
+
+      $result = $this->mcpServer->executeFunction($functionName, $parameters);
+
+      return response()->json([
+        'success' => true,
+        'function_name' => $functionName,
+        'parameters' => $parameters,
+        'result' => $result
+      ]);
+
+    } catch (\Exception $e) {
+      Log::error('Error ejecutando función MCP', [
+        'function' => $request->function_name,
+        'parameters' => $request->parameters,
+        'error' => $e->getMessage()
+      ]);
+
+      return response()->json([
+        'success' => false,
+        'message' => 'Error ejecutando función: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
+   * Obtener lista de funciones MCP disponibles
+   */
+  public function getMCPFunctions()
+  {
+    try {
+      $functions = $this->mcpServer->getAvailableFunctions();
+
+      return response()->json([
+        'success' => true,
+        'data' => [
+          'total_functions' => count($functions),
+          'functions' => $functions
+        ]
+      ]);
+
+    } catch (\Exception $e) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Error obteniendo funciones MCP: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
+   * Buscar estudiante por matrícula usando MCP
+   */
+  public function getStudentByMatricula(Request $request)
+  {
+    $validator = Validator::make($request->all(), [
+      'matricula' => 'required|string'
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Matrícula es requerida',
+        'errors' => $validator->errors()
+      ], 422);
+    }
+
+    try {
+      $result = $this->mcpServer->executeFunction('get_student_by_matricula', [
+        'matricula' => $request->matricula
+      ]);
+
+      return response()->json($result);
+
+    } catch (\Exception $e) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Error buscando estudiante: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
+   * Obtener información completa de un estudiante usando MCP
+   */
+  public function getStudentProfile(Request $request)
+  {
+    $validator = Validator::make($request->all(), [
+      'student_id' => 'required|integer'
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'message' => 'ID del estudiante es requerido',
+        'errors' => $validator->errors()
+      ], 422);
+    }
+
+    try {
+      $result = $this->mcpServer->executeFunction('get_student_profile', [
+        'student_id' => $request->student_id
+      ]);
+
+      return response()->json($result);
+
+    } catch (\Exception $e) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Error obteniendo perfil: ' . $e->getMessage()
       ], 500);
     }
   }
@@ -836,49 +971,74 @@ class WhatsAppController extends Controller
    * Generar respuesta automática con IA para un mensaje de WhatsApp recibido
    */
   /**
-   * Generar respuesta automática con IA para un mensaje de WhatsApp recibido
+   * Generar respuesta automática con IA usando el MCP Server
    */
   public function generateAutoResponse($phoneNumber, $incomingMessage, $messageType = 'text')
   {
     try {
-      // Obtener los últimos 10 mensajes de la conversación para contexto
-      $conversationHistory = $this->getWhatsAppConversationHistory($phoneNumber, 10);
-      
-      // Construir mensaje del sistema específico para WhatsApp
-      $systemMessage = $this->buildWhatsAppSystemMessage();
-      
-      // Preparar el contexto de la conversación
-      $contextMessages = $this->formatConversationForAI($conversationHistory);
-      
-      // Agregar el mensaje actual del usuario
-      $userMessage = [
-        'role' => 'user',
-        'content' => $messageType === 'text' ? $incomingMessage : "[Usuario envió: {$messageType}] {$incomingMessage}"
-      ];
-
-      // Enviar a OpenAI para generar respuesta
-      $response = $this->sendToOpenAIForWhatsApp($systemMessage, $contextMessages, $userMessage);
-
-      if (!$response['success']) {
-        Log::error('Error generando respuesta automática', [
-          'phone_number' => $phoneNumber,
-          'error' => $response['error']
+      // Verificar si las respuestas automáticas están habilitadas
+      if (!$this->isAutoResponseEnabled($phoneNumber)) {
+        Log::info('Respuestas automáticas deshabilitadas', [
+          'phone_number' => $phoneNumber
         ]);
         return false;
       }
 
+      // Obtener historial de conversación
+      $conversationHistory = $this->getWhatsAppConversationHistory($phoneNumber, 10);
+      
+      // Usar el nuevo servicio de IA con funciones MCP
+      $response = $this->aiFunctionService->processWhatsAppMessage(
+        $phoneNumber,
+        $incomingMessage,
+        $conversationHistory->toArray()
+      );
+
+      if (!$response['success']) {
+        Log::error('Error generando respuesta automática con MCP', [
+          'phone_number' => $phoneNumber,
+          'error' => $response['error']
+        ]);
+        
+        // Fallback a respuesta simple
+        $simpleResponse = $this->aiFunctionService->generateSimpleResponse(
+          $phoneNumber,
+          $incomingMessage,
+          $conversationHistory->toArray()
+        );
+        
+        if ($simpleResponse['success']) {
+          $responseMessage = $simpleResponse['response_message'];
+        } else {
+          return false;
+        }
+      } else {
+        $responseMessage = $response['response_message'];
+        
+        // Log de funciones ejecutadas
+        if (!empty($response['functions_called'])) {
+          Log::info('Funciones MCP ejecutadas en respuesta automática', [
+            'phone_number' => $phoneNumber,
+            'functions' => array_column($response['functions_called'], 'function'),
+            'student_info' => $response['student_info'] ? 'Encontrado' : 'No encontrado'
+          ]);
+        }
+      }
+
       // Enviar la respuesta generada
-      $responseMessage = $response['content'];
       $sent = $this->sendAutoGeneratedMessage($phoneNumber, $responseMessage);
 
       if ($sent) {
-        Log::info('Respuesta automática enviada', [
+        Log::info('Respuesta automática MCP enviada', [
           'phone_number' => $phoneNumber,
-          'response_length' => strlen($responseMessage)
+          'response_length' => strlen($responseMessage),
+          'functions_used' => !empty($response['functions_called']) ? count($response['functions_called']) : 0,
+          'student_identified' => isset($response['student_info']),
+          'tokens_used' => $response['tokens_used'] ?? null
         ]);
 
         // Registrar la respuesta en el sistema de chat
-        $this->logWhatsAppAutoResponse($phoneNumber, $incomingMessage, $responseMessage);
+        $this->logWhatsAppAutoResponse($phoneNumber, $incomingMessage, $responseMessage, $response);
         
         return true;
       }
@@ -886,7 +1046,7 @@ class WhatsAppController extends Controller
       return false;
 
     } catch (\Exception $e) {
-      Log::error('Error en respuesta automática de WhatsApp', [
+      Log::error('Error en respuesta automática MCP de WhatsApp', [
         'phone_number' => $phoneNumber,
         'error' => $e->getMessage(),
         'trace' => $e->getTraceAsString()
@@ -1004,7 +1164,7 @@ class WhatsAppController extends Controller
   /**
    * Registrar respuesta automática en el sistema de chat
    */
-  private function logWhatsAppAutoResponse($phoneNumber, $incomingMessage, $responseMessage)
+  private function logWhatsAppAutoResponse($phoneNumber, $incomingMessage, $responseMessage, $mcpResponse = null)
   {
     try {
       // Crear session_id específico para respuestas automáticas de WhatsApp
@@ -1021,9 +1181,33 @@ class WhatsAppController extends Controller
           'platform' => 'whatsapp',
           'phone_number' => $phoneNumber,
           'auto_response' => true,
-          'incoming_message' => true
+          'incoming_message' => true,
+          'mcp_enabled' => true
         ]
       ]);
+
+      // Preparar metadata de la respuesta
+      $responseMetadata = [
+        'platform' => 'whatsapp',
+        'phone_number' => $phoneNumber,
+        'auto_response' => true,
+        'outgoing_message' => true,
+        'model' => 'gpt-4o-mini',
+        'mcp_enabled' => true
+      ];
+
+      // Agregar información MCP si está disponible
+      if ($mcpResponse && isset($mcpResponse['functions_called'])) {
+        $responseMetadata['mcp_functions_called'] = array_column($mcpResponse['functions_called'], 'function');
+        $responseMetadata['mcp_functions_count'] = count($mcpResponse['functions_called']);
+        $responseMetadata['student_identified'] = isset($mcpResponse['student_info']);
+        $responseMetadata['tokens_used'] = $mcpResponse['tokens_used'] ?? null;
+        
+        if (isset($mcpResponse['student_info'])) {
+          $responseMetadata['student_matricula'] = $mcpResponse['student_info']['matricula'] ?? null;
+          $responseMetadata['student_name'] = $mcpResponse['student_info']['name'] ?? null;
+        }
+      }
 
       // Registrar respuesta automática
       ChatMessage::create([
@@ -1032,17 +1216,11 @@ class WhatsAppController extends Controller
         'content' => $responseMessage,
         'conversation_type' => 'whatsapp_inbound',
         'session_id' => $sessionId,
-        'metadata' => [
-          'platform' => 'whatsapp',
-          'phone_number' => $phoneNumber,
-          'auto_response' => true,
-          'outgoing_message' => true,
-          'model' => 'gpt-4o-mini'
-        ]
+        'metadata' => $responseMetadata
       ]);
 
     } catch (\Exception $e) {
-      Log::error('Error registrando respuesta automática en chat', [
+      Log::error('Error registrando respuesta automática MCP en chat', [
         'error' => $e->getMessage(),
         'phone_number' => $phoneNumber
       ]);

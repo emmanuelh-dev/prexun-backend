@@ -74,6 +74,13 @@ Route::prefix('whatsapp')->group(function () {
   
   // Auto response testing (las respuestas siempre están activas)
   Route::post('/auto-response/test', [WhatsAppController::class, 'testAutoResponse']);
+  
+  // MCP Server routes - Testing con funciones dinámicas de IA
+  Route::post('/mcp/test', [WhatsAppController::class, 'testAutoResponseMCP']);
+  Route::post('/mcp/execute', [WhatsAppController::class, 'executeMCPFunction']);
+  Route::get('/mcp/functions', [WhatsAppController::class, 'getMCPFunctions']);
+  Route::get('/mcp/student/matricula', [WhatsAppController::class, 'getStudentByMatricula']);
+  Route::get('/mcp/student/profile', [WhatsAppController::class, 'getStudentProfile']);
 
   // Template routes
   Route::apiResource('templates', TemplateController::class);
