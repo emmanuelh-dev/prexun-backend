@@ -29,10 +29,10 @@ class MCPServerService
     private function initializeAvailableFunctions()
     {
         $this->availableFunctions = [
-            'get_student_by_matricula' => [
-                'description' => 'Buscar estudiante por matrícula',
+            'get_student_by_id' => [
+                'description' => 'Buscar estudiante por ID. Cuando el usuario dice "matrícula", usar ese número como ID',
                 'parameters' => [
-                    'matricula' => ['type' => 'string', 'required' => true, 'description' => 'Matrícula del estudiante']
+                    'id' => ['type' => 'string', 'required' => true, 'description' => 'ID del estudiante (cuando el usuario dice "matrícula", usar ese número)']
                 ]
             ],
             'get_student_by_phone' => [
@@ -101,8 +101,8 @@ class MCPServerService
             if (!isset($this->availableFunctions[$functionName])) {
                 return [
                     'success' => false,
-                    'error' => "Función '{$functionName}' no disponible",
-                    'available_functions' => array_keys($this->availableFunctions)
+                    'error' => "Función '{$functionName}' no está disponible",
+                    'funciones_disponibles' => array_keys($this->availableFunctions)
                 ];
             }
 
@@ -112,13 +112,13 @@ class MCPServerService
                 return [
                     'success' => false,
                     'error' => "Parámetros inválidos: {$validation['message']}",
-                    'required_parameters' => $this->availableFunctions[$functionName]['parameters']
+                    'parametros_requeridos' => $this->availableFunctions[$functionName]['parameters']
                 ];
             }
 
             // Ejecutar la función correspondiente
             $result = match($functionName) {
-                'get_student_by_matricula' => $this->getStudentByMatricula($parameters['matricula']),
+                'get_student_by_id' => $this->getStudentById($parameters['id']),
                 'get_student_by_phone' => $this->getStudentByPhone($parameters['phone_number']),
                 'get_student_payments' => $this->getStudentPayments($parameters['student_id'], $parameters['limit'] ?? 5),
                 'get_student_grades' => $this->getStudentGrades($parameters['student_id']),
@@ -151,7 +151,7 @@ class MCPServerService
 
             return [
                 'success' => false,
-                'error' => "Error interno: {$e->getMessage()}"
+                'error' => "Error interno: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -192,24 +192,96 @@ class MCPServerService
         return $cleaned;
     }
 
+    /**
+     * Traducir mensajes de error comunes a español
+     */
+    private function translateErrorToSpanish(string $errorMessage): string
+    {
+        $translations = [
+            // Errores de base de datos MySQL/PostgreSQL
+            'Connection refused' => 'Conexión a la base de datos rechazada',
+            'Database connection failed' => 'Falló la conexión a la base de datos',
+            'Table doesn\'t exist' => 'La tabla no existe',
+            'Column not found' => 'Columna no encontrada',
+            'Unknown column' => 'Columna desconocida',
+            'Duplicate entry' => 'Entrada duplicada',
+            'Foreign key constraint fails' => 'Falla restricción de clave foránea',
+            'Data too long for column' => 'Datos demasiado largos para la columna',
+            'Access denied' => 'Acceso denegado',
+            'Unknown database' => 'Base de datos desconocida',
+            'SQLSTATE' => 'Error de SQL',
+            
+            // Errores de Eloquent/Laravel específicos
+            'No query results for model' => 'No se encontraron resultados para el modelo',
+            'Call to undefined method' => 'Llamada a método no definido',
+            'Class not found' => 'Clase no encontrada',
+            'Method not found' => 'Método no encontrado',
+            'Property not found' => 'Propiedad no encontrada',
+            'Undefined property' => 'Propiedad no definida',
+            'Undefined variable' => 'Variable no definida',
+            'ModelNotFoundException' => 'Modelo no encontrado',
+            'QueryException' => 'Error en la consulta de base de datos',
+            
+            // Errores de validación
+            'Validation failed' => 'Falló la validación',
+            'Required field missing' => 'Campo requerido faltante',
+            'Invalid format' => 'Formato inválido',
+            'Invalid data type' => 'Tipo de dato inválido',
+            'The given data was invalid' => 'Los datos proporcionados son inválidos',
+            
+            // Errores de red/API
+            'Connection timeout' => 'Tiempo de conexión agotado',
+            'Network error' => 'Error de red',
+            'Server error' => 'Error del servidor',
+            'Service unavailable' => 'Servicio no disponible',
+            'cURL error' => 'Error de conexión',
+            'HTTP error' => 'Error HTTP',
+            
+            // Errores de PHP comunes
+            'Fatal error' => 'Error fatal',
+            'Parse error' => 'Error de análisis',
+            'Memory limit exceeded' => 'Límite de memoria excedido',
+            'Maximum execution time exceeded' => 'Tiempo máximo de ejecución excedido',
+            'Division by zero' => 'División por cero',
+            'Array to string conversion' => 'Error de conversión de array a string',
+            
+            // Errores de autenticación y permisos
+            'Unauthenticated' => 'No autenticado',
+            'Unauthorized' => 'No autorizado',
+            'Forbidden' => 'Prohibido',
+            'Permission denied' => 'Permiso denegado'
+        ];
+
+        $lowerErrorMessage = strtolower($errorMessage);
+        
+        foreach ($translations as $english => $spanish) {
+            if (stripos($lowerErrorMessage, strtolower($english)) !== false) {
+                return $spanish;
+            }
+        }
+
+        // Si no hay traducción específica, devolver el mensaje original
+        return $errorMessage;
+    }
+
     // ============================================
     // FUNCIONES AUXILIARES PARA CONSULTAS
     // ============================================
 
     /**
-     * Buscar estudiante por matrícula
+     * Buscar estudiante por ID
+     * IMPORTANTE: Cuando el usuario dice "mi matrícula es 4579", usar 4579 como ID
+     * La "matrícula" que menciona el usuario es realmente el ID en la base de datos
      */
-    public function getStudentByMatricula(string $matricula): array
+    public function getStudentById(string $id): array
     {
         try {
-            $student = Student::where('matricula', $matricula)
-                ->orWhere('id', $matricula)
-                ->first();
+            $student = Student::find($id);
 
             if (!$student) {
                 return [
                     'success' => false,
-                    'error' => "No se encontró estudiante con matrícula: {$matricula}"
+                    'error' => "No se encontró estudiante con ID: {$id}"
                 ];
             }
 
@@ -217,7 +289,7 @@ class MCPServerService
                 'success' => true,
                 'data' => [
                     'id' => $student->id,
-                    'matricula' => $student->matricula ?? $student->id,
+                    'matricula' => $student->id, // La matrícula es igual al ID
                     'name' => $student->firstname . ' ' . $student->lastname,
                     'firstname' => $student->firstname,
                     'lastname' => $student->lastname,
@@ -234,7 +306,7 @@ class MCPServerService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => "Error buscando estudiante: {$e->getMessage()}"
+                'error' => "Error buscando estudiante: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -262,7 +334,7 @@ class MCPServerService
                 'success' => true,
                 'data' => [
                     'id' => $student->id,
-                    'matricula' => $student->matricula ?? $student->id,
+                    'matricula' => $student->id, // La matrícula es igual al ID
                     'name' => $student->firstname . ' ' . $student->lastname,
                     'firstname' => $student->firstname,
                     'lastname' => $student->lastname,
@@ -278,7 +350,7 @@ class MCPServerService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => "Error buscando estudiante por teléfono: {$e->getMessage()}"
+                'error' => "Error buscando estudiante por teléfono: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -343,7 +415,7 @@ class MCPServerService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => "Error obteniendo transacciones: {$e->getMessage()}"
+                'error' => "Error obteniendo transacciones: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -384,7 +456,7 @@ class MCPServerService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => "Error obteniendo información académica: {$e->getMessage()}"
+                'error' => "Error obteniendo información académica: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -420,7 +492,7 @@ class MCPServerService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => "Error obteniendo información de grupo: {$e->getMessage()}"
+                'error' => "Error obteniendo información de grupo: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -485,7 +557,7 @@ class MCPServerService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => "Error obteniendo asistencias: {$e->getMessage()}"
+                'error' => "Error obteniendo asistencias: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -513,7 +585,7 @@ class MCPServerService
                 'data' => [
                     'profile' => [
                         'id' => $student->id,
-                        'matricula' => $student->matricula ?? $student->id,
+                        'matricula' => $student->id, // La matrícula es igual al ID
                         'name' => $student->firstname . ' ' . $student->lastname,
                         'firstname' => $student->firstname,
                         'lastname' => $student->lastname,
@@ -545,7 +617,7 @@ class MCPServerService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => "Error obteniendo perfil: {$e->getMessage()}"
+                'error' => "Error obteniendo perfil: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -558,7 +630,7 @@ class MCPServerService
         try {
             $students = Student::where('firstname', 'LIKE', "%{$query}%")
                 ->orWhere('lastname', 'LIKE', "%{$query}%")
-                ->orWhere('matricula', 'LIKE', "%{$query}%")
+                ->orWhere('id', 'LIKE', "%{$query}%")
                 ->orWhere('email', 'LIKE', "%{$query}%")
                 ->limit($limit)
                 ->get();
@@ -571,7 +643,7 @@ class MCPServerService
                     'students' => $students->map(function($student) {
                         return [
                             'id' => $student->id,
-                            'matricula' => $student->matricula ?? $student->id,
+                            'matricula' => $student->id, // La matrícula es igual al ID
                             'name' => $student->firstname . ' ' . $student->lastname,
                             'firstname' => $student->firstname,
                             'lastname' => $student->lastname,
@@ -587,7 +659,7 @@ class MCPServerService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => "Error buscando estudiantes: {$e->getMessage()}"
+                'error' => "Error buscando estudiantes: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
     }
@@ -611,7 +683,8 @@ class MCPServerService
         }
         
         $prompt .= "Para usar estas funciones, menciona el nombre de la función y los parámetros necesarios en tu respuesta.\n";
-        $prompt .= "Ejemplo: 'Necesito usar get_student_by_matricula con matricula: 12345'\n";
+        $prompt .= "Ejemplo: 'Necesito usar get_student_by_id con id: 12345'\n";
+        $prompt .= "IMPORTANTE: Cuando el usuario mencione 'matrícula', usar esa información como 'id' para buscar al estudiante.\n";
         
         return $prompt;
     }
