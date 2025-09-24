@@ -63,6 +63,13 @@ Route::get('/webhook', [WhatsAppController::class, 'verifyWebhook']);
 Route::post('/public/students/register', [App\Http\Controllers\Api\PublicStudentController::class, 'register']);
 Route::get('/public/students/form-data', [App\Http\Controllers\Api\PublicStudentController::class, 'getFormData']);
 
+// Public signature routes (sin autenticación para firmas externas)
+Route::prefix('public/gastos')->group(function () {
+  Route::get('/{id}/info', [GastoController::class, 'getPublicInfo']);
+  Route::post('/{id}/sign', [GastoController::class, 'signExternally']);
+  Route::get('/{id}/signature-status', [GastoController::class, 'getPublicSignatureStatus']);
+});
+
 // WhatsApp routes
 Route::prefix('whatsapp')->group(function () {
   Route::post('/send-message', [WhatsAppController::class, 'sendMessage']);
@@ -280,6 +287,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::get('/gastos/{id}', [GastoController::class, 'show']);
   Route::put('/gastos/{id}', [GastoController::class, 'update']);
   Route::delete('/gastos/{id}', [GastoController::class, 'destroy']);
+  
+  // Rutas específicas para firmas de gastos
+  Route::get('/gastos/{id}/signature-status', [GastoController::class, 'getSignatureStatus']);
+  Route::post('/gastos/{id}/signature', [GastoController::class, 'updateSignature']);
 
   // Rutas para maestros y grupos
   Route::prefix('teacher')->group(function () {

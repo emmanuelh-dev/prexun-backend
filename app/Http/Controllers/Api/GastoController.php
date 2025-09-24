@@ -197,4 +197,134 @@ class GastoController extends Controller
         $gasto->delete();
         return response()->json(['message' => 'Gasto eliminado correctamente']);
     }
+
+    /**
+     * Get signature status for authenticated users
+     */
+    public function getSignatureStatus($id)
+    {
+        $gasto = Gasto::find($id);
+        
+        if (!$gasto) {
+            return response()->json(['message' => 'Gasto not found'], 404);
+        }
+
+        return response()->json([
+            'id' => $gasto->id,
+            'has_signature' => !empty($gasto->signature),
+            'signature' => $gasto->signature ? asset('storage/' . $gasto->signature) : null,
+            'signed_at' => $gasto->updated_at
+        ]);
+    }
+
+    /**
+     * Update signature for authenticated users
+     */
+    public function updateSignature(Request $request, $id)
+    {
+        $gasto = Gasto::find($id);
+        
+        if (!$gasto) {
+            return response()->json(['message' => 'Gasto not found'], 404);
+        }
+
+        $request->validate([
+            'signature' => 'required|file|image|max:2048' // File instead of string
+        ]);
+
+        // Delete old signature if exists
+        if ($gasto->signature) {
+            Storage::disk('public')->delete($gasto->signature);
+        }
+
+        // Store the uploaded signature file
+        $signaturePath = $request->file('signature')->store('gastos/signatures', 'public');
+        
+        $gasto->update(['signature' => $signaturePath]);
+
+        return response()->json([
+            'message' => 'Signature updated successfully',
+            'signature' => asset('storage/' . $signaturePath)
+        ]);
+    }
+
+    /**
+     * Get public gasto information for external signing (no authentication required)
+     */
+    public function getPublicInfo($id)
+    {
+        $gasto = Gasto::with(['admin:id,name', 'user:id,name'])->find($id);
+        
+        if (!$gasto) {
+            return response()->json(['message' => 'Gasto not found'], 404);
+        }
+
+        // Return only necessary information for signing
+        return response()->json([
+            'id' => $gasto->id,
+            'concept' => $gasto->concept,
+            'amount' => $gasto->amount,
+            'date' => $gasto->date,
+            'category' => $gasto->category,
+            'admin' => $gasto->admin ? $gasto->admin->name : null,
+            'user' => $gasto->user ? $gasto->user->name : null,
+            'signature' => $gasto->signature ? asset('storage/' . $gasto->signature) : null,
+            'has_signature' => !empty($gasto->signature)
+        ]);
+    }
+
+    /**
+     * Sign gasto externally (no authentication required)
+     */
+    public function signExternally(Request $request, $id)
+    {
+        $gasto = Gasto::find($id);
+        
+        if (!$gasto) {
+            return response()->json(['message' => 'Gasto not found'], 404);
+        }
+
+        // Check if already signed
+        if ($gasto->signature) {
+            return response()->json([
+                'message' => 'This expense is already signed',
+                'signature' => asset('storage/' . $gasto->signature)
+            ], 400);
+        }
+
+        $request->validate([
+            'signature' => 'required|file|image|max:2048' // File instead of string
+        ]);
+
+        // Store the uploaded signature file with external prefix
+        $fileName = 'signature_external_' . time() . '_' . uniqid() . '.' . $request->file('signature')->getClientOriginalExtension();
+        $signaturePath = $request->file('signature')->storeAs('gastos/signatures', $fileName, 'public');
+        
+        $gasto->update(['signature' => $signaturePath]);
+
+        return response()->json([
+            'message' => 'Expense signed successfully',
+            'signature' => asset('storage/' . $signaturePath),
+            'signed_at' => now()
+        ]);
+    }
+
+    /**
+     * Get public signature status (no authentication required)
+     */
+    public function getPublicSignatureStatus($id)
+    {
+        $gasto = Gasto::find($id);
+        
+        if (!$gasto) {
+            return response()->json(['message' => 'Gasto not found'], 404);
+        }
+
+        return response()->json([
+            'id' => $gasto->id,
+            'has_signature' => !empty($gasto->signature),
+            'signature' => $gasto->signature ? asset('storage/' . $gasto->signature) : null,
+            'signed_at' => $gasto->signature ? $gasto->updated_at : null
+        ]);
+    }
 }

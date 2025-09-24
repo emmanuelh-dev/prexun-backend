@@ -114,6 +114,7 @@ class AIFunctionService
         $baseMessage .= "- Registro de asistencias\n";
         $baseMessage .= "- Perfil completo del estudiante\n";
         $baseMessage .= "- Búsqueda de estudiantes\n\n";
+        $baseMessage .= "IMPORTANTE: EL ID ES EL MISMO QUE LA MATRÍCULA. POR LO QUE SI EL ESTUDIANTE TE DA SU MATRÍCULA, EN LA BASE DE DATOS LA PUEDES BUSCAR COMO EL ID EN LA TABLA DE STUDENTS, NO LO OLVIDES, ES IMPORTANTE";
         
         $baseMessage .= "Usa estas funciones cuando el estudiante pregunte por información específica.";
 
