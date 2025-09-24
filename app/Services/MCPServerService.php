@@ -669,7 +669,14 @@ class MCPServerService
      */
     public function generateFunctionsPrompt(): string
     {
-        $prompt = "Tienes acceso a las siguientes funciones para consultar información de estudiantes:\n\n";
+        $prompt = "INSTRUCCIONES IMPORTANTES:\n";
+        $prompt .= "- SIEMPRE responde en ESPAÑOL, sin excepción\n";
+        $prompt .= "- Usa un tono amable y profesional\n";
+        $prompt .= "- Cuando el usuario mencione 'matrícula', usar ese número como 'id' para buscar\n";
+        $prompt .= "- Presenta la información de manera clara y organizada\n";
+        $prompt .= "- Usa formato de lista con viñetas para facilitar la lectura\n\n";
+        
+        $prompt .= "FUNCIONES DISPONIBLES:\n\n";
         
         foreach ($this->availableFunctions as $functionName => $definition) {
             $prompt .= "**{$functionName}**: {$definition['description']}\n";
@@ -682,10 +689,164 @@ class MCPServerService
             $prompt .= "\n";
         }
         
-        $prompt .= "Para usar estas funciones, menciona el nombre de la función y los parámetros necesarios en tu respuesta.\n";
-        $prompt .= "Ejemplo: 'Necesito usar get_student_by_id con id: 12345'\n";
-        $prompt .= "IMPORTANTE: Cuando el usuario mencione 'matrícula', usar esa información como 'id' para buscar al estudiante.\n";
+        $prompt .= "EJEMPLOS DE USO:\n";
+        $prompt .= "- Usuario: 'Mi matrícula es 4054, ¿cuáles son mis pagos?'\n";
+        $prompt .= "- Acción: Usar get_student_by_id con id: '4054', luego get_student_payments\n";
+        $prompt .= "- Respuesta: Presentar información EN ESPAÑOL con formato amigable\n\n";
+        
+        $prompt .= "FORMATO DE RESPUESTA REQUERIDO:\n";
+        $prompt .= "- Saludo personalizado usando el nombre del estudiante\n";
+        $prompt .= "- Información organizada con viñetas o numeración\n";
+        $prompt .= "- Valores monetarios en formato peso mexicano (\$X,XXX.XX)\n";
+        $prompt .= "- Fechas en formato español (15 de septiembre de 2025)\n";
+        $prompt .= "- Cierre amable ofreciendo ayuda adicional\n";
+        $prompt .= "- TODO EN ESPAÑOL - NUNCA en inglés\n\n";
         
         return $prompt;
+    }
+
+    /**
+     * Generar instrucciones específicas para forzar respuestas en español
+     */
+    public function getSpanishResponseInstructions(): array
+    {
+        return [
+            'language' => 'es',
+            'instructions' => [
+                'OBLIGATORIO: Toda respuesta debe ser en español',
+                'Usar tono amable y profesional',
+                'Saludar al estudiante por su nombre cuando sea posible',
+                'Presentar información de forma organizada y clara',
+                'Usar formato de listas para facilitar lectura',
+                'Incluir valores monetarios en pesos mexicanos',
+                'Fechas en formato español (día de mes de año)',
+                'Finalizar ofreciendo ayuda adicional',
+                'NUNCA responder en inglés - siempre en español'
+            ],
+            'examples' => [
+                'greeting' => 'Hola [Nombre], aquí tienes la información solicitada:',
+                'currency' => '$1,500.00 pesos mexicanos',
+                'date' => '15 de septiembre de 2025',
+                'closing' => '¿Te puedo ayudar con algo más?'
+            ]
+        ];
+    }
+
+    /**
+     * Formatear información de pagos para respuesta en español
+     */
+    public function formatPaymentResponseSpanish(array $paymentData): string
+    {
+        $student = $paymentData['student_name'] ?? 'Estudiante';
+        $studentId = $paymentData['student_id'] ?? 'N/A';
+        
+        $response = "Hola **{$student}** (Matrícula: {$studentId}), aquí tienes la información de tus pagos:\n\n";
+        
+        // Resumen financiero
+        $response .= "## 💰 Resumen Financiero:\n";
+        $response .= "- **Total Pagado:** \${$paymentData['total_paid']} pesos mexicanos\n";
+        $response .= "- **Total Pendiente:** \${$paymentData['total_pending']} pesos mexicanos\n\n";
+        
+        // Última transacción
+        if (!empty($paymentData['last_transaction'])) {
+            $lastTx = $paymentData['last_transaction'];
+            $response .= "## 📋 Última Transacción:\n";
+            $response .= "- **Monto:** \${$lastTx['amount']} pesos\n";
+            $response .= "- **Estado:** " . ($lastTx['paid'] ? 'Pagado ✅' : 'Pendiente ⏳') . "\n";
+            
+            if ($lastTx['payment_date']) {
+                $response .= "- **Fecha de Pago:** {$this->formatDateSpanish($lastTx['payment_date'])}\n";
+            }
+            if ($lastTx['expiration_date']) {
+                $response .= "- **Fecha de Vencimiento:** {$this->formatDateSpanish($lastTx['expiration_date'])}\n";
+            }
+            if ($lastTx['transaction_type']) {
+                $response .= "- **Tipo:** {$this->translateTransactionType($lastTx['transaction_type'])}\n";
+            }
+            if ($lastTx['payment_method']) {
+                $response .= "- **Método de Pago:** {$this->translatePaymentMethod($lastTx['payment_method'])}\n";
+            }
+            $response .= "\n";
+        }
+        
+        // Transacciones recientes
+        if (!empty($paymentData['recent_transactions'])) {
+            $response .= "## 📊 Transacciones Recientes:\n";
+            foreach ($paymentData['recent_transactions'] as $index => $tx) {
+                $response .= ($index + 1) . ". **ID:** {$tx['id']} - **Monto:** \${$tx['amount']} - ";
+                $response .= "**Estado:** " . ($tx['paid'] ? 'Pagado ✅' : 'Pendiente ⏳') . "\n";
+            }
+            $response .= "\n";
+        }
+        
+        $response .= "¿Te puedo ayudar con alguna otra información? 😊";
+        
+        return $response;
+    }
+
+    /**
+     * Formatear fecha en español
+     */
+    private function formatDateSpanish(string $date): string
+    {
+        $months = [
+            1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril',
+            5 => 'mayo', 6 => 'junio', 7 => 'julio', 8 => 'agosto',
+            9 => 'septiembre', 10 => 'octubre', 11 => 'noviembre', 12 => 'diciembre'
+        ];
+        
+        $timestamp = strtotime($date);
+        $day = date('j', $timestamp);
+        $month = $months[(int)date('n', $timestamp)];
+        $year = date('Y', $timestamp);
+        
+        return "{$day} de {$month} de {$year}";
+    }
+
+    /**
+     * Traducir tipos de transacción
+     */
+    private function translateTransactionType(string $type): string
+    {
+        $types = [
+            'payment' => 'Pago',
+            'enrollment' => 'Inscripción',
+            'tuition' => 'Colegiatura',
+            'fee' => 'Cuota',
+            'penalty' => 'Recargo',
+            'refund' => 'Reembolso'
+        ];
+        
+        return $types[strtolower($type)] ?? ucfirst($type);
+    }
+
+    /**
+     * Traducir métodos de pago
+     */
+    private function translatePaymentMethod(string $method): string
+    {
+        $methods = [
+            'transfer' => 'Transferencia',
+            'cash' => 'Efectivo',
+            'card' => 'Tarjeta',
+            'check' => 'Cheque',
+            'online' => 'Pago en línea',
+            'bank_deposit' => 'Depósito bancario'
+        ];
+        
+        return $methods[strtolower($method)] ?? ucfirst($method);
+    }
+
+    /**
+     * Generar contexto completo para la IA incluyendo instrucciones de idioma
+     */
+    public function generateAIContext(): array
+    {
+        return [
+            'functions_available' => $this->getAvailableFunctions(),
+            'instructions' => $this->generateFunctionsPrompt(),
+            'language_rules' => $this->getSpanishResponseInstructions(),
+            'system_message' => 'Eres un asistente educativo que ayuda a estudiantes con información académica y de pagos. SIEMPRE respondes en español de manera amable y profesional.'
+        ];
     }
 }
