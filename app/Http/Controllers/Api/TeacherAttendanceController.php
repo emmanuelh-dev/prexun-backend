@@ -8,6 +8,7 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class TeacherAttendanceController extends Controller
 {
@@ -15,9 +16,46 @@ class TeacherAttendanceController extends Controller
   {
     try {
       DB::beginTransaction();
+      
+      // Procesar la fecha antes de la validación
+      $dateInput = $request->date;
+      if ($dateInput) {
+        try {
+          // Si viene en formato ISO 8601 con hora, extraer solo la fecha
+          if (strpos($dateInput, 'T') !== false) {
+            $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
+          }
+          // Convertir formato dd/mm/yyyy a Y-m-d
+          elseif (strpos($dateInput, '/') !== false) {
+            $dateInput = Carbon::createFromFormat('d/m/Y', $dateInput)->format('Y-m-d');
+          }
+          // Si ya está en formato Y-m-d, verificar que sea válido
+          elseif (strpos($dateInput, '-') !== false && strlen($dateInput) === 10) {
+            $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
+          }
+          // Otros formatos posibles
+          else {
+            $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
+          }
+          
+          $request->merge(['date' => $dateInput]);
+        } catch (\Exception $dateError) {
+          Log::error('Error al procesar fecha:', [
+            'fecha_original' => $request->date,
+            'error' => $dateError->getMessage()
+          ]);
+          
+          return response()->json([
+            'success' => false,
+            'message' => 'Formato de fecha inválido. Use el formato YYYY-MM-DD, DD/MM/YYYY o fecha válida.',
+            'fecha_recibida' => $request->date
+          ], 422);
+        }
+      }
+      
       $validatedData = $request->validate([
         'grupo_id' => 'required|exists:grupos,id',
-        'date' => 'required|date',
+        'date' => 'required|date_format:Y-m-d',
         'attendance' => 'required|array',
       ]);
 
@@ -90,6 +128,28 @@ class TeacherAttendanceController extends Controller
   public function getAttendance($grupo_id, $date)
   {
     try {
+      // Procesar el formato de fecha
+      try {
+        if (strpos($date, 'T') !== false) {
+          $date = Carbon::parse($date)->format('Y-m-d');
+        } elseif (strpos($date, '/') !== false) {
+          $date = Carbon::createFromFormat('d/m/Y', $date)->format('Y-m-d');
+        } else {
+          $date = Carbon::parse($date)->format('Y-m-d');
+        }
+      } catch (\Exception $dateError) {
+        Log::error('Error al procesar fecha en getAttendance:', [
+          'fecha_original' => $date,
+          'error' => $dateError->getMessage()
+        ]);
+        
+        return response()->json([
+          'success' => false,
+          'message' => 'Formato de fecha inválido en consulta.',
+          'fecha_recibida' => $date
+        ], 422);
+      }
+      
       $attendance = Attendance::with('student')
         ->where('grupo_id', $grupo_id)
         ->where('date', $date)
@@ -132,21 +192,37 @@ class TeacherAttendanceController extends Controller
   public function quickStore(Request $request)
   {
     try {
+      // Procesar la fecha antes de la validación
+      $dateInput = $request->date;
+      if ($dateInput) {
+        try {
+          if (strpos($dateInput, 'T') !== false) {
+            $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
+          } elseif (strpos($dateInput, '/') !== false) {
+            $dateInput = Carbon::createFromFormat('d/m/Y', $dateInput)->format('Y-m-d');
+          } else {
+            $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
+          }
+          $request->merge(['date' => $dateInput]);
+        } catch (\Exception $dateError) {
+          return response()->json([
+            'success' => false,
+            'message' => 'Formato de fecha inválido: ' . $dateError->getMessage()
+          ], 422);
+        }
+      }
+
       $validated = $request->validate([
         'student_id' => 'required|exists:students,id',
-        'date' => 'required|date',
+        'date' => 'required|date_format:Y-m-d',
         'present' => 'required|boolean',
         'attendance_time' => 'nullable|date'
       ]);
 
       $student = Student::with('assignments')->findOrFail($validated['student_id']);
 
-      // Procesar la fecha para asegurar formato consistente
+      // La fecha ya está procesada
       $date = $validated['date'];
-      // Si viene en formato ISO 8601, extraer solo la fecha
-      if (strpos($date, 'T') !== false) {
-        $date = \Carbon\Carbon::parse($date)->format('Y-m-d');
-      }
 
       if (!$student->assignments) {
         throw new \Exception('El estudiante no tiene asignaciones.');
