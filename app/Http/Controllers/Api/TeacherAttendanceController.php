@@ -19,19 +19,41 @@ class TeacherAttendanceController extends Controller
       
       // Procesar la fecha antes de la validación
       $dateInput = $request->date;
+      $originalDate = $dateInput; // Guardar fecha original para logs
       if ($dateInput) {
         try {
           // Si viene en formato ISO 8601 con hora, extraer solo la fecha
           if (strpos($dateInput, 'T') !== false) {
             $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
           }
-          // Convertir formato dd/mm/yyyy a Y-m-d
+          // Convertir formato español dd/m/yyyy o d/m/yyyy a Y-m-d
           elseif (strpos($dateInput, '/') !== false) {
-            $dateInput = Carbon::createFromFormat('d/m/Y', $dateInput)->format('Y-m-d');
+            // Intentar diferentes formatos españoles
+            $formats = ['d/m/Y', 'j/n/Y', 'd/n/Y', 'j/m/Y'];
+            $parsed = false;
+            
+            foreach ($formats as $format) {
+              try {
+                $dateInput = Carbon::createFromFormat($format, $dateInput)->format('Y-m-d');
+                $parsed = true;
+                break;
+              } catch (\Exception $e) {
+                continue;
+              }
+            }
+            
+            if (!$parsed) {
+              throw new \Exception("No se pudo convertir la fecha: {$dateInput}");
+            }
           }
-          // Si ya está en formato Y-m-d, verificar que sea válido
-          elseif (strpos($dateInput, '-') !== false && strlen($dateInput) === 10) {
-            $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
+          // Si ya está en formato Y-m-d, verificar que sea válido y mantenerlo
+          elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateInput)) {
+            // Validar que la fecha sea válida
+            $carbon = Carbon::createFromFormat('Y-m-d', $dateInput);
+            if ($carbon->format('Y-m-d') !== $dateInput) {
+              throw new \Exception("Fecha inválida: {$dateInput}");
+            }
+            // La fecha ya está en el formato correcto, no necesita cambios
           }
           // Otros formatos posibles
           else {
@@ -39,16 +61,23 @@ class TeacherAttendanceController extends Controller
           }
           
           $request->merge(['date' => $dateInput]);
+          
+          Log::info('Fecha procesada exitosamente:', [
+            'fecha_original' => $originalDate,
+            'fecha_procesada' => $dateInput
+          ]);
+          
         } catch (\Exception $dateError) {
           Log::error('Error al procesar fecha:', [
-            'fecha_original' => $request->date,
+            'fecha_original' => $originalDate,
             'error' => $dateError->getMessage()
           ]);
           
           return response()->json([
             'success' => false,
-            'message' => 'Formato de fecha inválido. Use el formato YYYY-MM-DD, DD/MM/YYYY o fecha válida.',
-            'fecha_recibida' => $request->date
+            'message' => 'Formato de fecha inválido. Formatos aceptados: YYYY-MM-DD, DD/MM/YYYY, D/M/YYYY.',
+            'fecha_recibida' => $originalDate,
+            'error_detalle' => $dateError->getMessage()
           ], 422);
         }
       }
@@ -133,7 +162,23 @@ class TeacherAttendanceController extends Controller
         if (strpos($date, 'T') !== false) {
           $date = Carbon::parse($date)->format('Y-m-d');
         } elseif (strpos($date, '/') !== false) {
-          $date = Carbon::createFromFormat('d/m/Y', $date)->format('Y-m-d');
+          // Intentar diferentes formatos españoles
+          $formats = ['d/m/Y', 'j/n/Y', 'd/n/Y', 'j/m/Y'];
+          $parsed = false;
+          
+          foreach ($formats as $format) {
+            try {
+              $date = Carbon::createFromFormat($format, $date)->format('Y-m-d');
+              $parsed = true;
+              break;
+            } catch (\Exception $e) {
+              continue;
+            }
+          }
+          
+          if (!$parsed) {
+            throw new \Exception("No se pudo convertir la fecha: {$date}");
+          }
         } else {
           $date = Carbon::parse($date)->format('Y-m-d');
         }
@@ -194,20 +239,56 @@ class TeacherAttendanceController extends Controller
     try {
       // Procesar la fecha antes de la validación
       $dateInput = $request->date;
+      $originalDate = $dateInput; // Guardar fecha original para logs
       if ($dateInput) {
         try {
           if (strpos($dateInput, 'T') !== false) {
             $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
           } elseif (strpos($dateInput, '/') !== false) {
-            $dateInput = Carbon::createFromFormat('d/m/Y', $dateInput)->format('Y-m-d');
+            // Intentar diferentes formatos españoles
+            $formats = ['d/m/Y', 'j/n/Y', 'd/n/Y', 'j/m/Y'];
+            $parsed = false;
+            
+            foreach ($formats as $format) {
+              try {
+                $dateInput = Carbon::createFromFormat($format, $dateInput)->format('Y-m-d');
+                $parsed = true;
+                break;
+              } catch (\Exception $e) {
+                continue;
+              }
+            }
+            
+            if (!$parsed) {
+              throw new \Exception("No se pudo convertir la fecha: {$dateInput}");
+            }
+          } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateInput)) {
+            // Validar que la fecha sea válida
+            $carbon = Carbon::createFromFormat('Y-m-d', $dateInput);
+            if ($carbon->format('Y-m-d') !== $dateInput) {
+              throw new \Exception("Fecha inválida: {$dateInput}");
+            }
+            // La fecha ya está en el formato correcto, no necesita cambios
           } else {
             $dateInput = Carbon::parse($dateInput)->format('Y-m-d');
           }
           $request->merge(['date' => $dateInput]);
+          
+          Log::info('Fecha procesada en quickStore:', [
+            'fecha_original' => $originalDate,
+            'fecha_procesada' => $dateInput
+          ]);
+          
         } catch (\Exception $dateError) {
+          Log::error('Error al procesar fecha en quickStore:', [
+            'fecha_original' => $originalDate,
+            'error' => $dateError->getMessage()
+          ]);
+          
           return response()->json([
             'success' => false,
-            'message' => 'Formato de fecha inválido: ' . $dateError->getMessage()
+            'message' => 'Formato de fecha inválido: ' . $dateError->getMessage(),
+            'fecha_recibida' => $originalDate
           ], 422);
         }
       }
