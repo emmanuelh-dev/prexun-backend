@@ -91,6 +91,8 @@ class TeacherAttendanceController extends Controller
       $attendanceCount = 0;
       $presentCount = 0;
       $absentCount = 0;
+      $alreadyExistsCount = 0;
+      $newRecordsCount = 0;
 
       foreach ($request->attendance as $record) {
         $studentId = $record['student_id'];
@@ -98,24 +100,47 @@ class TeacherAttendanceController extends Controller
         $attendanceTime = $record['attendance_time'] ?? now()->toISOString();
         $notes = $record['notes'] ?? null;
 
-        $attendance = Attendance::updateOrCreate(
-          [
+        // Verificar si ya existe el registro
+        $existingAttendance = Attendance::where('student_id', $studentId)
+          ->where('grupo_id', $request->grupo_id)
+          ->where('date', $request->date)
+          ->first();
+
+        if ($existingAttendance) {
+          // Si ya existe, no actualizar, solo contar como procesado
+          Log::info('Asistencia ya existente, no se actualiza', [
             'student_id' => $studentId,
             'grupo_id' => $request->grupo_id,
-            'date' => $request->date,
-          ],
-          [
-            'present' => $isPresent,
-            'attendance_time' => $attendanceTime,
-            'notes' => $notes
-          ]
-        );
+            'fecha' => $request->date,
+            'presente_existente' => $existingAttendance->present
+          ]);
+          
+          $attendanceCount++;
+          $alreadyExistsCount++;
+          if ($existingAttendance->present) {
+            $presentCount++;
+          } else {
+            $absentCount++;
+          }
+          continue;
+        }
+
+        // Solo crear si no existe
+        $attendance = Attendance::create([
+          'student_id' => $studentId,
+          'grupo_id' => $request->grupo_id,
+          'date' => $request->date,
+          'present' => $isPresent,
+          'attendance_time' => $attendanceTime,
+          'notes' => $notes
+        ]);
 
         if (!$attendance) {
           throw new \Exception('Error al guardar la asistencia para el estudiante ' . $studentId);
         }
 
         $attendanceCount++;
+        $newRecordsCount++;
         if ($isPresent) {
           $presentCount++;
         } else {
@@ -125,18 +150,36 @@ class TeacherAttendanceController extends Controller
 
       DB::commit();
 
-      Log::info('Asistencia guardada exitosamente', [
+      Log::info('Asistencia procesada exitosamente', [
         'fecha' => $request->date,
         'grupo_id' => $request->grupo_id,
         'total_estudiantes' => $attendanceCount,
+        'nuevos_registros' => $newRecordsCount,
+        'ya_existian' => $alreadyExistsCount,
         'presentes' => $presentCount,
         'ausentes' => $absentCount,
         'timestamp' => now()->toISOString()
       ]);
 
+      // Determinar el mensaje apropiado
+      if ($newRecordsCount > 0 && $alreadyExistsCount > 0) {
+        $message = "Se guardaron {$newRecordsCount} asistencias nuevas. {$alreadyExistsCount} ya estaban registradas.";
+      } elseif ($newRecordsCount > 0) {
+        $message = 'Asistencia guardada correctamente';
+      } else {
+        $message = 'Todas las asistencias ya estaban registradas previamente';
+      }
+
       return response()->json([
         'success' => true,
-        'message' => 'Asistencia guardada correctamente'
+        'message' => $message,
+        'summary' => [
+          'total_processed' => $attendanceCount,
+          'new_records' => $newRecordsCount,
+          'already_existed' => $alreadyExistsCount,
+          'present_count' => $presentCount,
+          'absent_count' => $absentCount
+        ]
       ]);
     } catch (\Exception $e) {
       DB::rollBack();
@@ -310,47 +353,38 @@ class TeacherAttendanceController extends Controller
 
       $grupo_id = $student->assignments->first()->grupo_id;
 
-      // Intentar crear o actualizar la asistencia
-      try {
-        $attendance = Attendance::updateOrCreate(
-          [
-            'student_id' => $validated['student_id'],
-            'grupo_id' => $grupo_id,
-            'date' => $date,
-          ],
-          [
-            'present' => $validated['present'],
-            'attendance_time' => $validated['attendance_time'] ?? now(),
-          ]
-        );
-      } catch (\Illuminate\Database\QueryException $e) {
-        if ($e->errorInfo[1] == 1062) {
-          $existingAttendance = Attendance::where('student_id', $validated['student_id'])
-            ->where('grupo_id', $grupo_id)
-            ->where('date', $date)
-            ->first();
-          
-          if ($existingAttendance) {
-            Log::info('Asistencia ya registrada previamente', [
-              'attendance_id' => $existingAttendance->id,
-              'student_id' => $validated['student_id'],
-              'grupo_id' => $grupo_id,
-              'fecha' => $date,
-              'presente' => $existingAttendance->present,
-              'timestamp' => now()->toISOString()
-            ]);
+      // Primero verificar si ya existe el registro
+      $existingAttendance = Attendance::where('student_id', $validated['student_id'])
+        ->where('grupo_id', $grupo_id)
+        ->where('date', $date)
+        ->first();
 
-            return response()->json([
-              'success' => true,
-              'message' => 'La asistencia ya está registrada correctamente',
-              'data' => $existingAttendance
-            ]);
-          }
-        }
-        
-        // Si no es un error de duplicado o no se encuentra el registro, relanzar la excepción
-        throw $e;
+      if ($existingAttendance) {
+        Log::info('Asistencia ya registrada previamente', [
+          'attendance_id' => $existingAttendance->id,
+          'student_id' => $validated['student_id'],
+          'grupo_id' => $grupo_id,
+          'fecha' => $date,
+          'presente' => $existingAttendance->present,
+          'timestamp' => now()->toISOString()
+        ]);
+
+        return response()->json([
+          'success' => true,
+          'message' => 'La asistencia ya estaba registrada previamente',
+          'data' => $existingAttendance,
+          'already_exists' => true
+        ]);
       }
+
+      // Si no existe, crear el nuevo registro
+      $attendance = Attendance::create([
+        'student_id' => $validated['student_id'],
+        'grupo_id' => $grupo_id,
+        'date' => $date,
+        'present' => $validated['present'],
+        'attendance_time' => $validated['attendance_time'] ?? now(),
+      ]);
 
       Log::info('Asistencia rápida guardada exitosamente', [
         'attendance_id' => $attendance->id,
