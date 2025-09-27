@@ -237,9 +237,8 @@ class TeacherAttendanceController extends Controller
   public function quickStore(Request $request)
   {
     try {
-      // Procesar la fecha antes de la validación
       $dateInput = $request->date;
-      $originalDate = $dateInput; // Guardar fecha original para logs
+      $originalDate = $dateInput;
       if ($dateInput) {
         try {
           if (strpos($dateInput, 'T') !== false) {
@@ -309,22 +308,54 @@ class TeacherAttendanceController extends Controller
         throw new \Exception('El estudiante no tiene asignaciones.');
       }
 
-      $attendance = Attendance::updateOrCreate(
-        [
-          'student_id' => $validated['student_id'],
-          'grupo_id' => $student->assignments->first()->grupo_id,
-          'date' => $date,
-          'attendance_time' => $validated['attendance_time'] ?? null,
-        ],
-        [
-          'present' => $validated['present'],
-        ]
-      );
+      $grupo_id = $student->assignments->first()->grupo_id;
+
+      // Intentar crear o actualizar la asistencia
+      try {
+        $attendance = Attendance::updateOrCreate(
+          [
+            'student_id' => $validated['student_id'],
+            'grupo_id' => $grupo_id,
+            'date' => $date,
+          ],
+          [
+            'present' => $validated['present'],
+            'attendance_time' => $validated['attendance_time'] ?? now(),
+          ]
+        );
+      } catch (\Illuminate\Database\QueryException $e) {
+        if ($e->errorInfo[1] == 1062) {
+          $existingAttendance = Attendance::where('student_id', $validated['student_id'])
+            ->where('grupo_id', $grupo_id)
+            ->where('date', $date)
+            ->first();
+          
+          if ($existingAttendance) {
+            Log::info('Asistencia ya registrada previamente', [
+              'attendance_id' => $existingAttendance->id,
+              'student_id' => $validated['student_id'],
+              'grupo_id' => $grupo_id,
+              'fecha' => $date,
+              'presente' => $existingAttendance->present,
+              'timestamp' => now()->toISOString()
+            ]);
+
+            return response()->json([
+              'success' => true,
+              'message' => 'La asistencia ya está registrada correctamente',
+              'data' => $existingAttendance
+            ]);
+          }
+        }
+        
+        // Si no es un error de duplicado o no se encuentra el registro, relanzar la excepción
+        throw $e;
+      }
 
       Log::info('Asistencia rápida guardada exitosamente', [
         'attendance_id' => $attendance->id,
         'student_id' => $validated['student_id'],
-        'grupo_id' => $student->grupo->id,
+        'grupo_id' => $grupo_id,
         'fecha' => $date,
         'presente' => $validated['present'],
         'timestamp' => now()->toISOString()
@@ -393,6 +424,8 @@ class TeacherAttendanceController extends Controller
 
   public function getTodayAttendance($date)
   {
+
+    Log::info("Obteniendo asistencias para la fecha " . $date);
     try {
       $attendance = Attendance::with(['student', 'grupo'])
         ->where('date', $date)
