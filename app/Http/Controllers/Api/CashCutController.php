@@ -19,7 +19,7 @@ class CashCutController extends Controller
     {
         $cashRegister = CashRegister::where('campus_id', $campus->id)
             ->where('status', 'abierta')
-            ->with(['transactions.transactionDetails.denomination', 'gastos'])
+            ->with(['transactions', 'gastos'])
             ->first();
 
         if (!$cashRegister) {
@@ -61,6 +61,10 @@ class CashCutController extends Controller
             'campus_id' => $cashRegister->campus_id,
             'transactions' => $transactions,
             'gastos' => $gastos,
+            'summary' => $cashRegister->getTransactionsSummary(),
+            'current_balance' => $cashRegister->getCurrentBalance(),
+            'cash_balance' => $cashRegister->getCashBalance(),
+            'is_balanced' => $cashRegister->isBalanced(),
         ];
 
         return response()->json($response);
@@ -145,19 +149,23 @@ class CashCutController extends Controller
         ]);
 
         $finalAmountCash = isset($validated['final_amount_cash'])
-            ? (object)$validated['final_amount_cash']
+            ? (is_string($validated['final_amount_cash']) 
+                ? $validated['final_amount_cash'] 
+                : json_encode($validated['final_amount_cash']))
             : null;
 
-        $nextDay = isset($validated['next_day_cash'])
-            ? (object)$validated['next_day_cash']
+        $nextDayCash = isset($validated['next_day_cash'])
+            ? (is_string($validated['next_day_cash']) 
+                ? $validated['next_day_cash'] 
+                : json_encode($validated['next_day_cash']))
             : null;
 
         $cashRegister->update([
             'next_day' => $validated['next_day'] ?? null,
-            'next_day_cash' => $nextDay ? json_encode($nextDay) : null,
+            'next_day_cash' => $nextDayCash,
             'final_amount' => $validated['final_amount'],
             'notes' => $validated['notes'] ?? $cashRegister->notes,
-            'final_amount_cash' => $finalAmountCash ? json_encode($finalAmountCash) : null,
+            'final_amount_cash' => $finalAmountCash,
             'status' => $validated['status'],
             'closed_at' => $validated['status'] === 'cerrada' ? now() : null,
         ]);

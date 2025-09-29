@@ -39,7 +39,7 @@ class CashRegister extends Model
         return $this->hasMany(Gasto::class);
     }
 
-    public function capus(): BelongsTo
+    public function campus(): BelongsTo
     {
         return $this->belongsTo(Campus::class);
     }
@@ -58,12 +58,14 @@ class CashRegister extends Model
     public function getCurrentBalance()
     {
         $incomingTotal = $this->transactions()
-            ->where('type', 'entrada')
-            ->sum('total_amount');
+            ->where('transaction_type', 'income')
+            ->where('paid', true)
+            ->where('payment_method', 'cash')
+            ->sum('amount');
 
-        $outgoingTotal = $this->transactions()
-            ->where('type', 'salida')
-            ->sum('total_amount');
+        $outgoingTotal = $this->gastos()
+            ->where('method', 'cash')
+            ->sum('amount');
 
         return $this->initial_amount + $incomingTotal - $outgoingTotal;
     }
@@ -90,8 +92,17 @@ class CashRegister extends Model
     public function getTransactionsSummary()
     {
         return [
-            'total_income' => $this->transactions()->where('type', 'entrada')->sum('total_amount'),
-            'total_outgoing' => $this->transactions()->where('type', 'salida')->sum('total_amount'),
+            'total_income' => $this->transactions()
+                ->where('transaction_type', 'income')
+                ->where('paid', true)
+                ->sum('amount'),
+            'total_cash_income' => $this->transactions()
+                ->where('transaction_type', 'income')
+                ->where('paid', true)
+                ->where('payment_method', 'cash')
+                ->sum('amount'),
+            'total_expenses' => $this->gastos()->sum('amount'),
+            'total_cash_expenses' => $this->gastos()->where('method', 'cash')->sum('amount'),
             'total_transactions' => $this->transactions()->count()
         ];
     }
@@ -99,9 +110,9 @@ class CashRegister extends Model
     public function getDenominationsSummary()
     {
         return $this->transactions()
-            ->with('details.denomination')
+            ->with('transactionDetails.denomination')
             ->get()
-            ->pluck('details')
+            ->pluck('transactionDetails')
             ->flatten()
             ->groupBy('denomination_id')
             ->map(function ($details) {
@@ -113,5 +124,29 @@ class CashRegister extends Model
                     'total_amount' => $denomination->value * $details->sum('quantity')
                 ];
             });
+    }
+
+    public function getCashBalance()
+    {
+        $cashTransactions = $this->transactions()
+            ->where('payment_method', 'cash')
+            ->where('paid', true)
+            ->sum('amount');
+
+        $cashExpenses = $this->gastos()
+            ->where('method', 'cash')
+            ->sum('amount');
+
+        return $this->initial_amount + $cashTransactions - $cashExpenses;
+    }
+
+    public function isBalanced()
+    {
+        $expectedAmount = $this->getCashBalance();
+        $tolerance = 0.01;
+        
+        return $this->final_amount 
+            ? abs($this->final_amount - $expectedAmount) <= $tolerance
+            : null;
     }
 }

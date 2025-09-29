@@ -138,6 +138,7 @@ class TransactionController extends Controller
       'campus_id' => 'required|exists:campuses,id',
       'amount' => 'required|numeric|min:0',
       'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
+      'transaction_type' => ['nullable', Rule::in(['income', 'payment', 'ingreso'])],
       'expiration_date' => 'nullable|date',
       'payment_date' => 'nullable|date_format:Y-m-d H:i:s',
       'notes' => 'nullable|string|max:255',
@@ -146,6 +147,7 @@ class TransactionController extends Controller
       'image' => 'nullable|image',
       'card_id' => 'nullable|exists:cards,id',
       'sat' => 'nullable|boolean',
+      'cash_register_id' => 'nullable|exists:cash_registers,id',
     ]);
 
     if ($request->hasFile('image')) {
@@ -175,7 +177,7 @@ class TransactionController extends Controller
           'payment_method' => $validated['payment_method'],
           'notes' => $validated['notes'] ?? null,
           'paid' => $validated['paid'],
-          'transaction_type' => 'payment',
+          'transaction_type' => $validated['transaction_type'] ?? ($validated['paid'] ? 'income' : 'payment'),
           'expiration_date' => $validated['expiration_date'] ?? Carbon::now()->addDays(15)->format('Y-m-d'),
           'uuid' => Str::uuid(),
           'debt_id' => $validated['debt_id'] ?? null,
@@ -183,7 +185,8 @@ class TransactionController extends Controller
           'folio' => $folio,
           'folio_new' => $folioNew,
           'image' => $validated['image'] ?? null,
-          'payment_date' => $validated['payment_date'] ?? ($validated['paid'] ? now() : null)
+          'payment_date' => $validated['payment_date'] ?? ($validated['paid'] ? now() : null),
+          'cash_register_id' => $validated['cash_register_id'] ?? null
         ]);
 
 
@@ -248,6 +251,7 @@ class TransactionController extends Controller
       'campus_id' => 'nullable|exists:campuses,id',
       'amount' => 'nullable|numeric|min:0',
       'payment_method' => ['nullable', Rule::in(['cash', 'transfer', 'card'])],
+      'transaction_type' => ['nullable', Rule::in(['income', 'payment', 'ingreso'])],
       'notes' => 'nullable|string|max:255',
       'paid' => 'nullable|boolean',
       'cash_register_id' => 'nullable|exists:cash_registers,id',
