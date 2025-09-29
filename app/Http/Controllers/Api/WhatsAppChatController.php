@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use App\Models\Mensaje;
 use App\Models\ChatMessage;
+use App\Models\Student;
 use App\Models\User;
 
 class WhatsAppChatController extends Controller
@@ -44,9 +45,12 @@ class WhatsAppChatController extends Controller
         $lastMessage = Mensaje::where('phone_number', $conversation->phone_number)
           ->orderBy('created_at', 'desc')
           ->first();
-
+        $lastTenDigits = substr($conversation->phone_number, -10);
+        $student = Student::where('phone', 'LIKE', "%{$lastTenDigits}%")->first();
+        $student2 = Student::where('phone', 'LIKE', "%{$lastTenDigits}%")->first();
         return [
           'phone_number' => $conversation->phone_number,
+          'name' => $student ? "$student->firstname $student->lastname" : null,
           'message_count' => $conversation->message_count,
           'received_count' => $conversation->received_count,
           'sent_count' => $conversation->sent_count,
