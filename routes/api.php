@@ -326,6 +326,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/', [CashCutController::class, 'index']);
     Route::post('/', [CashCutController::class, 'store']);
     Route::get('/current/{campus}', [CashCutController::class, 'current']);
+    Route::get('/{id}', [CashCutController::class, 'show']);
     Route::put('/{cashRegister}', [CashCutController::class, 'update']);
   });
 

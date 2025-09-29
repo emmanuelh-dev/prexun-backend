@@ -11,8 +11,63 @@ class CashCutController extends Controller
 {
     public function index(Request $request)
     {
-        $cashRegisters = CashRegister::with('transactions')->all();
+        $campusId = $request->query('campus_id');
+        
+        $query = CashRegister::with(['transactions', 'gastos', 'campus']);
+        
+        if ($campusId) {
+            $query->where('campus_id', $campusId);
+        }
+        
+        $cashRegisters = $query->orderBy('created_at', 'desc')->get();
+        
         return response()->json($cashRegisters);
+    }
+
+    public function show(Request $request, $id)
+    {
+        $cashRegister = CashRegister::with(['transactions', 'gastos', 'campus'])
+            ->findOrFail($id);
+
+        $transactions = $cashRegister->transactions->map(function ($transaction) {
+            return [
+                ...$transaction->toArray(),
+                'denominations' => $transaction->transactionDetails->map(function ($detail) {
+                    return [
+                        'value' => $detail->denomination->value,
+                        'type' => $detail->denomination->type,
+                        'quantity' => $detail->quantity,
+                    ];
+                }),
+            ];
+        });
+
+        $gastos = $cashRegister->gastos->map(function ($gasto) {
+            return [
+                ...$gasto->toArray(),
+                'denominations' => $gasto->gastoDetails->map(function ($detail) {
+                    return [
+                        'value' => $detail->denomination->value,
+                        'type' => $detail->denomination->type,
+                        'quantity' => $detail->quantity,
+                    ];
+                }),
+            ];
+        });
+
+        $response = [
+            ...$cashRegister->toArray(),
+            'status' => $cashRegister->status,
+            'campus_id' => $cashRegister->campus_id,
+            'transactions' => $transactions,
+            'gastos' => $gastos,
+            'summary' => $cashRegister->getTransactionsSummary(),
+            'current_balance' => $cashRegister->getCurrentBalance(),
+            'cash_balance' => $cashRegister->getCashBalance(),
+            'is_balanced' => $cashRegister->isBalanced(),
+        ];
+
+        return response()->json($response);
     }
 
     public function current(Request $request, Campus $campus)
