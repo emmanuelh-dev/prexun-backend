@@ -23,11 +23,6 @@ class GrupoController extends Controller
     $plantelId = $request->query('plantel_id');
     $periodId = $request->query('period_id');
 
-    Log::info('Fetching grupos', [
-      'plantel_id' => $plantelId,
-      'period_id' => $periodId
-    ]);
-
     $query = Grupo::with(['period', 'campuses'])
       ->withCount([
         'activeAssignments as active_assignments_count'

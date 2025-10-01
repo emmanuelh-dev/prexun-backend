@@ -31,7 +31,7 @@ class CashRegister extends Model
 
     public function transactions(): HasMany
     {
-        return $this->hasMany(Transaction::class);
+        return $this->hasMany(Transaction::class, 'cash_register_id');
     }
 
     public function gastos(): HasMany
@@ -62,7 +62,6 @@ class CashRegister extends Model
             ->first();
     }
 
-    // Métodos
     public function getCurrentBalance()
     {
         $incomingTotal = $this->transactions()
