@@ -54,6 +54,14 @@ class CashRegister extends Model
         return $query->where('status', 'cerrada');
     }
 
+    // Obtener la caja activa de un campus
+    public static function getActiveByCampus($campusId)
+    {
+        return self::where('campus_id', $campusId)
+            ->where('status', 'abierta')
+            ->first();
+    }
+
     // Métodos
     public function getCurrentBalance()
     {
@@ -64,7 +72,7 @@ class CashRegister extends Model
             ->sum('amount');
 
         $outgoingTotal = $this->gastos()
-            ->where('method', 'cash')
+            ->whereIn('method', ['cash', 'Efectivo'])
             ->sum('amount');
 
         return $this->initial_amount + $incomingTotal - $outgoingTotal;
@@ -102,7 +110,7 @@ class CashRegister extends Model
                 ->where('payment_method', 'cash')
                 ->sum('amount'),
             'total_expenses' => $this->gastos()->sum('amount'),
-            'total_cash_expenses' => $this->gastos()->where('method', 'cash')->sum('amount'),
+            'total_cash_expenses' => $this->gastos()->whereIn('method', ['cash', 'Efectivo'])->sum('amount'),
             'total_transactions' => $this->transactions()->count()
         ];
     }
@@ -134,7 +142,7 @@ class CashRegister extends Model
             ->sum('amount');
 
         $cashExpenses = $this->gastos()
-            ->where('method', 'cash')
+            ->whereIn('method', ['cash', 'Efectivo'])
             ->sum('amount');
 
         return $this->initial_amount + $cashTransactions - $cashExpenses;

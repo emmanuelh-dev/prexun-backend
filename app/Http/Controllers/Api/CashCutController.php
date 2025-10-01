@@ -137,47 +137,45 @@ class CashCutController extends Controller
         'next_day' => 'nullable',
     ]);
 
-    if ($validated['initial_amount'] === 0) {
-        $latestCashRegister = CashRegister::where('campus_id', $validated['campus_id'])
-            ->latest()
-            ->first();
-
-        if ($latestCashRegister) {
-            $validated['initial_amount_cash'] = is_string($latestCashRegister->next_day_cash) 
-                ? json_decode($latestCashRegister->next_day_cash, true)
-                : $latestCashRegister->next_day_cash;
-            $validated['initial_amount'] = $latestCashRegister->next_day;
-        } else {
-            $validated['initial_amount_cash'] = [
-                "5" => 0,
-                "10" => 0,
-                "20" => 0,
-                "50" => 0,
-                "100" => 0,
-                "200" => 0,
-                "500" => 0,
-                "1000" => 0
-            ];
-            $validated['initial_amount'] = 0;
+    // Validar que no haya otra caja abierta para este campus
+    if ($validated['status'] === 'abierta') {
+        $existingOpenCashRegister = CashRegister::getActiveByCampus($validated['campus_id']);
+        if ($existingOpenCashRegister) {
+            return response()->json([
+                'message' => 'Ya existe una caja abierta para este campus. Debe cerrarla antes de abrir una nueva.',
+                'cash_register_id' => $existingOpenCashRegister->id
+            ], 422);
         }
-
-        $initialAmountCash = json_encode($validated['initial_amount_cash']);
-    } else {
-        $initialAmountCash = json_encode(isset($validated['initial_amount_cash'])
-            ? (is_string($validated['initial_amount_cash']) 
-                ? json_decode($validated['initial_amount_cash'], true)
-                : $validated['initial_amount_cash'])
-            : [
-                "5" => 0,
-                "10" => 0,
-                "20" => 0,
-                "50" => 0,
-                "100" => 0,
-                "200" => 0,
-                "500" => 0,
-                "1000" => 0
-            ]);
     }
+
+    // Siempre usar el monto final de la última caja cerrada
+    $latestCashRegister = CashRegister::where('campus_id', $validated['campus_id'])
+        ->where('status', 'cerrada')
+        ->latest('closed_at')
+        ->first();
+
+    if ($latestCashRegister && $latestCashRegister->final_amount !== null) {
+        // Usar el monto final y denominaciones de la última caja cerrada
+        $validated['initial_amount'] = $latestCashRegister->final_amount;
+        $validated['initial_amount_cash'] = is_string($latestCashRegister->final_amount_cash) 
+            ? json_decode($latestCashRegister->final_amount_cash, true)
+            : $latestCashRegister->final_amount_cash;
+    } else {
+        // Si no hay caja anterior o no tiene final_amount, inicializar en 0
+        $validated['initial_amount'] = 0;
+        $validated['initial_amount_cash'] = [
+            "5" => 0,
+            "10" => 0,
+            "20" => 0,
+            "50" => 0,
+            "100" => 0,
+            "200" => 0,
+            "500" => 0,
+            "1000" => 0
+        ];
+    }
+
+    $initialAmountCash = json_encode($validated['initial_amount_cash']);
 
     $cashRegister = CashRegister::create([
         'campus_id' => $validated['campus_id'],
@@ -202,6 +200,13 @@ class CashCutController extends Controller
             'next_day' => 'nullable|numeric',
             'next_day_cash' => 'nullable|array',
         ]);
+
+        // Validar que la caja esté abierta antes de cerrarla
+        if ($validated['status'] === 'cerrada' && $cashRegister->status === 'cerrada') {
+            return response()->json([
+                'message' => 'Esta caja ya está cerrada.'
+            ], 422);
+        }
 
         $finalAmountCash = isset($validated['final_amount_cash'])
             ? (is_string($validated['final_amount_cash']) 
