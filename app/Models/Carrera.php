@@ -10,6 +10,11 @@ class Carrera extends Model
     public $timestamps = false;
     protected $fillable = ['name', 'facultad_id'];
 
+    public function assignments()
+    {
+        return $this->hasMany(StudentAssignment::class, 'carrer_id');
+    }
+
     public function facultad()
     {
         return $this->belongsTo(Facultad::class);

@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\Period;
 use App\Models\Grupo;
 use App\Models\SemanaIntensiva;
+use App\Models\Carrera;
 use App\Services\Moodle\MoodleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -27,7 +28,7 @@ class StudentAssignmentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva']);
+        $query = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera']);
 
         // Apply filters
         if ($request->has('student_id')) {
@@ -86,6 +87,7 @@ class StudentAssignmentController extends Controller
             'period_id' => 'nullable|exists:periods,id',
             'grupo_id' => 'nullable|exists:grupos,id',
             'semana_intensiva_id' => 'nullable|exists:semanas_intensivas,id',
+            'carrer_id' => 'nullable|exists:carreers,id',
             'assigned_at' => 'nullable|date',
             'valid_until' => 'nullable|date|after_or_equal:assigned_at',
             'is_active' => 'boolean',
@@ -115,7 +117,7 @@ class StudentAssignmentController extends Controller
         $this->syncAssignmentWithMoodle($assignment);
 
         return response()->json(
-            $assignment->load(['student', 'period', 'grupo', 'semanaIntensiva']),
+            $assignment->load(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera']),
             201
         );
     }
@@ -125,7 +127,7 @@ class StudentAssignmentController extends Controller
      */
     public function show($id)
     {
-        $assignment = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva'])
+        $assignment = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
             ->findOrFail($id);
 
         return response()->json($assignment);
@@ -143,6 +145,7 @@ class StudentAssignmentController extends Controller
             'period_id' => 'nullable|exists:periods,id',
             'grupo_id' => 'nullable|exists:grupos,id',
             'semana_intensiva_id' => 'nullable|exists:semanas_intensivas,id',
+            'carrer_id' => 'nullable|exists:carreers,id',
             'assigned_at' => 'sometimes|date',
             'valid_until' => 'nullable|date|after_or_equal:assigned_at',
             'is_active' => 'sometimes|boolean',
@@ -163,19 +166,21 @@ class StudentAssignmentController extends Controller
         // Capture old values for Moodle sync
         $oldGrupoId = $assignment->grupo_id;
         $oldSemanaIntensivaId = $assignment->semana_intensiva_id;
+        $oldCarrerId = $assignment->carrer_id;
 
         $assignment->update($validator->validated());
 
         // Sync with Moodle if grupo or semana intensiva changed
         $newGrupoId = $assignment->grupo_id;
         $newSemanaIntensivaId = $assignment->semana_intensiva_id;
+        $newCarrerId = $assignment->carrer_id;
         
-        if ($oldGrupoId !== $newGrupoId || $oldSemanaIntensivaId !== $newSemanaIntensivaId) {
-            $this->updateMoodleCohorts($assignment, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId);
+        if ($oldGrupoId !== $newGrupoId || $oldSemanaIntensivaId !== $newSemanaIntensivaId || $oldCarrerId !== $newCarrerId) {
+            $this->updateMoodleCohorts($assignment, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarrerId, $newCarrerId);
         }
 
         return response()->json(
-            $assignment->fresh(['student', 'period', 'grupo', 'semanaIntensiva'])
+            $assignment->fresh(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
         );
     }
 
@@ -197,7 +202,7 @@ class StudentAssignmentController extends Controller
      */
     public function getByStudent($studentId)
     {
-        $assignments = StudentAssignment::with(['period', 'grupo', 'semanaIntensiva'])
+        $assignments = StudentAssignment::with(['period', 'grupo', 'semanaIntensiva', 'carrera'])
             ->where('student_id', $studentId)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -255,6 +260,7 @@ class StudentAssignmentController extends Controller
             'assignments.*.period_id' => 'nullable|exists:periods,id',
             'assignments.*.grupo_id' => 'nullable|exists:grupos,id',
             'assignments.*.semana_intensiva_id' => 'nullable|exists:semanas_intensivas,id',
+            'assignments.*.carrer_id' => 'nullable|exists:carreers,id',
             'assignments.*.assigned_at' => 'nullable|date',
             'assignments.*.valid_until' => 'nullable|date',
             'assignments.*.is_active' => 'boolean',
@@ -276,7 +282,7 @@ class StudentAssignmentController extends Controller
             $assignmentData['is_active'] = $assignmentData['is_active'] ?? true;
             
             $assignment = StudentAssignment::create($assignmentData);
-            $assignments[] = $assignment->load(['student', 'period', 'grupo', 'semanaIntensiva']);
+            $assignments[] = $assignment->load(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera']);
             
             // Sync with Moodle
             $this->syncAssignmentWithMoodle($assignment);
@@ -300,6 +306,7 @@ class StudentAssignmentController extends Controller
             'updates.period_id' => 'nullable|exists:periods,id',
             'updates.grupo_id' => 'nullable|exists:grupos,id',
             'updates.semana_intensiva_id' => 'nullable|exists:semanas_intensivas,id',
+            'updates.carrer_id' => 'nullable|exists:carreers,id',
             'updates.valid_until' => 'nullable|date',
             'updates.is_active' => 'sometimes|boolean',
             'updates.notes' => 'nullable|string|max:1000',
@@ -317,18 +324,18 @@ class StudentAssignmentController extends Controller
 
         // Get assignments before update for Moodle sync
         $assignmentsBeforeUpdate = StudentAssignment::whereIn('id', $assignmentIds)
-            ->select('id', 'student_id', 'grupo_id', 'semana_intensiva_id')
+            ->select('id', 'student_id', 'grupo_id', 'semana_intensiva_id', 'carrer_id')
             ->get()
             ->keyBy('id');
 
         StudentAssignment::whereIn('id', $assignmentIds)->update($updates);
 
-        $updatedAssignments = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva'])
+        $updatedAssignments = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
             ->whereIn('id', $assignmentIds)
             ->get();
 
         // Sync with Moodle if grupo or semana intensiva changed
-        if (isset($updates['grupo_id']) || isset($updates['semana_intensiva_id'])) {
+        if (isset($updates['grupo_id']) || isset($updates['semana_intensiva_id']) || isset($updates['carrer_id'])) {
             foreach ($updatedAssignments as $assignment) {
                 $oldAssignment = $assignmentsBeforeUpdate->get($assignment->id);
                 if ($oldAssignment) {
@@ -337,7 +344,9 @@ class StudentAssignmentController extends Controller
                         $oldAssignment->grupo_id,
                         $assignment->grupo_id,
                         $oldAssignment->semana_intensiva_id,
-                        $assignment->semana_intensiva_id
+                        $assignment->semana_intensiva_id,
+                        $oldAssignment->carrer_id,
+                        $assignment->carrer_id
                     );
                 }
             }
@@ -372,7 +381,7 @@ class StudentAssignmentController extends Controller
             $assignment->update(['is_active' => !$assignment->is_active]);
         }
 
-        $updatedAssignments = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva'])
+        $updatedAssignments = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
             ->whereIn('id', $request->assignment_ids)
             ->get();
 
@@ -473,7 +482,7 @@ class StudentAssignmentController extends Controller
             
             // Add information about assignments in this specific period
             $student->period_assignments = $student->assignments()
-                ->with(['grupo', 'semanaIntensiva'])
+                ->with(['grupo', 'semanaIntensiva', 'carrera'])
                 ->where('period_id', $periodId)
                 ->where('is_active', true)
                 ->get();
@@ -536,6 +545,26 @@ class StudentAssignmentController extends Controller
                 }
             }
 
+            // Add to carrer modulos cohorts if assigned
+            if ($assignment->carrer_id && $assignment->carrera) {
+                $carrera = $assignment->carrera()->with('modulos')->first();
+                foreach ($carrera->modulos as $modulo) {
+                    if ($modulo->moodle_id) {
+                        $cohortsToAdd[] = [
+                            'cohorttype' => ['type' => 'id', 'value' => $modulo->moodle_id],
+                            'usertype' => ['type' => 'username', 'value' => (string) $student->id]
+                        ];
+                        Log::info('Preparing to add student to carrer modulo cohort', [
+                            'student_id' => $student->id,
+                            'assignment_id' => $assignment->id,
+                            'carrer_id' => $carrera->id,
+                            'modulo_id' => $modulo->id,
+                            'modulo_moodle_id' => $modulo->moodle_id
+                        ]);
+                    }
+                }
+            }
+
             // Add to cohorts in Moodle
             if (!empty($cohortsToAdd)) {
                 $response = $this->moodleService->cohorts()->addUserToCohort($cohortsToAdd);
@@ -570,159 +599,111 @@ class StudentAssignmentController extends Controller
      */
     private function updateMoodleCohorts(
         StudentAssignment $assignment,
-        ?int $oldGrupoId,
-        ?int $newGrupoId,
-        ?int $oldSemanaIntensivaId,
-        ?int $newSemanaIntensivaId
+        $oldGrupoId,
+        $newGrupoId,
+        $oldSemanaIntensivaId,
+        $newSemanaIntensivaId,
+        $oldCarrerId,
+        $newCarrerId
     ) {
-        try {
-            $student = $assignment->student;
-            
-            if (!$student) {
-                Log::warning('Student not found for assignment update', ['assignment_id' => $assignment->id]);
-                return;
-            }
+        $student = $assignment->student;
+        if (!$student || !$student->moodle_user_id) {
+            return;
+        }
 
-            // Ensure student has Moodle ID
-            $this->ensureStudentHasMoodleId($student);
+        $cohortsToRemove = $this->prepareCohortsToRemove($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarrerId, $newCarrerId);
+        if (!empty($cohortsToRemove)) {
+            $this->moodleService->cohorts()->removeUsersFromCohorts($cohortsToRemove);
+        }
 
-            $cohortsToRemove = $this->prepareCohortsToRemove($student, $oldGrupoId, $oldSemanaIntensivaId);
-            $cohortsToAdd = $this->prepareCohortsToAdd($student, $newGrupoId, $newSemanaIntensivaId);
-
-            // Remove from old cohorts
-            if (!empty($cohortsToRemove)) {
-                $removeResponse = $this->moodleService->cohorts()->removeUsersFromCohorts($cohortsToRemove);
-                
-                if ($removeResponse['status'] === 'success') {
-                    Log::info('Student successfully removed from old cohorts', [
-                        'student_id' => $student->id,
-                        'assignment_id' => $assignment->id,
-                        'cohorts_removed' => count($cohortsToRemove)
-                    ]);
-                } else {
-                    Log::error('Error removing student from old cohorts', [
-                        'student_id' => $student->id,
-                        'assignment_id' => $assignment->id,
-                        'error' => $removeResponse['message'] ?? 'Unknown error'
-                    ]);
-                }
-            }
-
-            // Add to new cohorts
-            if (!empty($cohortsToAdd)) {
-                $addResponse = $this->moodleService->cohorts()->addUserToCohort($cohortsToAdd);
-                
-                if ($addResponse['status'] === 'success') {
-                    Log::info('Student successfully added to new cohorts', [
-                        'student_id' => $student->id,
-                        'assignment_id' => $assignment->id,
-                        'cohorts_added' => count($cohortsToAdd)
-                    ]);
-                } else {
-                    Log::error('Error adding student to new cohorts', [
-                        'student_id' => $student->id,
-                        'assignment_id' => $assignment->id,
-                        'error' => $addResponse['message'] ?? 'Unknown error'
-                    ]);
-                }
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Exception during Moodle cohort update for assignment', [
-                'assignment_id' => $assignment->id,
-                'student_id' => $assignment->student_id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+        $cohortsToAdd = $this->prepareCohortsToAdd($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarrerId, $newCarrerId);
+        if (!empty($cohortsToAdd)) {
+            $this->moodleService->cohorts()->addUserToCohort($cohortsToAdd);
         }
     }
 
-    /**
-     * Prepare cohorts to remove student from.
-     */
-    private function prepareCohortsToRemove(Student $student, ?int $oldGrupoId, ?int $oldSemanaIntensivaId): array
+    private function prepareCohortsToRemove($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarrerId, $newCarrerId)
     {
         $cohortsToRemove = [];
 
-        // Remove from old grupo cohort
-        if ($oldGrupoId) {
-            $oldGrupo = Grupo::select('id', 'moodle_id', 'name')->find($oldGrupoId);
+        // Grupo cohort removal
+        if ($oldGrupoId && $oldGrupoId !== $newGrupoId) {
+            $oldGrupo = \App\Models\Grupo::find($oldGrupoId);
             if ($oldGrupo && $oldGrupo->moodle_id) {
                 $cohortsToRemove[] = [
-                    'userid' => $student->moodle_id,
-                    'cohortid' => $oldGrupo->moodle_id
+                    'cohorttype' => ['type' => 'id', 'value' => $oldGrupo->moodle_id],
+                    'usertype' => ['type' => 'username', 'value' => (string) $student->id]
                 ];
-                
-                Log::info('Preparing to remove student from old group cohort', [
-                    'student_id' => $student->id,
-                    'old_grupo_id' => $oldGrupoId,
-                    'old_cohort_id' => $oldGrupo->moodle_id,
-                    'grupo_name' => $oldGrupo->name
-                ]);
             }
         }
 
-        // Remove from old semana intensiva cohort
-        if ($oldSemanaIntensivaId) {
-            $oldSemanaIntensiva = SemanaIntensiva::select('id', 'moodle_id', 'name')->find($oldSemanaIntensivaId);
+        // Semana Intensiva cohort removal
+        if ($oldSemanaIntensivaId && $oldSemanaIntensivaId !== $newSemanaIntensivaId) {
+            $oldSemanaIntensiva = \App\Models\SemanaIntensiva::find($oldSemanaIntensivaId);
             if ($oldSemanaIntensiva && $oldSemanaIntensiva->moodle_id) {
                 $cohortsToRemove[] = [
-                    'userid' => $student->moodle_id,
-                    'cohortid' => $oldSemanaIntensiva->moodle_id
+                    'cohorttype' => ['type' => 'id', 'value' => $oldSemanaIntensiva->moodle_id],
+                    'usertype' => ['type' => 'username', 'value' => (string) $student->id]
                 ];
-                
-                Log::info('Preparing to remove student from old semana intensiva cohort', [
-                    'student_id' => $student->id,
-                    'old_semana_intensiva_id' => $oldSemanaIntensivaId,
-                    'old_cohort_id' => $oldSemanaIntensiva->moodle_id,
-                    'semana_name' => $oldSemanaIntensiva->name
-                ]);
+            }
+        }
+
+        // Carrer modulos cohorts removal
+        if ($oldCarrerId && $oldCarrerId !== $newCarrerId) {
+            $oldCarrera = \App\Models\Carrera::with('modulos')->find($oldCarrerId);
+            if ($oldCarrera) {
+                foreach ($oldCarrera->modulos as $modulo) {
+                    if ($modulo->moodle_id) {
+                        $cohortsToRemove[] = [
+                            'cohorttype' => ['type' => 'id', 'value' => $modulo->moodle_id],
+                            'usertype' => ['type' => 'username', 'value' => (string) $student->id]
+                        ];
+                    }
+                }
             }
         }
 
         return $cohortsToRemove;
     }
 
-    /**
-     * Prepare cohorts to add student to.
-     */
-    private function prepareCohortsToAdd(Student $student, ?int $newGrupoId, ?int $newSemanaIntensivaId): array
+    private function prepareCohortsToAdd($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarrerId, $newCarrerId)
     {
         $cohortsToAdd = [];
 
-        // Add to new grupo cohort
-        if ($newGrupoId) {
-            $newGrupo = Grupo::select('id', 'moodle_id', 'name')->find($newGrupoId);
+        // Grupo cohort addition
+        if ($newGrupoId && $newGrupoId !== $oldGrupoId) {
+            $newGrupo = \App\Models\Grupo::find($newGrupoId);
             if ($newGrupo && $newGrupo->moodle_id) {
                 $cohortsToAdd[] = [
                     'cohorttype' => ['type' => 'id', 'value' => $newGrupo->moodle_id],
                     'usertype' => ['type' => 'username', 'value' => (string) $student->id]
                 ];
-                
-                Log::info('Preparing to add student to new group cohort', [
-                    'student_id' => $student->id,
-                    'new_grupo_id' => $newGrupoId,
-                    'new_cohort_id' => $newGrupo->moodle_id,
-                    'grupo_name' => $newGrupo->name
-                ]);
             }
         }
 
-        // Add to new semana intensiva cohort
-        if ($newSemanaIntensivaId) {
-            $newSemanaIntensiva = SemanaIntensiva::select('id', 'moodle_id', 'name')->find($newSemanaIntensivaId);
+        // Semana Intensiva cohort addition
+        if ($newSemanaIntensivaId && $newSemanaIntensivaId !== $oldSemanaIntensivaId) {
+            $newSemanaIntensiva = \App\Models\SemanaIntensiva::find($newSemanaIntensivaId);
             if ($newSemanaIntensiva && $newSemanaIntensiva->moodle_id) {
                 $cohortsToAdd[] = [
                     'cohorttype' => ['type' => 'id', 'value' => $newSemanaIntensiva->moodle_id],
                     'usertype' => ['type' => 'username', 'value' => (string) $student->id]
                 ];
-                
-                Log::info('Preparing to add student to new semana intensiva cohort', [
-                    'student_id' => $student->id,
-                    'new_semana_intensiva_id' => $newSemanaIntensivaId,
-                    'new_cohort_id' => $newSemanaIntensiva->moodle_id,
-                    'semana_name' => $newSemanaIntensiva->name
-                ]);
+            }
+        }
+
+        // Carrer modulos cohorts addition
+        if ($newCarrerId && $newCarrerId !== $oldCarrerId) {
+            $newCarrera = \App\Models\Carrera::with('modulos')->find($newCarrerId);
+            if ($newCarrera) {
+                foreach ($newCarrera->modulos as $modulo) {
+                    if ($modulo->moodle_id) {
+                        $cohortsToAdd[] = [
+                            'cohorttype' => ['type' => 'id', 'value' => $modulo->moodle_id],
+                            'usertype' => ['type' => 'username', 'value' => (string) $student->id]
+                        ];
+                    }
+                }
             }
         }
 

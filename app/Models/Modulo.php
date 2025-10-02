@@ -8,7 +8,7 @@ class Modulo extends Model
 {
     protected $table = 'modulos';
     public $timestamps = false;
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'moodle_id'];
 
     public function carreras()
     {

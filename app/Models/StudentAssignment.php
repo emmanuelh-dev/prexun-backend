@@ -19,6 +19,7 @@ class StudentAssignment extends Model
         'assigned_at',
         'valid_until',
         'is_active',
+        'carrer_id',
         'notes',
            'book_delivered',
            'book_delivery_type',
@@ -40,6 +41,14 @@ class StudentAssignment extends Model
     public function student()
     {
         return $this->belongsTo(Student::class);
+    }
+
+    /**
+     * Get the carrer that this assignment belongs to.
+     */
+    public function carrera()
+    {
+        return $this->belongsTo(Carrera::class, 'carrer_id');
     }
 
     /**
