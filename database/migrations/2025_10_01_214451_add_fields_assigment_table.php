@@ -8,19 +8,25 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasColumn('student_assignments', 'carrer_id')) {
+            Schema::table('student_assignments', function (Blueprint $table) {
+                $table->unsignedBigInteger('carrer_id')->nullable()->after('id');
+            });
+        }
+
         Schema::table('student_assignments', function (Blueprint $table) {
-            $table->foreignId('carrer_id')
-                  ->nullable()
-                  ->after('id')
-                  ->constrained('carreers')
-                  ->nullOnDelete();
+            $table->foreign('carrer_id')
+                  ->references('id')
+                  ->on('carreers')
+                  ->onDelete('set null');
         });
     }
 
     public function down(): void
     {
         Schema::table('student_assignments', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('carrer_id');
+            $table->dropForeign(['carrer_id']);
+            $table->dropColumn('carrer_id');
         });
     }
 };
