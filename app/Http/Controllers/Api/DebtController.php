@@ -10,6 +10,7 @@ use App\Models\StudentAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class DebtController extends Controller
@@ -94,6 +95,16 @@ class DebtController extends Controller
 
     try {
       $debt = DB::transaction(function () use ($validated) {
+        if (!empty($validated['assignment_id'])) {
+          $exists = DB::table('student_assignments')
+            ->where('id', $validated['assignment_id'])
+            ->exists();
+
+          if (!$exists) {
+            throw new \Exception("Assignment {$validated['assignment_id']} no existe al momento de insertar");
+          }
+        }
+
         $debt = Debt::create([
           'student_id' => $validated['student_id'],
           'period_id' => $validated['period_id'] ?? null,
@@ -109,15 +120,14 @@ class DebtController extends Controller
         return $debt->load(['student', 'period', 'assignment.period', 'assignment.grupo', 'assignment.semanaIntensiva']);
       });
 
-      return response()->json([
-        'message' => 'Adeudo creado exitosamente',
-        'debt' => $debt
-      ], 201);
+      return response()->json(['message' => 'Adeudo creado exitosamente', 'debt' => $debt], 201);
     } catch (\Exception $e) {
-      return response()->json([
-        'message' => 'Error al crear el adeudo',
+      Log::error('Error creando deuda', [
+        'validated' => $validated,
         'error' => $e->getMessage()
-      ], 500);
+      ]);
+
+      return response()->json(['message' => 'Error al crear el adeudo', 'error' => $e->getMessage()], 500);
     }
   }
 
