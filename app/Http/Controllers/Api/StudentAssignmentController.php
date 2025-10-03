@@ -607,32 +607,49 @@ class StudentAssignmentController extends Controller
         $newCarrerId
     ) {
         $student = $assignment->student;
-        if (!$student || !$student->moodle_user_id) {
+        if (!$student || !$student->moodle_id) {
+            Log::warning('Moodle sync skipped: student not found or has no moodle_id', [
+                'student_id' => $assignment->student_id,
+                'assignment_id' => $assignment->id,
+            ]);
             return;
         }
 
         $cohortsToRemove = $this->prepareCohortsToRemove($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarrerId, $newCarrerId);
         if (!empty($cohortsToRemove)) {
-            $this->moodleService->cohorts()->removeUsersFromCohorts($cohortsToRemove);
+            $response = $this->moodleService->cohorts()->removeUsersFromCohorts($cohortsToRemove);
+            Log::info('Moodle response for removing user from cohorts', [
+                'student_id' => $student->id,
+                'assignment_id' => $assignment->id,
+                'cohorts_removed_payload' => $cohortsToRemove,
+                'response' => $response
+            ]);
         }
 
         $cohortsToAdd = $this->prepareCohortsToAdd($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarrerId, $newCarrerId);
         if (!empty($cohortsToAdd)) {
-            $this->moodleService->cohorts()->addUserToCohort($cohortsToAdd);
+            $response = $this->moodleService->cohorts()->addUserToCohort($cohortsToAdd);
+            Log::info('Moodle response for adding user to cohorts', [
+                'student_id' => $student->id,
+                'assignment_id' => $assignment->id,
+                'cohorts_added_payload' => $cohortsToAdd,
+                'response' => $response
+            ]);
         }
     }
 
     private function prepareCohortsToRemove($student, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarrerId, $newCarrerId)
     {
         $cohortsToRemove = [];
+        $studentMoodleId = $student->moodle_id;
 
         // Grupo cohort removal
         if ($oldGrupoId && $oldGrupoId !== $newGrupoId) {
             $oldGrupo = \App\Models\Grupo::find($oldGrupoId);
             if ($oldGrupo && $oldGrupo->moodle_id) {
                 $cohortsToRemove[] = [
-                    'cohorttype' => ['type' => 'id', 'value' => $oldGrupo->moodle_id],
-                    'usertype' => ['type' => 'username', 'value' => (string) $student->id]
+                    'cohortid' => $oldGrupo->moodle_id,
+                    'userid' => $studentMoodleId
                 ];
             }
         }
@@ -642,8 +659,8 @@ class StudentAssignmentController extends Controller
             $oldSemanaIntensiva = \App\Models\SemanaIntensiva::find($oldSemanaIntensivaId);
             if ($oldSemanaIntensiva && $oldSemanaIntensiva->moodle_id) {
                 $cohortsToRemove[] = [
-                    'cohorttype' => ['type' => 'id', 'value' => $oldSemanaIntensiva->moodle_id],
-                    'usertype' => ['type' => 'username', 'value' => (string) $student->id]
+                    'cohortid' => $oldSemanaIntensiva->moodle_id,
+                    'userid' => $studentMoodleId
                 ];
             }
         }
@@ -655,8 +672,8 @@ class StudentAssignmentController extends Controller
                 foreach ($oldCarrera->modulos as $modulo) {
                     if ($modulo->moodle_id) {
                         $cohortsToRemove[] = [
-                            'cohorttype' => ['type' => 'id', 'value' => $modulo->moodle_id],
-                            'usertype' => ['type' => 'username', 'value' => (string) $student->id]
+                            'cohortid' => $modulo->moodle_id,
+                            'userid' => $studentMoodleId
                         ];
                     }
                 }

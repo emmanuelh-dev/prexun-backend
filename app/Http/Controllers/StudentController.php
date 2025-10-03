@@ -56,25 +56,6 @@ class StudentController extends Controller
     // Check if any specific search field is being used
     $isSpecificSearch = $searchFirstname || $searchLastname || $searchEmail || $searchPhone || $searchMatricula;
 
-    Log::info('Fetching students', [
-      'campus_id' => $campus_id,
-      'search' => $search,
-      'searchFirstname' => $searchFirstname,
-      'searchLastname' => $searchLastname,
-      'searchEmail' => $searchEmail,
-      'searchDate' => $searchDate,
-      'searchPhone' => $searchPhone,
-      'searchMatricula' => $searchMatricula,
-      'period' => $period,
-      'assignedPeriod' => $assignedPeriod,
-      'perPage' => $perPage,
-      'page' => $page,
-      'grupo' => $grupo,
-      'carrera' => $carrera,
-      'facultad' => $facultad,
-      'modulo' => $modulo,
-      'isSpecificSearch' => $isSpecificSearch
-    ]);
 
     $query = Student::with([
       'period',
