@@ -190,6 +190,10 @@ class StudentAssignmentController extends Controller
     public function destroy($id)
     {
         $assignment = StudentAssignment::findOrFail($id);
+        
+        // Remove student from all associated cohorts in Moodle before deleting
+        $this->removeAssignmentFromMoodle($assignment);
+        
         $assignment->delete();
 
         return response()->json([
@@ -725,6 +729,122 @@ class StudentAssignmentController extends Controller
         }
 
         return $cohortsToAdd;
+    }
+
+    /**
+     * Remove assignment from Moodle when deleting assignments.
+     */
+    private function removeAssignmentFromMoodle(StudentAssignment $assignment)
+    {
+        try {
+            $student = $assignment->student;
+            
+            if (!$student || !$student->moodle_id) {
+                Log::warning('Student not found or has no moodle_id for assignment removal', [
+                    'assignment_id' => $assignment->id,
+                    'student_id' => $assignment->student_id
+                ]);
+                return;
+            }
+
+            $cohortsToRemove = [];
+
+            // Remove from grupo cohort if assigned
+            if ($assignment->grupo_id && $assignment->grupo) {
+                $grupo = $assignment->grupo;
+                if ($grupo->moodle_id) {
+                    $cohortsToRemove[] = [
+                        'cohortid' => $grupo->moodle_id,
+                        'userid' => $student->moodle_id
+                    ];
+                    
+                    Log::info('Preparing to remove student from group cohort on assignment deletion', [
+                        'student_id' => $student->id,
+                        'assignment_id' => $assignment->id,
+                        'grupo_id' => $grupo->id,
+                        'grupo_moodle_id' => $grupo->moodle_id
+                    ]);
+                }
+            }
+
+            // Remove from semana intensiva cohort if assigned
+            if ($assignment->semana_intensiva_id && $assignment->semanaIntensiva) {
+                $semanaIntensiva = $assignment->semanaIntensiva;
+                if ($semanaIntensiva->moodle_id) {
+                    $cohortsToRemove[] = [
+                        'cohortid' => $semanaIntensiva->moodle_id,
+                        'userid' => $student->moodle_id
+                    ];
+                    
+                    Log::info('Preparing to remove student from semana intensiva cohort on assignment deletion', [
+                        'student_id' => $student->id,
+                        'assignment_id' => $assignment->id,
+                        'semana_intensiva_id' => $semanaIntensiva->id,
+                        'semana_moodle_id' => $semanaIntensiva->moodle_id
+                    ]);
+                }
+            }
+
+            // Remove from carrer modulos cohorts if assigned
+            if ($assignment->carrer_id && $assignment->carrera) {
+                $carrera = $assignment->carrera()->with('modulos')->first();
+                foreach ($carrera->modulos as $modulo) {
+                    if ($modulo->moodle_id) {
+                        $cohortsToRemove[] = [
+                            'cohortid' => $modulo->moodle_id,
+                            'userid' => $student->moodle_id
+                        ];
+                        
+                        Log::info('Preparing to remove student from carrer modulo cohort on assignment deletion', [
+                            'student_id' => $student->id,
+                            'assignment_id' => $assignment->id,
+                            'carrer_id' => $carrera->id,
+                            'modulo_id' => $modulo->id,
+                            'modulo_moodle_id' => $modulo->moodle_id
+                        ]);
+                    }
+                }
+            }
+
+            // Remove from cohorts in Moodle
+            if (!empty($cohortsToRemove)) {
+                $response = $this->moodleService->cohorts()->removeUsersFromCohorts($cohortsToRemove);
+                
+                Log::info('Moodle response for removing user from all cohorts on assignment deletion', [
+                    'student_id' => $student->id,
+                    'assignment_id' => $assignment->id,
+                    'cohorts_removed_payload' => $cohortsToRemove,
+                    'response' => $response
+                ]);
+                
+                if ($response['status'] === 'success') {
+                    Log::info('Student successfully removed from all cohorts in Moodle on assignment deletion', [
+                        'student_id' => $student->id,
+                        'assignment_id' => $assignment->id,
+                        'cohorts_count' => count($cohortsToRemove)
+                    ]);
+                } else {
+                    Log::error('Error removing student from cohorts in Moodle on assignment deletion', [
+                        'student_id' => $student->id,
+                        'assignment_id' => $assignment->id,
+                        'error' => $response['message'] ?? 'Unknown error'
+                    ]);
+                }
+            } else {
+                Log::info('No cohorts to remove for assignment deletion', [
+                    'student_id' => $student->id,
+                    'assignment_id' => $assignment->id
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Exception during Moodle sync for assignment deletion', [
+                'assignment_id' => $assignment->id,
+                'student_id' => $assignment->student_id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
     }
 
     /**
