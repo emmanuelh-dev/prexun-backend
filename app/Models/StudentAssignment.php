@@ -25,6 +25,7 @@ class StudentAssignment extends Model
            'book_delivery_type',
            'book_delivery_date',
            'book_notes',
+        'book_modulos',
     ];
 
     protected $casts = [
@@ -33,6 +34,7 @@ class StudentAssignment extends Model
         'is_active' => 'boolean',
            'book_delivered' => 'boolean',
            'book_delivery_date' => 'date',
+              'book_modulos' => 'string',
     ];
 
     /**

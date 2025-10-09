@@ -96,6 +96,7 @@ class StudentAssignmentController extends Controller
             'book_delivery_type' => 'nullable|in:digital,fisico,paqueteria',
             'book_delivery_date' => 'nullable|date',
             'book_notes' => 'nullable|string|max:1000',
+            'book_modulos' => 'nullable|in:no entregado,paqueteria,en fisico,digital',
         ]);
 
         if ($validator->fails()) {
@@ -154,6 +155,7 @@ class StudentAssignmentController extends Controller
             'book_delivery_type' => 'nullable|in:digital,fisico,paqueteria',
             'book_delivery_date' => 'nullable|date',
             'book_notes' => 'nullable|string|max:1000',
+            'book_modulos' => 'nullable|in:no entregado,paqueteria,en fisico,digital',
         ]);
 
         if ($validator->fails()) {
@@ -269,6 +271,7 @@ class StudentAssignmentController extends Controller
             'assignments.*.valid_until' => 'nullable|date',
             'assignments.*.is_active' => 'boolean',
             'assignments.*.notes' => 'nullable|string|max:1000',
+            'assignments.*.book_modulos' => 'nullable|in:no entregado,paqueteria,en fisico,digital',
         ]);
 
         if ($validator->fails()) {
@@ -314,6 +317,7 @@ class StudentAssignmentController extends Controller
             'updates.valid_until' => 'nullable|date',
             'updates.is_active' => 'sometimes|boolean',
             'updates.notes' => 'nullable|string|max:1000',
+            'updates.book_modulos' => 'nullable|in:no entregado,paqueteria,en fisico,digital',
         ]);
 
         if ($validator->fails()) {
