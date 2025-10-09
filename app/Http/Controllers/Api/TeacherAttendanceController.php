@@ -358,22 +358,49 @@ class TeacherAttendanceController extends Controller
         ->where('grupo_id', $grupo_id)
         ->where('date', $date)
         ->first();
-
+     //si el estudiante esta marcado como falta y marca asistencia, se actualiza la asistencia existente
       if ($existingAttendance) {
+    
+        if (!$existingAttendance->present && $validated['present']) {
+          $existingAttendance->update([
+            'present' => true,
+            'attendance_time' => $validated['attendance_time'] ?? now(),
+          ]);
+          
+          Log::info('Asistencia actualizada de ausente a presente', [
+            'attendance_id' => $existingAttendance->id,
+            'student_id' => $validated['student_id'],
+            'grupo_id' => $grupo_id,
+            'fecha' => $date,
+            'estado_anterior' => false,
+            'nuevo_estado' => true,
+            'timestamp' => now()->toISOString()
+          ]);
+
+          return response()->json([
+            'success' => true,
+            'message' => 'Asistencia actualizada de ausente a presente',
+            'data' => $existingAttendance->fresh(),
+            'updated_from_absent' => true
+          ]);
+        }
+        
+        // Si ya existe y no necesita actualización
         Log::info('Asistencia ya registrada previamente', [
           'attendance_id' => $existingAttendance->id,
           'student_id' => $validated['student_id'],
           'grupo_id' => $grupo_id,
           'fecha' => $date,
-          'presente' => $existingAttendance->present,
+          'estado_actual' => $existingAttendance->present,
+          'estado_solicitado' => $validated['present'],
           'timestamp' => now()->toISOString()
         ]);
 
         return response()->json([
           'success' => true,
           'message' => 'La asistencia ya estaba registrada previamente',
-          'data' => $existingAttendance,
-          'already_exists' => true
+          'data' => $existingAttendance->fresh(),
+          'updated_from_absent' => false
         ]);
       }
 
@@ -398,7 +425,8 @@ class TeacherAttendanceController extends Controller
       return response()->json([
         'success' => true,
         'message' => 'Asistencia guardada correctamente',
-        'data' => $attendance
+        'data' => $existingAttendance->fresh(),
+        'updated_from_absent' => false
       ]);
     } catch (\Exception $e) {
       Log::error('Error al guardar asistencia rápida:', [
