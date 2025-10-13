@@ -26,6 +26,7 @@ class StudentAssignment extends Model
            'book_delivery_date',
            'book_notes',
         'book_modulos',
+        'book_general',
     ];
 
     protected $casts = [
