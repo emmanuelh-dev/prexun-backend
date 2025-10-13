@@ -153,7 +153,7 @@ class StudentAssignmentController extends Controller
             'is_active' => 'sometimes|boolean',
             'notes' => 'nullable|string|max:1000',
             'book_delivered' => 'boolean',
-            'book_delivery_type' => 'nullable|in:digital,fisico,paqueteria',
+            'book_delivery_type' => 'nullable|',
             'book_delivery_date' => 'nullable|date',
             'book_notes' => 'nullable|string|max:1000',
             'book_modulos' => 'nullable|in:no entregado,paqueteria,en fisico,digital',
