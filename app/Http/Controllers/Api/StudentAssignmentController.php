@@ -881,4 +881,176 @@ class StudentAssignmentController extends Controller
             }
         }
     }
+
+    public function getStudentGrades(Request $request, $studentId)
+    {
+        try {
+            $student = Student::findOrFail($studentId);
+
+            $this->ensureStudentHasMoodleId($student);
+
+            // Obtener resumen de calificaciones de todos los cursos del usuario
+            $gradesOverview = $this->moodleService->grades()->getCourseGradesOverview($student->moodle_id);
+
+            if (!$gradesOverview || !isset($gradesOverview['grades'])) {
+                return response()->json([
+                    'message' => 'No se encontraron calificaciones para este estudiante en Moodle',
+                    'student' => [
+                        'id' => $student->id,
+                        'firstname' => $student->firstname,
+                        'lastname' => $student->lastname,
+                        'moodle_id' => $student->moodle_id,
+                    ],
+                    'courses_count' => 0,
+                    'grades' => []
+                ]);
+            }
+
+            $gradesWithCourseInfo = [];
+            foreach ($gradesOverview['grades'] as $courseGrade) {
+                $gradesWithCourseInfo[] = [
+                    'course_id' => $courseGrade['courseid'],
+                    'course_name' => $courseGrade['coursename'] ?? 'Curso desconocido',
+                    'course_shortname' => $courseGrade['courseshortname'] ?? '',
+                    'grade' => $courseGrade['grade'] ?? null,
+                    'rawgrade' => $courseGrade['rawgrade'] ?? null,
+                ];
+            }
+
+            return response()->json([
+                'student' => [
+                    'id' => $student->id,
+                    'firstname' => $student->firstname,
+                    'lastname' => $student->lastname,
+                    'moodle_id' => $student->moodle_id,
+                ],
+                'courses_count' => count($gradesWithCourseInfo),
+                'grades' => $gradesWithCourseInfo,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error obteniendo calificaciones del estudiante', [
+                'student_id' => $studentId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al obtener calificaciones',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getStudentCourses(Request $request, $studentId)
+    {
+        try {
+            $student = Student::findOrFail($studentId);
+
+            $this->ensureStudentHasMoodleId($student);
+
+            // Obtener resumen de calificaciones que incluye los cursos
+            $gradesOverview = $this->moodleService->grades()->getCourseGradesOverview($student->moodle_id);
+
+            if (!$gradesOverview || !isset($gradesOverview['grades'])) {
+                return response()->json([
+                    'message' => 'No se encontraron cursos para este estudiante en Moodle',
+                    'student' => [
+                        'id' => $student->id,
+                        'firstname' => $student->firstname,
+                        'lastname' => $student->lastname,
+                        'moodle_id' => $student->moodle_id,
+                    ],
+                    'courses' => []
+                ]);
+            }
+
+            $coursesWithInfo = [];
+            foreach ($gradesOverview['grades'] as $courseGrade) {
+                $coursesWithInfo[] = [
+                    'moodle_course_id' => $courseGrade['courseid'],
+                    'course_name' => $courseGrade['coursename'] ?? 'Curso desconocido',
+                    'course_shortname' => $courseGrade['courseshortname'] ?? '',
+                    'grade' => $courseGrade['grade'] ?? null,
+                ];
+            }
+
+            return response()->json([
+                'student' => [
+                    'id' => $student->id,
+                    'firstname' => $student->firstname,
+                    'lastname' => $student->lastname,
+                    'moodle_id' => $student->moodle_id,
+                ],
+                'courses' => $coursesWithInfo,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error obteniendo cursos del estudiante', [
+                'student_id' => $studentId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al obtener cursos',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getCourseActivities(Request $request, $studentId, $courseId)
+    {
+        try {
+            $student = Student::findOrFail($studentId);
+
+            $this->ensureStudentHasMoodleId($student);
+
+            $courseContents = $this->moodleService->courses()->getCourseContents($courseId);
+
+            if (!$courseContents) {
+                return response()->json([
+                    'message' => 'No se pudo obtener el contenido del curso',
+                    'data' => []
+                ], 404);
+            }
+
+            $gradableActivities = [];
+            foreach ($courseContents as $section) {
+                if (isset($section['modules'])) {
+                    foreach ($section['modules'] as $module) {
+                        if (isset($module['modname']) && 
+                            in_array($module['modname'], ['assign', 'quiz', 'forum', 'workshop'])) {
+                            $gradableActivities[] = [
+                                'id' => $module['id'],
+                                'name' => $module['name'],
+                                'type' => $module['modname'],
+                                'section' => $section['name'],
+                            ];
+                        }
+                    }
+                }
+            }
+
+            return response()->json([
+                'student_id' => $student->id,
+                'course_id' => $courseId,
+                'activities' => $gradableActivities,
+                'activities_count' => count($gradableActivities),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error obteniendo actividades del curso', [
+                'student_id' => $studentId,
+                'course_id' => $courseId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al obtener actividades',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

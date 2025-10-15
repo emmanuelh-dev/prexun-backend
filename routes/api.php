@@ -349,6 +349,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::put('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkUpdate']);
   Route::patch('/student-assignments/{id}/toggle-active', [StudentAssignmentController::class, 'toggleActive']);
 
+  // Student Grades and Courses from Moodle
+  Route::get('/students/{student_id}/grades', [StudentAssignmentController::class, 'getStudentGrades']);
+  Route::get('/students/{student_id}/courses', [StudentAssignmentController::class, 'getStudentCourses']);
+  Route::get('/students/{student_id}/courses/{course_id}/activities', [StudentAssignmentController::class, 'getCourseActivities']);
+
   // Transaction Dashboard
   Route::prefix('transaction-dashboard')->group(function () {
     Route::get('/', [App\Http\Controllers\Api\TransactionDashboardController::class, 'index']);

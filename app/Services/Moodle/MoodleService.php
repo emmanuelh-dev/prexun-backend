@@ -4,16 +4,22 @@ namespace App\Services\Moodle;
 
 use App\Services\Moodle\MoodleUserService;
 use App\Services\Moodle\MoodleCohortService;
+use App\Services\Moodle\MoodleCourseService;
+use App\Services\Moodle\MoodleGradeService;
 
 class MoodleService
 {
     protected MoodleUserService $userService;
     protected MoodleCohortService $cohortService;
+    protected MoodleCourseService $courseService;
+    protected MoodleGradeService $gradeService;
 
     public function __construct()
     {
         $this->userService = new MoodleUserService();
         $this->cohortService = new MoodleCohortService();
+        $this->courseService = new MoodleCourseService();
+        $this->gradeService = new MoodleGradeService();
     }
 
     /**
@@ -30,6 +36,22 @@ class MoodleService
     public function cohorts(): MoodleCohortService
     {
         return $this->cohortService;
+    }
+
+    /**
+     * Obtener el servicio de cursos.
+     */
+    public function courses(): MoodleCourseService
+    {
+        return $this->courseService;
+    }
+
+    /**
+     * Obtener el servicio de calificaciones.
+     */
+    public function grades(): MoodleGradeService
+    {
+        return $this->gradeService;
     }
 
     /**
