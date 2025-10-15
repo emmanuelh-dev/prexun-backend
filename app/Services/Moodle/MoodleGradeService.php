@@ -51,6 +51,14 @@ class MoodleGradeService
                 return null;
             }
 
+            // Log para debugging - muestra la estructura de las actividades del curso
+            Log::info('Respuesta de Moodle - gradereport_user_get_grade_items', [
+                'course_id' => $courseId,
+                'user_id' => $userId,
+                'response_structure' => json_encode($data, JSON_PRETTY_PRINT),
+                'items_count' => isset($data['usergrades'][0]['gradeitems']) ? count($data['usergrades'][0]['gradeitems']) : 0
+            ]);
+
             return $data;
         } catch (\Exception $e) {
             Log::error('Exception al obtener calificaciones de Moodle', [
@@ -93,6 +101,13 @@ class MoodleGradeService
                 ]);
                 return null;
             }
+
+            // Log para debugging - muestra la estructura completa de la respuesta
+            Log::info('Respuesta de Moodle - gradereport_overview_get_course_grades', [
+                'user_id' => $userId,
+                'response_structure' => json_encode($data, JSON_PRETTY_PRINT),
+                'grades_count' => isset($data['grades']) ? count($data['grades']) : 0
+            ]);
 
             return $data;
         } catch (\Exception $e) {
