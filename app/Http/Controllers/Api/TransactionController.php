@@ -165,7 +165,12 @@ class TransactionController extends Controller
 
         // Solo generar folio si la transacción está pagada
         if ($validated['paid'] && !$shouldGenerateSpecificFolio) {
-          $folio = $this->generateMonthlyFolio($validated['campus_id']);
+          $folio = $this->generateMonthlyFolio(
+            $validated['campus_id'],
+            Transaction::class,
+            'payment_date',
+            $validated['payment_date'] ?? now()
+          );
         }
         if ($validated['paid']) {
           // Generar folio nuevo con prefijo y mes/año
@@ -196,7 +201,8 @@ class TransactionController extends Controller
           $paymentFolio = $this->generatePaymentMethodFolio(
             $validated['campus_id'],
             $validated['payment_method'],
-            $validated['card_id'] ?? null
+            $validated['card_id'] ?? null,
+            $validated['payment_date'] ?? now()
           );
 
           if ($paymentFolio) {
@@ -300,7 +306,8 @@ class TransactionController extends Controller
             $paymentFolio = $this->generatePaymentMethodFolio(
               $transaction->campus_id,
               $transaction->payment_method,
-              $transaction->card_id
+              $transaction->card_id,
+              $transaction->payment_date ?? now()
             );
 
             if ($paymentFolio) {

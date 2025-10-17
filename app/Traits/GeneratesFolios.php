@@ -55,11 +55,11 @@ trait GeneratesFolios
     return $maxFolio + 1;
   }
 
-  protected function generatePaymentMethodFolio($campusId, $paymentMethod, $cardId = null)
+  protected function generatePaymentMethodFolio($campusId, $paymentMethod, $cardId = null, $date = null)
   {
-    $now = now();
-    $currentMonth = $now->month;
-    $currentYear = $now->year;
+    $targetDate = $date ? Carbon::parse($date) : now();
+    $currentMonth = $targetDate->month;
+    $currentYear = $targetDate->year;
 
     if ($paymentMethod === 'transfer' && $cardId) {
       $card = Card::find($cardId);
@@ -87,8 +87,8 @@ trait GeneratesFolios
     $maxFolio = Transaction::where('campus_id', $campusId)
       ->whereNotNull($folioConfig['column'])
       ->where($folioConfig['column'], '>', 0)
-      ->whereMonth('created_at', $currentMonth)
-      ->whereYear('created_at', $currentYear)
+      ->whereMonth('payment_date', $currentMonth)
+      ->whereYear('payment_date', $currentYear)
       ->max(DB::raw("CAST({$folioConfig['column']} AS UNSIGNED)"));
 
     $nextFolio = ($maxFolio ?? 0) + 1;
@@ -183,13 +183,20 @@ trait GeneratesFolios
 
   protected function generateGastoFolioPrefix($campusId, $date = null)
   {
-    $date = $date ? Carbon::parse($date) : now();
-    $mesAnio = $date->format('my');
-
     $campus = Campus::findOrFail($campusId);
     $letraCampus = strtoupper(substr($campus->name, 0, 1));
 
-    return $letraCampus . 'G-' . $mesAnio . ' | ';
+    return $letraCampus . 'G-';
+  }
+
+  protected function generateGastoFolio($campusId)
+  {
+    $maxFolio = Gasto::where('campus_id', $campusId)
+      ->whereNotNull('folio')
+      ->where('folio', '>', 0)
+      ->max(DB::raw("CAST(folio AS UNSIGNED)"));
+
+    return ($maxFolio ?? 0) + 1;
   }
 
   protected function getGastoDisplayFolio($gasto)
@@ -201,6 +208,6 @@ trait GeneratesFolios
       return $gasto->folio_prefix . $gasto->folio;
     }
 
-    return $letraCampus . ($gasto->folio ?? '');
+    return $letraCampus . 'G-' . ($gasto->folio ?? '');
   }
 }

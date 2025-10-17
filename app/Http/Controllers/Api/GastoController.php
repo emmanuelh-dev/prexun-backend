@@ -89,8 +89,8 @@ class GastoController extends Controller
                 $data['signature'] = null;
             }
 
-            $folio = $this->generateMonthlyFolio($validated['campus_id'], Gasto::class, 'date', $validated['date']);
-            $folioPrefix = $this->generateGastoFolioPrefix($validated['campus_id'], $validated['date']);
+            $folio = $this->generateGastoFolio($validated['campus_id']);
+            $folioPrefix = $this->generateGastoFolioPrefix($validated['campus_id']);
 
             $gasto = Gasto::create(array_merge($validated, [
                 'image' => $data['image'],
@@ -151,7 +151,7 @@ class GastoController extends Controller
             'category' => 'sometimes|string',
             'campus_id' => 'sometimes|exists:campuses,id',
             'image' => 'nullable|image',
-            'signature' => 'nullable|string', // Base64 encoded signature
+            'signature' => 'nullable|string',
             'cash_register_id' => 'nullable|exists:cash_registers,id'
         ]);
 

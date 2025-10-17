@@ -97,47 +97,37 @@ class AssignGastoFolios extends Command
             $campusName = $campus ? $campus->name : "Campus ID {$campusId}";
             
             $this->info("🏢 Procesando: {$campusName}");
+            $this->line("  Total gastos: {$campusGastos->count()}");
 
-            $monthGroups = $campusGastos->groupBy(function ($gasto) {
-                return \Carbon\Carbon::parse($gasto->date)->format('Y-m');
-            });
+            $folio = 1;
 
-            foreach ($monthGroups as $yearMonth => $monthGastos) {
-                list($year, $month) = explode('-', $yearMonth);
-                $monthName = \Carbon\Carbon::create($year, $month)->locale('es')->translatedFormat('F Y');
+            foreach ($campusGastos as $gasto) {
+                $totalProcessed++;
                 
-                $this->line("  📅 {$monthName} ({$monthGastos->count()} gastos)");
+                $oldFolio = $gasto->folio;
+                $oldPrefix = $gasto->folio_prefix;
+                
+                $newFolio = $folio;
+                $newPrefix = $this->generateGastoFolioPrefix($campusId);
 
-                $folio = 1;
+                $needsUpdate = ($oldFolio !== $newFolio) || ($oldPrefix !== $newPrefix);
 
-                foreach ($monthGastos as $gasto) {
-                    $totalProcessed++;
+                if ($needsUpdate) {
+                    $totalUpdated++;
                     
-                    $oldFolio = $gasto->folio;
-                    $oldPrefix = $gasto->folio_prefix;
+                    $oldDisplay = ($oldPrefix ?? '') . ($oldFolio ?? 'null');
+                    $newDisplay = $newPrefix . $newFolio;
                     
-                    $newFolio = $folio;
-                    $newPrefix = $this->generateGastoFolioPrefix($campusId, $gasto->date);
+                    $this->line("    ✏️  ID {$gasto->id}: {$oldDisplay} → {$newDisplay}");
 
-                    $needsUpdate = ($oldFolio !== $newFolio) || ($oldPrefix !== $newPrefix);
-
-                    if ($needsUpdate) {
-                        $totalUpdated++;
-                        
-                        $oldDisplay = ($oldPrefix ?? '') . ($oldFolio ?? 'null');
-                        $newDisplay = $newPrefix . $newFolio;
-                        
-                        $this->line("    ✏️  ID {$gasto->id}: {$oldDisplay} → {$newDisplay}");
-
-                        if (!$dryRun) {
-                            $gasto->folio = $newFolio;
-                            $gasto->folio_prefix = $newPrefix;
-                            $gasto->save();
-                        }
+                    if (!$dryRun) {
+                        $gasto->folio = $newFolio;
+                        $gasto->folio_prefix = $newPrefix;
+                        $gasto->save();
                     }
-
-                    $folio++;
                 }
+
+                $folio++;
             }
 
             $this->newLine();
