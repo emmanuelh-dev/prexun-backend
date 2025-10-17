@@ -20,6 +20,8 @@ class Gasto extends Model
         'admin_id',
         'user_id',
         'cash_register_id',
+        'folio',
+        'folio_prefix',
     ];
 
     public function campus()

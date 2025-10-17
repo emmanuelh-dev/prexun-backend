@@ -7,20 +7,27 @@ use App\Http\Controllers\Controller;
 use App\Models\Denomination;
 use App\Models\Gasto;
 use App\Models\GastoDetail;
+use App\Traits\GeneratesFolios;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class GastoController extends Controller
 {
+    use GeneratesFolios;
+    
     public function index(Request $request)
     {
+        $query = Gasto::with('admin', 'user');
+
         if ($request->campus_id) {
-            $gastos = Gasto::where('campus_id', $request->campus_id)->with('admin')->with('user')->get();
-        } else {
-            $gastos = Gasto::with('admin')->with('user')->get();
+            $query->where('campus_id', $request->campus_id);
         }
 
-        // Add full URL to image paths
+        $gastos = $query->orderByRaw('YEAR(date) DESC, MONTH(date) DESC')
+            ->orderBy('folio', 'asc')
+            ->get();
+
         $gastos->transform(function ($gasto) {
             if ($gasto->image) {
                 $gasto->image = asset('storage/' . $gasto->image);
@@ -28,6 +35,7 @@ class GastoController extends Controller
             if ($gasto->signature) {
                 $gasto->signature = asset('storage/' . $gasto->signature);
             }
+            $gasto->display_folio = $this->getGastoDisplayFolio($gasto);
             return $gasto;
         });
 
@@ -53,7 +61,7 @@ class GastoController extends Controller
                 'category' => 'required|string',
                 'campus_id' => 'required|exists:campuses,id',
                 'image' => 'nullable|image',
-                'signature' => 'nullable|string', // Base64 encoded signature
+                'signature' => 'nullable|string',
                 'cash_register_id' => 'nullable|exists:cash_registers,id',
             ])->validate();
 
@@ -81,9 +89,14 @@ class GastoController extends Controller
                 $data['signature'] = null;
             }
 
+            $folio = $this->generateMonthlyFolio($validated['campus_id'], Gasto::class, 'date', $validated['date']);
+            $folioPrefix = $this->generateGastoFolioPrefix($validated['campus_id'], $validated['date']);
+
             $gasto = Gasto::create(array_merge($validated, [
                 'image' => $data['image'],
-                'signature' => $data['signature']
+                'signature' => $data['signature'],
+                'folio' => $folio,
+                'folio_prefix' => $folioPrefix
             ]));
 
             if ($gasto->image) {
@@ -92,6 +105,8 @@ class GastoController extends Controller
             if ($gasto->signature) {
                 $gasto->signature = asset('storage/' . $gasto->signature);
             }
+
+            $gasto->display_folio = $this->getGastoDisplayFolio($gasto);
 
             return response()->json($gasto->load('gastoDetails.denomination'), 201);
         } catch (ValidationException $e) {
@@ -118,6 +133,7 @@ class GastoController extends Controller
             if ($gasto->signature) {
                 $gasto->signature = asset('storage/' . $gasto->signature);
             }
+            $gasto->display_folio = $this->getGastoDisplayFolio($gasto);
         }
         return response()->json($gasto);
     }
@@ -293,10 +309,9 @@ class GastoController extends Controller
         }
 
         $request->validate([
-            'signature' => 'required|file|image|max:2048' // File instead of string
+            'signature' => 'required|file|image|max:2048'
         ]);
 
-        // Store the uploaded signature file with external prefix
         $fileName = 'signature_external_' . time() . '_' . uniqid() . '.' . $request->file('signature')->getClientOriginalExtension();
         $signaturePath = $request->file('signature')->storeAs('gastos/signatures', $fileName, 'public');
         

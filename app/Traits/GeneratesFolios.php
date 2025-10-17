@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\Card;
 use App\Models\Campus;
+use App\Models\Gasto;
 use App\Models\Transaction;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -34,17 +35,17 @@ trait GeneratesFolios
     return false;
   }
 
-  protected function generateMonthlyFolio($campusId)
+  protected function generateMonthlyFolio($campusId, $modelClass = Transaction::class, $dateColumn = 'payment_date', $date = null)
   {
-    $now = now();
-    $currentMonth = $now->month;
-    $currentYear = $now->year;
+    $targetDate = $date ? Carbon::parse($date) : now();
+    $currentMonth = $targetDate->month;
+    $currentYear = $targetDate->year;
 
-    $maxFolio = Transaction::where('campus_id', $campusId)
+    $maxFolio = $modelClass::where('campus_id', $campusId)
       ->whereNotNull('folio')
       ->where('folio', '>', 0)
-      ->whereMonth('payment_date', $currentMonth)
-      ->whereYear('payment_date', $currentYear)
+      ->whereMonth($dateColumn, $currentMonth)
+      ->whereYear($dateColumn, $currentYear)
       ->max(DB::raw("CAST(folio AS UNSIGNED)"));
 
     if (!$maxFolio) {
@@ -178,5 +179,28 @@ trait GeneratesFolios
       'card' => ['column' => 'folio_card', 'prefix' => 'T'],
       default => null
     };
+  }
+
+  protected function generateGastoFolioPrefix($campusId, $date = null)
+  {
+    $date = $date ? Carbon::parse($date) : now();
+    $mesAnio = $date->format('my');
+
+    $campus = Campus::findOrFail($campusId);
+    $letraCampus = strtoupper(substr($campus->name, 0, 1));
+
+    return $letraCampus . 'G-' . $mesAnio . ' | ';
+  }
+
+  protected function getGastoDisplayFolio($gasto)
+  {
+    $campus = Campus::find($gasto->campus_id);
+    $letraCampus = $campus ? strtoupper(substr($campus->name, 0, 1)) : '';
+
+    if ($gasto->folio && $gasto->folio_prefix) {
+      return $gasto->folio_prefix . $gasto->folio;
+    }
+
+    return $letraCampus . ($gasto->folio ?? '');
   }
 }
