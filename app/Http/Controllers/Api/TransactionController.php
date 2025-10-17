@@ -7,6 +7,7 @@ use App\Models\Campus;
 use App\Models\Denomination;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
+use App\Traits\GeneratesFolios;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ use Illuminate\Support\Str;
 
 class TransactionController extends Controller
 {
+  use GeneratesFolios;
 
   public function index(Request $request)
   {
@@ -361,29 +363,6 @@ class TransactionController extends Controller
     }
   }
 
-  private function shouldGenerateSpecificFolio($paymentMethod, $cardId = null)
-  {
-    if ($paymentMethod === 'cash') {
-      return true;
-    }
-
-    if ($paymentMethod === 'transfer') {
-      if (!$cardId) return true;
-
-      $card = \App\Models\Card::find($cardId);
-      return !($card && $card->sat);
-    }
-
-    if ($paymentMethod === 'card') {
-      if (!$cardId) return false;
-
-      $card = \App\Models\Card::find($cardId);
-      return !($card && $card->sat);
-    }
-
-    return false;
-  }
-
   public function all()
   {
     $charges = Transaction::with('student', 'campus', 'student.grupo')->get();
@@ -434,192 +413,6 @@ class TransactionController extends Controller
 
     return response()->json($transaction, 200);
   }
-
-
-  /**
-   * Genera un folio con reinicio mensual
-   */
-  private function generateMonthlyFolio($campusId)
-  {
-    $now = now();
-    $currentMonth = $now->month;
-    $currentYear = $now->year;
-
-    // Buscamos el folio más alto para este campus en el mes actual
-    // independientemente de la fecha de pago
-    $maxFolio = Transaction::where('campus_id', $campusId)
-      ->whereNotNull('folio')
-      ->where('folio', '>', 0) // Asegurar que solo tomemos valores válidos
-      ->whereMonth('payment_date', $currentMonth)
-      ->whereYear('payment_date', $currentYear)
-      ->max(DB::raw("CAST(folio AS UNSIGNED)"));
-
-    if (!$maxFolio) {
-      return 1;
-    }
-
-    // Retornamos el siguiente folio
-    return $maxFolio + 1;
-  }
-
-  /**
-   * Genera folios específicos por método de pago
-   */
-  private function generatePaymentMethodFolio($campusId, $paymentMethod, $cardId = null)
-  {
-    $now = now();
-    $currentMonth = $now->month;
-    $currentYear = $now->year;
-
-    // Si es transferencia y la tarjeta tiene SAT = true, usar el folio original
-    if ($paymentMethod === 'transfer' && $cardId) {
-      $card = \App\Models\Card::find($cardId);
-      if ($card && $card->sat) {
-        return null; // Mantener el folio original (folio_new)
-      }
-    }
-
-    // Si es pago con tarjeta, verificar si tiene una tarjeta válida configurada
-    if ($paymentMethod === 'card') {
-      // Si no hay card_id, usar folio general (folio_new)
-      if (!$cardId) {
-        return null; // Mantener el folio original (folio_new)
-      }
-
-      // Si hay card_id, verificar si la tarjeta tiene configuración especial
-      $card = \App\Models\Card::find($cardId);
-      if ($card && $card->sat) {
-        return null; // Mantener el folio original (folio_new) para tarjetas SAT
-      }
-      // Si la tarjeta no tiene SAT = true, generar folio específico T
-    }
-
-    // Determinar la columna y prefijo según el método de pago
-    switch ($paymentMethod) {
-      case 'transfer':
-        $folioColumn = 'folio_transfer';
-        $prefix = 'A';
-        break;
-      case 'cash':
-        $folioColumn = 'folio_cash';
-        $prefix = 'E';
-        break;
-      case 'card':
-        $folioColumn = 'folio_card';
-        $prefix = 'T';
-        break;
-      default:
-        return null;
-    }
-
-    $maxFolio = Transaction::where('campus_id', $campusId)
-      ->whereNotNull($folioColumn)
-      ->where($folioColumn, '>', 0)
-      ->whereMonth('created_at', $currentMonth)
-      ->whereYear('created_at', $currentYear)
-      ->max(DB::raw("CAST({$folioColumn} AS UNSIGNED)"));
-
-    $nextFolio = ($maxFolio ?? 0) + 1;
-
-    return [
-      'column' => $folioColumn,
-      'value' => $nextFolio,
-      'formatted' => $prefix . str_pad($nextFolio, 4, '0', STR_PAD_LEFT)
-    ];
-  }
-
-  /**
-   * Obtiene el folio formateado para mostrar según el método de pago
-   */
-  public function getDisplayFolio($transaction)
-  {
-    // Obtener la letra del campus
-    $campus = \App\Models\Campus::find($transaction->campus_id);
-    $letraCampus = $campus ? strtoupper(substr($campus->name, 0, 1)) : '';
-
-    // Si es transferencia y tiene SAT = true, usar folio_new
-    if ($transaction->payment_method === 'transfer' && $transaction->card_id) {
-      $card = \App\Models\Card::find($transaction->card_id);
-      if ($card && $card->sat) {
-        return $letraCampus . ($transaction->folio_new ?? '');
-      }
-    }
-
-    // Si es pago con tarjeta, verificar configuración especial
-    if ($transaction->payment_method === 'card') {
-      // Si no hay card_id, usar folio_new
-      if (!$transaction->card_id) {
-        return $letraCampus . ($transaction->folio_new ?? '');
-      }
-
-      // Si hay card_id, verificar si la tarjeta tiene SAT = true
-      $card = \App\Models\Card::find($transaction->card_id);
-      if ($card && $card->sat) {
-        return $letraCampus . ($transaction->folio_new ?? ''); // Usar folio general para tarjetas SAT
-      }
-
-      // Si la tarjeta no tiene SAT = true, usar folio específico T
-      return $transaction->folio_card ? $letraCampus . 'T' . str_pad($transaction->folio_card, 4, '0', STR_PAD_LEFT) : $letraCampus . ($transaction->folio_new ?? '');
-    }
-
-    // Usar el folio específico del método de pago para otros métodos
-    switch ($transaction->payment_method) {
-      case 'transfer':
-        return $transaction->folio_transfer ? $letraCampus . 'A' . str_pad($transaction->folio_transfer, 4, '0', STR_PAD_LEFT) : $letraCampus . ($transaction->folio_new ?? '');
-      case 'cash':
-        return $transaction->folio_cash ? $letraCampus . 'E' . str_pad($transaction->folio_cash, 4, '0', STR_PAD_LEFT) : $letraCampus . ($transaction->folio_new ?? '');
-      default:
-        return $letraCampus . ($transaction->folio_new ?? '');
-    }
-  }
-
-  /**
-   * Mantiene la generación de folio_new por compatibilidad
-   */
-  protected function folioNew($campusId, $paymentMethod, $cardId = null, $payment_date = null)
-  {
-
-    Log::info([
-      'campus_id' => $campusId,
-      'payment_method' => $paymentMethod,
-      'card_id' => $cardId,
-      'payment_date' => $payment_date,
-    ]);
-
-    $date = $payment_date ? Carbon::parse($payment_date) : now();
-    $mesAnio = $date->format('my');
-
-    $campus = \App\Models\Campus::findOrFail($campusId);
-    $letraCampus = strtoupper(substr($campus->name, 0, 1));
-    $folioColumn = null;
-
-    $card = \App\Models\Card::find($cardId);
-
-
-    switch ($paymentMethod) {
-      case 'transfer':
-        if ($card->sat) {
-          $folioColumn = 'I';
-        } else {
-          $folioColumn = 'A';
-        }
-        break;
-      case 'cash':
-        $folioColumn = 'E';
-        break;
-      case 'card':
-        $folioColumn = 'I';
-        break;
-      default:
-        return null;
-    }
-
-
-    $prefix = $letraCampus . $folioColumn . '-' . $mesAnio . ' | ';
-
-    return $prefix;
-  }
-
 
   public function destroy($id)
   {
