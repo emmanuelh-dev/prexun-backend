@@ -81,8 +81,12 @@ class AIFunctionService
      */
     private function buildDynamicSystemMessage(array $studentInfo): string
     {
-        $baseMessage = "Eres un asistente de WhatsApp para una institución educativa en México. ";
-        $baseMessage .= "IMPORTANTE: SIEMPRE responde en ESPAÑOL. Nunca uses inglés. ";
+        $baseMessage = "You are a WhatsApp assistant for an educational institution in Mexico.\n\n";
+        $baseMessage .= "CRITICAL INSTRUCTION - LANGUAGE REQUIREMENT:\n";
+        $baseMessage .= "YOU MUST RESPOND EXCLUSIVELY IN SPANISH (ESPAÑOL). NEVER use English.\n";
+        $baseMessage .= "All your responses, greetings, explanations, and messages MUST be in Spanish language.\n";
+        $baseMessage .= "This is a MANDATORY requirement. Failure to respond in Spanish is unacceptable.\n\n";
+        $baseMessage .= "Tu trabajo es ser un asistente de WhatsApp para una institución educativa en México. ";
         $baseMessage .= "Responde de manera amigable, profesional y estructurada. ";
         $baseMessage .= "Usa un tono formal pero amable, como si le hablaras a un padre de familia o estudiante. ";
         $baseMessage .= "Saluda por su nombre cuando sea posible.\n\n";
@@ -133,7 +137,8 @@ class AIFunctionService
         $baseMessage .= "- Las funciones te darán información YA FORMATEADA profesionalmente\n";
         $baseMessage .= "- Mantén ese formato y solo agrega contexto conversacional amable\n";
         $baseMessage .= "- Si el estudiante pide 'todo' o 'información completa', combina pagos y calificaciones\n\n";
-        $baseMessage .= "Usa estas funciones cuando el estudiante pregunte por información específica.";
+        $baseMessage .= "Usa estas funciones cuando el estudiante pregunte por información específica.\n\n";
+        $baseMessage .= "REMINDER: Your entire response MUST be written in SPANISH language. Not English.";
 
         return $baseMessage;
     }
@@ -201,6 +206,12 @@ class AIFunctionService
             'content' => $userMessage
         ];
 
+        // Agregar recordatorio explícito de idioma
+        $messages[] = [
+            'role' => 'system',
+            'content' => 'Recuerda: Tu respuesta DEBE ser completamente en ESPAÑOL. No uses inglés bajo ninguna circunstancia.'
+        ];
+
         return $messages;
     }
 
@@ -221,7 +232,8 @@ class AIFunctionService
                 'model' => 'gpt-4o-mini',
                 'messages' => $messages,
                 'max_tokens' => 500,
-                'temperature' => 0.7
+                'temperature' => 0.7,
+                'response_format' => ['type' => 'text']
             ];
 
             // Solo agregar tools si hay funciones disponibles
@@ -339,9 +351,10 @@ class AIFunctionService
                 'phone_number' => $phoneNumber
             ]);
 
-            $systemMessage = "Eres un asistente de WhatsApp para una institución educativa en México. ";
-            $systemMessage .= "IMPORTANTE: SIEMPRE responde en ESPAÑOL. Nunca uses inglés. ";
-            $systemMessage .= "Responde de manera amigable y profesional. ";
+            $systemMessage = "You are a WhatsApp assistant for an educational institution in Mexico.\n\n";
+            $systemMessage .= "CRITICAL: YOU MUST RESPOND EXCLUSIVELY IN SPANISH LANGUAGE. NEVER in English.\n\n";
+            $systemMessage .= "Eres un asistente de WhatsApp para una institución educativa en México. ";
+            $systemMessage .= "Responde de manera amigable y profesional en ESPAÑOL. ";
             $systemMessage .= "Usa emojis ocasionalmente para hacer la conversación más amigable. ";
             
             if ($studentInfo['success']) {
