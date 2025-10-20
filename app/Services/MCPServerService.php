@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Models\Student;
 use App\Models\Transaction;
 use App\Models\Attendance;
+use App\Services\StudentGradesService;
 
 /**
  * MCP Server Service - Servidor de Protocolo de Contexto de Modelo
@@ -17,9 +18,11 @@ class MCPServerService
 {
     private array $availableFunctions = [];
     private array $executionContext = [];
+    private StudentGradesService $gradesService;
 
-    public function __construct()
+    public function __construct(StudentGradesService $gradesService)
     {
+        $this->gradesService = $gradesService;
         $this->initializeAvailableFunctions();
     }
 
@@ -49,7 +52,19 @@ class MCPServerService
                 ]
             ],
             'get_student_grades' => [
-                'description' => 'Obtener información académica de un estudiante (carrera, promedio, etc.)',
+                'description' => 'Obtener calificaciones completas de Moodle de un estudiante (cursos, actividades, progreso)',
+                'parameters' => [
+                    'student_id' => ['type' => 'integer', 'required' => true, 'description' => 'ID del estudiante (matrícula)']
+                ]
+            ],
+            'get_student_grades_by_phone' => [
+                'description' => 'Obtener calificaciones de un estudiante usando su número de teléfono',
+                'parameters' => [
+                    'phone_number' => ['type' => 'string', 'required' => true, 'description' => 'Número de teléfono del estudiante']
+                ]
+            ],
+            'get_student_academic_info' => [
+                'description' => 'Obtener información académica básica de un estudiante (promedio, intentos, puntaje)',
                 'parameters' => [
                     'student_id' => ['type' => 'integer', 'required' => true, 'description' => 'ID del estudiante']
                 ]
@@ -121,7 +136,9 @@ class MCPServerService
                 'get_student_by_id' => $this->getStudentById($parameters['id']),
                 'get_student_by_phone' => $this->getStudentByPhone($parameters['phone_number']),
                 'get_student_payments' => $this->getStudentPayments($parameters['student_id'], $parameters['limit'] ?? 5),
-                'get_student_grades' => $this->getStudentGrades($parameters['student_id']),
+                'get_student_grades' => $this->getStudentMoodleGrades($parameters['student_id']),
+                'get_student_grades_by_phone' => $this->getStudentMoodleGradesByPhone($parameters['phone_number']),
+                'get_student_academic_info' => $this->getStudentAcademicInfo($parameters['student_id']),
                 'get_student_schedule' => $this->getStudentSchedule($parameters['student_id']),
                 'get_student_attendance' => $this->getStudentAttendance(
                     $parameters['student_id'], 
@@ -423,7 +440,7 @@ class MCPServerService
     /**
      * Obtener información académica de un estudiante
      */
-    public function getStudentGrades(int $studentId): array
+    public function getStudentAcademicInfo(int $studentId): array
     {
         try {
             $student = Student::find($studentId);
@@ -459,6 +476,157 @@ class MCPServerService
                 'error' => "Error obteniendo información académica: " . $this->translateErrorToSpanish($e->getMessage())
             ];
         }
+    }
+
+    /**
+     * Obtener calificaciones completas de Moodle de un estudiante
+     */
+    public function getStudentMoodleGrades(int $studentId): array
+    {
+        try {
+            $result = $this->gradesService->getStudentGradesByMatricula((string) $studentId);
+            
+            if (!$result['success']) {
+                return $result;
+            }
+
+            return [
+                'success' => true,
+                'data' => array_merge($result['data'], [
+                    'summary' => $this->generateGradesSummary($result['data'])
+                ])
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => "Error obteniendo calificaciones de Moodle: " . $this->translateErrorToSpanish($e->getMessage())
+            ];
+        }
+    }
+
+    /**
+     * Obtener calificaciones de Moodle por teléfono
+     */
+    public function getStudentMoodleGradesByPhone(string $phoneNumber): array
+    {
+        try {
+            $result = $this->gradesService->getStudentGradesByPhone($phoneNumber);
+            
+            if (!$result['success']) {
+                return $result;
+            }
+
+            return [
+                'success' => true,
+                'data' => array_merge($result['data'], [
+                    'summary' => $this->generateGradesSummary($result['data'])
+                ])
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => "Error obteniendo calificaciones de Moodle: " . $this->translateErrorToSpanish($e->getMessage())
+            ];
+        }
+    }
+
+    /**
+     * Generar resumen de calificaciones para respuesta de IA
+     */
+    private function generateGradesSummary(array $gradesData): array
+    {
+        $grades = $gradesData['grades'] ?? [];
+        
+        $totalCourses = count($grades);
+        $coursesWithGrades = 0;
+        $totalGradeSum = 0;
+        $completedCourses = 0;
+        $inProgressCourses = 0;
+
+        foreach ($grades as $course) {
+            if (!empty($course['rawgrade']) && $course['rawgrade'] !== null) {
+                $coursesWithGrades++;
+                $totalGradeSum += floatval($course['rawgrade']);
+            }
+
+            if ($course['completed'] ?? false) {
+                $completedCourses++;
+            } else if (!empty($course['rawgrade'])) {
+                $inProgressCourses++;
+            }
+        }
+
+        $averageGrade = $coursesWithGrades > 0 ? round($totalGradeSum / $coursesWithGrades, 2) : null;
+
+        return [
+            'total_courses' => $totalCourses,
+            'courses_with_grades' => $coursesWithGrades,
+            'completed_courses' => $completedCourses,
+            'in_progress_courses' => $inProgressCourses,
+            'average_grade' => $averageGrade,
+            'courses_list' => array_map(function($course) {
+                return [
+                    'name' => $course['course_name'],
+                    'grade' => $course['grade'] ?? 'Sin calificación',
+                    'progress' => $course['progress'] ?? null,
+                    'completed' => $course['completed'] ?? false,
+                    'activities_count' => $course['activities_count'] ?? 0
+                ];
+            }, $grades)
+        ];
+    }
+
+    /**
+     * Formatear información de calificaciones para respuesta en español
+     */
+    public function formatGradesResponseSpanish(array $gradesData): string
+    {
+        $student = $gradesData['student'] ?? [];
+        $studentName = $student['firstname'] . ' ' . $student['lastname'];
+        $studentId = $student['matricula'] ?? $student['id'] ?? 'N/A';
+        
+        $response = "Hola **{$studentName}** (Matrícula: {$studentId}), aquí están tus calificaciones:\n\n";
+        
+        $summary = $gradesData['summary'] ?? [];
+        
+        // Resumen general
+        $response .= "## 📊 Resumen General:\n";
+        $response .= "- **Total de Cursos:** {$summary['total_courses']}\n";
+        $response .= "- **Cursos con Calificación:** {$summary['courses_with_grades']}\n";
+        $response .= "- **Cursos Completados:** {$summary['completed_courses']} ✅\n";
+        $response .= "- **Cursos en Progreso:** {$summary['in_progress_courses']} ⏳\n";
+        
+        if ($summary['average_grade'] !== null) {
+            $response .= "- **Promedio General:** {$summary['average_grade']}\n";
+        }
+        $response .= "\n";
+        
+        // Lista de cursos
+        if (!empty($summary['courses_list'])) {
+            $response .= "## 📚 Cursos:\n";
+            foreach ($summary['courses_list'] as $index => $course) {
+                $number = $index + 1;
+                $statusIcon = $course['completed'] ? '✅' : ($course['grade'] !== 'Sin calificación' ? '⏳' : '📝');
+                
+                $response .= "{$number}. {$statusIcon} **{$course['name']}**\n";
+                $response .= "   - Calificación: {$course['grade']}\n";
+                
+                if ($course['progress'] !== null) {
+                    $response .= "   - Progreso: {$course['progress']}%\n";
+                }
+                
+                if ($course['activities_count'] > 0) {
+                    $response .= "   - Actividades: {$course['activities_count']}\n";
+                }
+                $response .= "\n";
+            }
+        }
+        
+        $response .= "¿Te gustaría ver más detalles de algún curso en específico? 😊";
+        
+        return $response;
     }
 
     /**
@@ -578,7 +746,7 @@ class MCPServerService
 
             // Obtener información adicional
             $paymentsResult = $this->getStudentPayments($studentId, 3);
-            $gradesResult = $this->getStudentGrades($studentId);
+            $gradesResult = $this->getStudentAcademicInfo($studentId);
             
             return [
                 'success' => true,

@@ -87,6 +87,8 @@ Route::prefix('whatsapp')->group(function () {
   Route::post('/mcp/execute', [WhatsAppController::class, 'executeMCPFunction']);
   Route::get('/mcp/functions', [WhatsAppController::class, 'getMCPFunctions']);
   Route::get('/mcp/student/matricula', [WhatsAppController::class, 'getStudentByMatricula']);
+  Route::get('/mcp/student/grades/matricula', [WhatsAppController::class, 'getStudentGradesByMatricula']);
+  Route::get('/mcp/student/grades/phone', [WhatsAppController::class, 'getStudentGradesByPhone']);
   Route::get('/mcp/student/profile', [WhatsAppController::class, 'getStudentProfile']);
   
   // Test de idioma español

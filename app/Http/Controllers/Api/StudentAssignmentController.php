@@ -10,6 +10,7 @@ use App\Models\Grupo;
 use App\Models\SemanaIntensiva;
 use App\Models\Carrera;
 use App\Services\Moodle\MoodleService;
+use App\Services\StudentGradesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -18,10 +19,12 @@ use Illuminate\Support\Facades\DB;
 class StudentAssignmentController extends Controller
 {
     protected $moodleService;
+    protected $gradesService;
 
-    public function __construct(MoodleService $moodleService)
+    public function __construct(MoodleService $moodleService, StudentGradesService $gradesService)
     {
         $this->moodleService = $moodleService;
+        $this->gradesService = $gradesService;
     }
     /**
      * Display a listing of student assignments.
@@ -887,130 +890,17 @@ class StudentAssignmentController extends Controller
         try {
             $student = Student::findOrFail($studentId);
 
-            $this->ensureStudentHasMoodleId($student);
+            $result = $this->gradesService->getStudentGrades($student);
 
-            // Obtener resumen de calificaciones de todos los cursos del usuario
-            $gradesOverview = $this->moodleService->grades()->getCourseGradesOverview($student->moodle_id);
-
-            if (!$gradesOverview || !isset($gradesOverview['grades'])) {
+            if (!$result['success']) {
                 return response()->json([
-                    'message' => 'No se encontraron calificaciones para este estudiante en Moodle',
-                    'student' => [
-                        'id' => $student->id,
-                        'firstname' => $student->firstname,
-                        'lastname' => $student->lastname,
-                        'moodle_id' => $student->moodle_id,
-                    ],
-                    'courses_count' => 0,
-                    'grades' => []
-                ]);
+                    'message' => $result['error']
+                ], 500);
             }
 
-            // Obtener las asignaciones del estudiante con grupos y semanas intensivas
-            $assignments = StudentAssignment::where('student_id', $studentId)
-                ->where('is_active', true)
-                ->with(['grupo', 'semanaIntensiva', 'carrera'])
-                ->get();
+            return response()->json($result['data']);
 
-            // Crear mapeo de moodle_id a nombre
-            $courseNameMapping = [];
-            foreach ($assignments as $assignment) {
-                if ($assignment->grupo && $assignment->grupo->moodle_id) {
-                    $courseNameMapping[$assignment->grupo->moodle_id] = [
-                        'name' => $assignment->grupo->name,
-                        'type' => 'Grupo',
-                        'carrera' => $assignment->carrera->name ?? null,
-                    ];
-                }
-                if ($assignment->semanaIntensiva && $assignment->semanaIntensiva->moodle_id) {
-                    $courseNameMapping[$assignment->semanaIntensiva->moodle_id] = [
-                        'name' => $assignment->semanaIntensiva->name,
-                        'type' => 'Semana Intensiva',
-                        'carrera' => $assignment->carrera->name ?? null,
-                    ];
-                }
-            }
 
-            $gradesWithCourseInfo = [];
-            foreach ($gradesOverview['grades'] as $courseGrade) {
-                $courseId = $courseGrade['courseid'];
-                $courseInfo = $courseNameMapping[$courseId] ?? null;
-
-                $courseData = [
-                    'course_id' => $courseId,
-                    'course_name' => $courseInfo['name'] ?? $courseGrade['coursename'] ?? 'Curso desconocido',
-                    'course_type' => $courseInfo['type'] ?? 'Curso',
-                    'carrera_name' => $courseInfo['carrera'] ?? null,
-                    'course_shortname' => $courseGrade['courseshortname'] ?? '',
-                    'grade' => $courseGrade['grade'] ?? null,
-                    'rawgrade' => $courseGrade['rawgrade'] ?? null,
-                    'rank' => $courseGrade['rank'] ?? null,
-                    'activities' => [],
-                    'activities_count' => 0,
-                    'course_details' => null,
-                ];
-
-                // Obtener detalles completos del curso incluyendo actividades
-                if ($courseGrade['rawgrade'] !== null) {
-                    $gradeItems = $this->moodleService->grades()->getUserGradeItems($courseId, $student->moodle_id);
-                    
-                    if ($gradeItems && isset($gradeItems['usergrades']) && !empty($gradeItems['usergrades'])) {
-                        $userGrade = $gradeItems['usergrades'][0];
-                        
-                        if (isset($userGrade['gradeitems'])) {
-                            $activities = [];
-                            $courseTotalItem = null;
-                            
-                            foreach ($userGrade['gradeitems'] as $item) {
-                                // El item del curso es el total
-                                if (isset($item['itemtype']) && $item['itemtype'] === 'course') {
-                                    $courseTotalItem = $item;
-                                } else {
-                                    // Actividades individuales
-                                    $activities[] = [
-                                        'id' => $item['id'] ?? null,
-                                        'name' => $item['itemname'] ?? 'Actividad sin nombre',
-                                        'type' => $item['itemtype'] ?? 'unknown',
-                                        'module' => $item['itemmodule'] ?? null,
-                                        'grade' => $item['gradeformatted'] ?? '-',
-                                        'rawgrade' => $item['graderaw'] ?? null,
-                                        'max_grade' => $item['grademax'] ?? null,
-                                        'min_grade' => $item['grademin'] ?? null,
-                                        'percentage' => $item['percentageformatted'] ?? null,
-                                        'feedback' => $item['feedback'] ?? null,
-                                        'weight' => $item['weightformatted'] ?? null,
-                                    ];
-                                }
-                            }
-                            
-                            $courseData['activities'] = $activities;
-                            $courseData['activities_count'] = count($activities);
-                            
-                            // Agregar detalles del curso total
-                            if ($courseTotalItem) {
-                                $courseData['course_details'] = [
-                                    'max_grade' => $courseTotalItem['grademax'] ?? null,
-                                    'min_grade' => $courseTotalItem['grademin'] ?? null,
-                                    'percentage' => $courseTotalItem['percentageformatted'] ?? null,
-                                ];
-                            }
-                        }
-                    }
-                }
-
-                $gradesWithCourseInfo[] = $courseData;
-            }
-
-            return response()->json([
-                'student' => [
-                    'id' => $student->id,
-                    'firstname' => $student->firstname,
-                    'lastname' => $student->lastname,
-                    'moodle_id' => $student->moodle_id,
-                ],
-                'courses_count' => count($gradesWithCourseInfo),
-                'grades' => $gradesWithCourseInfo,
-            ]);
 
         } catch (\Exception $e) {
             Log::error('Error obteniendo calificaciones del estudiante', [

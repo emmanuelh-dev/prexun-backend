@@ -757,8 +757,8 @@ class WhatsAppController extends Controller
     }
 
     try {
-      $result = $this->mcpServer->executeFunction('get_student_by_matricula', [
-        'matricula' => $request->matricula
+      $result = $this->mcpServer->executeFunction('get_student_by_id', [
+        'id' => $request->matricula
       ]);
 
       return response()->json($result);
@@ -767,6 +767,70 @@ class WhatsAppController extends Controller
       return response()->json([
         'success' => false,
         'message' => 'Error buscando estudiante: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
+   * Obtener calificaciones de estudiante por matrícula usando MCP
+   */
+  public function getStudentGradesByMatricula(Request $request)
+  {
+    $validator = Validator::make($request->all(), [
+      'matricula' => 'required|string'
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Matrícula es requerida',
+        'errors' => $validator->errors()
+      ], 422);
+    }
+
+    try {
+      $result = $this->mcpServer->executeFunction('get_student_grades', [
+        'student_id' => (int) $request->matricula
+      ]);
+
+      return response()->json($result);
+
+    } catch (\Exception $e) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Error obteniendo calificaciones: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
+   * Obtener calificaciones de estudiante por teléfono usando MCP
+   */
+  public function getStudentGradesByPhone(Request $request)
+  {
+    $validator = Validator::make($request->all(), [
+      'phone_number' => 'required|string'
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Número de teléfono es requerido',
+        'errors' => $validator->errors()
+      ], 422);
+    }
+
+    try {
+      $result = $this->mcpServer->executeFunction('get_student_grades_by_phone', [
+        'phone_number' => $request->phone_number
+      ]);
+
+      return response()->json($result);
+
+    } catch (\Exception $e) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Error obteniendo calificaciones: ' . $e->getMessage()
       ], 500);
     }
   }

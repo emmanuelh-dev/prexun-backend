@@ -109,13 +109,19 @@ class AIFunctionService
         // Agregar información sobre funciones disponibles
         $baseMessage .= "FUNCIONES DISPONIBLES:\n";
         $baseMessage .= "Tienes acceso a funciones para consultar:\n";
-        $baseMessage .= "- Estado de pagos y transacciones\n";
-        $baseMessage .= "- Información académica y promedio\n";
-        $baseMessage .= "- Registro de asistencias\n";
-        $baseMessage .= "- Perfil completo del estudiante\n";
-        $baseMessage .= "- Búsqueda de estudiantes\n\n";
-        $baseMessage .= "IMPORTANTE: EL ID ES EL MISMO QUE LA MATRÍCULA. POR LO QUE SI EL ESTUDIANTE TE DA SU MATRÍCULA, EN LA BASE DE DATOS LA PUEDES BUSCAR COMO EL ID EN LA TABLA DE STUDENTS, NO LO OLVIDES, ES IMPORTANTE";
-        
+        $baseMessage .= "- Estado de pagos y transacciones (get_student_payments)\n";
+        $baseMessage .= "- Calificaciones completas de Moodle con cursos y actividades (get_student_grades)\n";
+        $baseMessage .= "- Calificaciones por teléfono (get_student_grades_by_phone)\n";
+        $baseMessage .= "- Información académica básica: promedio, intentos (get_student_academic_info)\n";
+        $baseMessage .= "- Registro de asistencias (get_student_attendance)\n";
+        $baseMessage .= "- Información de horarios y grupos (get_student_schedule)\n";
+        $baseMessage .= "- Perfil completo del estudiante (get_student_profile)\n";
+        $baseMessage .= "- Búsqueda de estudiantes por nombre (search_students)\n\n";
+        $baseMessage .= "IMPORTANTE: \n";
+        $baseMessage .= "- EL ID ES EL MISMO QUE LA MATRÍCULA. Si el estudiante te da su matrícula, úsala como 'id' o 'student_id'\n";
+        $baseMessage .= "- Para calificaciones detalladas de Moodle, usa get_student_grades (cursos, actividades, progreso)\n";
+        $baseMessage .= "- Para información académica básica (promedio del sistema), usa get_student_academic_info\n";
+        $baseMessage .= "- Siempre presenta las calificaciones de forma clara y organizada\n\n";
         $baseMessage .= "Usa estas funciones cuando el estudiante pregunte por información específica.";
 
         return $baseMessage;
