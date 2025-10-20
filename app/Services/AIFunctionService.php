@@ -333,11 +333,90 @@ class AIFunctionService
         // Obtener el mensaje final de respuesta
         $finalMessage = $currentMessage['content'] ?? 'No se pudo generar respuesta';
 
+        // Post-procesar: Formatear para WhatsApp y forzar español
+        $formattedMessage = $this->formatForWhatsApp($finalMessage);
+
         return [
-            'final_message' => $finalMessage,
+            'final_message' => $formattedMessage,
             'functions_executed' => $functionsExecuted,
             'all_messages' => $messages
         ];
+    }
+
+    /**
+     * Formatear mensaje final para WhatsApp en español
+     * Esta es la última llamada para garantizar formato correcto
+     */
+    private function formatForWhatsApp(string $message): string
+    {
+        try {
+            $formattingPrompt = [
+                [
+                    'role' => 'system',
+                    'content' => "You are a formatter assistant. Your ONLY job is to format text for WhatsApp.\n\n" .
+                        "CRITICAL REQUIREMENTS:\n" .
+                        "1. Output MUST be in SPANISH language (español)\n" .
+                        "2. Use ONLY WhatsApp-compatible formatting:\n" .
+                        "   - *text* for bold\n" .
+                        "   - _text_ for italic\n" .
+                        "   - • or - for bullet lists\n" .
+                        "   - ━━━ for separators (Unicode)\n" .
+                        "   - ✓ ○ for status symbols\n" .
+                        "3. NO markdown tables (not supported in WhatsApp)\n" .
+                        "4. NO ### headers (use *TITLE* instead)\n" .
+                        "5. Keep the information but format it nicely\n" .
+                        "6. Maintain professional but friendly tone\n" .
+                        "7. NEVER translate to English - output must be Spanish\n\n" .
+                        "EXAMPLE OUTPUT:\n" .
+                        "*RESUMEN DEL ESTUDIANTE*\n\n" .
+                        "*Nombre:* _María García_\n" .
+                        "*Matrícula:* 4579\n\n" .
+                        "━━━━━━━━━━━━━━━━\n\n" .
+                        "*ESTADO DE PAGOS*\n\n" .
+                        "• *Total pagado:* \$5,000\n" .
+                        "• *Saldo pendiente:* \$0\n\n" .
+                        "Si hay algo más que necesites, estoy aquí para ayudarte."
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "Format this message for WhatsApp in SPANISH:\n\n" . $message
+                ]
+            ];
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->openAIApiKey,
+                'Content-Type' => 'application/json'
+            ])->timeout(15)->post('https://api.openai.com/v1/chat/completions', [
+                'model' => 'gpt-4o-mini',
+                'messages' => $formattingPrompt,
+                'max_tokens' => 800,
+                'temperature' => 0.3 // Baja temperatura para formato consistente
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $formatted = $data['choices'][0]['message']['content'] ?? $message;
+                
+                Log::info('Mensaje formateado para WhatsApp', [
+                    'original_length' => strlen($message),
+                    'formatted_length' => strlen($formatted)
+                ]);
+                
+                return $formatted;
+            }
+
+            // Si falla, devolver el mensaje original
+            Log::warning('Falló formateo para WhatsApp, usando mensaje original');
+            return $message;
+
+        } catch (\Exception $e) {
+            Log::error('Error en formateo para WhatsApp', [
+                'error' => $e->getMessage()
+            ]);
+            
+            // Si falla, devolver el mensaje original
+            return $message;
+        }
     }
 
     /**
