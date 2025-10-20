@@ -131,7 +131,6 @@ class MCPServerService
                 ];
             }
 
-            // Ejecutar la función correspondiente
             $result = match($functionName) {
                 'get_student_by_id' => $this->getStudentById($parameters['id']),
                 'get_student_by_phone' => $this->getStudentByPhone($parameters['phone_number']),
@@ -587,44 +586,61 @@ class MCPServerService
         $studentName = $student['firstname'] . ' ' . $student['lastname'];
         $studentId = $student['matricula'] ?? $student['id'] ?? 'N/A';
         
-        $response = "Hola **{$studentName}** (Matrícula: {$studentId}), aquí están tus calificaciones:\n\n";
+        $response = "*RESUMEN DEL ESTUDIANTE*\n\n";
+        $response .= "*Nombre:* _{$studentName}_\n";
+        $response .= "*Matrícula:* {$studentId}\n\n";
+        $response .= "━━━━━━━━━━━━━━━━\n\n";
         
         $summary = $gradesData['summary'] ?? [];
         
-        // Resumen general
-        $response .= "## 📊 Resumen General:\n";
-        $response .= "- **Total de Cursos:** {$summary['total_courses']}\n";
-        $response .= "- **Cursos con Calificación:** {$summary['courses_with_grades']}\n";
-        $response .= "- **Cursos Completados:** {$summary['completed_courses']} ✅\n";
-        $response .= "- **Cursos en Progreso:** {$summary['in_progress_courses']} ⏳\n";
+        // Rendimiento académico
+        $response .= "*RENDIMIENTO ACADÉMICO*\n\n";
+        $response .= "• *Cursos totales:* {$summary['total_courses']}\n";
+        $response .= "• *Cursos con calificación:* {$summary['courses_with_grades']}\n";
+        $response .= "• *Cursos completados:* {$summary['completed_courses']}\n";
+        $response .= "• *Cursos en progreso:* {$summary['in_progress_courses']}\n";
         
         if ($summary['average_grade'] !== null) {
-            $response .= "- **Promedio General:** {$summary['average_grade']}\n";
+            $response .= "• *Promedio actual:* " . number_format($summary['average_grade'], 2) . "\n";
         }
-        $response .= "\n";
+        $response .= "\n━━━━━━━━━━━━━━━━\n\n";
         
-        // Lista de cursos
+        // Lista de materias
         if (!empty($summary['courses_list'])) {
-            $response .= "## 📚 Cursos:\n";
+            $response .= "*AVANCE POR MATERIA*\n\n";
+            
             foreach ($summary['courses_list'] as $index => $course) {
-                $number = $index + 1;
-                $statusIcon = $course['completed'] ? '✅' : ($course['grade'] !== 'Sin calificación' ? '⏳' : '📝');
+                $num = $index + 1;
+                $courseName = $course['name'];
+                $grade = $course['grade'] !== 'Sin calificación' ? $course['grade'] : 'Sin calificar';
+                $activities = $course['activities_count'] ?? 0;
+                $status = $course['completed'] ? '✓ Completado' : '○ En curso';
                 
-                $response .= "{$number}. {$statusIcon} **{$course['name']}**\n";
-                $response .= "   - Calificación: {$course['grade']}\n";
-                
-                if ($course['progress'] !== null) {
-                    $response .= "   - Progreso: {$course['progress']}%\n";
-                }
-                
-                if ($course['activities_count'] > 0) {
-                    $response .= "   - Actividades: {$course['activities_count']}\n";
-                }
-                $response .= "\n";
+                $response .= "*{$num}. {$courseName}*\n";
+                $response .= "   Calificación: {$grade}\n";
+                $response .= "   Actividades: {$activities}\n";
+                $response .= "   Estado: {$status}\n\n";
             }
+            
+            $response .= "━━━━━━━━━━━━━━━━\n\n";
         }
         
-        $response .= "¿Te gustaría ver más detalles de algún curso en específico? 😊";
+        // Observación general
+        $response .= "*Observación general:*\n";
+        $coursesWithProgress = $summary['courses_with_grades'] ?? 0;
+        
+        if ($coursesWithProgress > 0) {
+            $response .= "{$studentName} muestra avances en {$coursesWithProgress} materia(s)";
+            if ($summary['completed_courses'] > 0) {
+                $response .= " y ha completado {$summary['completed_courses']} curso(s)";
+            }
+            $response .= ". ";
+        }
+        
+        $inProgress = $summary['in_progress_courses'] ?? 0;
+        if ($inProgress > 0) {
+            $response .= "Actualmente tiene {$inProgress} curso(s) en desarrollo.";
+        }
         
         return $response;
     }
@@ -908,46 +924,56 @@ class MCPServerService
         $student = $paymentData['student_name'] ?? 'Estudiante';
         $studentId = $paymentData['student_id'] ?? 'N/A';
         
-        $response = "Hola **{$student}** (Matrícula: {$studentId}), aquí tienes la información de tus pagos:\n\n";
+        $response = "*RESUMEN DEL ESTUDIANTE*\n\n";
+        $response .= "*Nombre:* _{$student}_\n";
+        $response .= "*Matrícula:* {$studentId}\n\n";
+        $response .= "━━━━━━━━━━━━━━━━\n\n";
         
-        // Resumen financiero
-        $response .= "## 💰 Resumen Financiero:\n";
-        $response .= "- **Total Pagado:** \${$paymentData['total_paid']} pesos mexicanos\n";
-        $response .= "- **Total Pendiente:** \${$paymentData['total_pending']} pesos mexicanos\n\n";
+        // Estado de pagos
+        $response .= "*ESTADO DE PAGOS*\n\n";
+        $response .= "• *Total pagado:* \${$paymentData['total_paid']}\n";
+        $response .= "• *Saldo pendiente:* \${$paymentData['total_pending']}\n\n";
         
         // Última transacción
         if (!empty($paymentData['last_transaction'])) {
             $lastTx = $paymentData['last_transaction'];
-            $response .= "## 📋 Última Transacción:\n";
-            $response .= "- **Monto:** \${$lastTx['amount']} pesos\n";
-            $response .= "- **Estado:** " . ($lastTx['paid'] ? 'Pagado ✅' : 'Pendiente ⏳') . "\n";
+            $response .= "*Último pago:*\n\n";
+            $response .= "• *Monto:* \${$lastTx['amount']}\n";
             
             if ($lastTx['payment_date']) {
-                $response .= "- **Fecha de Pago:** {$this->formatDateSpanish($lastTx['payment_date'])}\n";
-            }
-            if ($lastTx['expiration_date']) {
-                $response .= "- **Fecha de Vencimiento:** {$this->formatDateSpanish($lastTx['expiration_date'])}\n";
-            }
-            if ($lastTx['transaction_type']) {
-                $response .= "- **Tipo:** {$this->translateTransactionType($lastTx['transaction_type'])}\n";
+                $response .= "• *Fecha:* {$this->formatDateSpanish($lastTx['payment_date'])}\n";
             }
             if ($lastTx['payment_method']) {
-                $response .= "- **Método de Pago:** {$this->translatePaymentMethod($lastTx['payment_method'])}\n";
+                $response .= "• *Método:* {$this->translatePaymentMethod($lastTx['payment_method'])}\n";
+            }
+            if ($lastTx['notes']) {
+                $response .= "• *Descripción:* {$lastTx['notes']}\n";
             }
             $response .= "\n";
         }
         
         // Transacciones recientes
-        if (!empty($paymentData['recent_transactions'])) {
-            $response .= "## 📊 Transacciones Recientes:\n";
-            foreach ($paymentData['recent_transactions'] as $index => $tx) {
-                $response .= ($index + 1) . ". **ID:** {$tx['id']} - **Monto:** \${$tx['amount']} - ";
-                $response .= "**Estado:** " . ($tx['paid'] ? 'Pagado ✅' : 'Pendiente ⏳') . "\n";
+        if (!empty($paymentData['recent_transactions']) && count($paymentData['recent_transactions']) > 0) {
+            $response .= "*Historial reciente de pagos:*\n\n";
+            foreach ($paymentData['recent_transactions'] as $tx) {
+                $response .= "• *ID:* {$tx['id']}\n";
+                $response .= "  *Monto:* \${$tx['amount']}\n";
+                $response .= "  *Pagado:* " . ($tx['paid'] ? 'Sí' : 'No') . "\n";
+                $response .= "  *Tipo:* {$this->translateTransactionType($tx['transaction_type'])}\n";
+                $response .= "  *Método:* {$this->translatePaymentMethod($tx['payment_method'])}\n";
+                
+                if ($tx['payment_date']) {
+                    $response .= "  *Fecha de pago:* {$this->formatDateSpanish($tx['payment_date'])}\n";
+                }
+                if ($tx['expiration_date']) {
+                    $response .= "  *Vencimiento:* {$this->formatDateSpanish($tx['expiration_date'])}\n";
+                }
+                if ($tx['notes']) {
+                    $response .= "  *Nota:* {$tx['notes']}\n";
+                }
+                $response .= "\n";
             }
-            $response .= "\n";
         }
-        
-        $response .= "¿Te puedo ayudar con alguna otra información? 😊";
         
         return $response;
     }
@@ -1003,6 +1029,110 @@ class MCPServerService
         ];
         
         return $methods[strtolower($method)] ?? ucfirst($method);
+    }
+
+    /**
+     * Generar reporte completo de estudiante (pagos + calificaciones)
+     */
+    public function formatCompleteStudentReport(array $studentData, array $paymentsData = null, array $gradesData = null): string
+    {
+        $studentName = $studentData['name'] ?? 'Estudiante';
+        $studentId = $studentData['matricula'] ?? $studentData['id'] ?? 'N/A';
+        
+        $response = "*RESUMEN DEL ESTUDIANTE*\n\n";
+        $response .= "*Nombre:* _{$studentName}_\n";
+        $response .= "*Matrícula:* {$studentId}\n\n";
+        $response .= "━━━━━━━━━━━━━━━━\n\n";
+        
+        // Sección de pagos
+        if ($paymentsData && $paymentsData['success']) {
+            $data = $paymentsData['data'];
+            $response .= "*ESTADO DE PAGOS*\n\n";
+            $response .= "• *Total pagado:* \${$data['total_paid']}\n";
+            $response .= "• *Saldo pendiente:* \${$data['total_pending']}\n\n";
+            
+            if (!empty($data['last_transaction'])) {
+                $lastTx = $data['last_transaction'];
+                $response .= "*Último pago:*\n\n";
+                $response .= "• *Monto:* \${$lastTx['amount']}\n";
+                if ($lastTx['payment_date']) {
+                    $response .= "• *Fecha:* {$this->formatDateSpanish($lastTx['payment_date'])}\n";
+                }
+                if ($lastTx['payment_method']) {
+                    $response .= "• *Método:* {$this->translatePaymentMethod($lastTx['payment_method'])}\n";
+                }
+                $response .= "\n";
+            }
+            
+            $response .= "━━━━━━━━━━━━━━━━\n\n";
+        }
+        
+        // Sección de calificaciones
+        if ($gradesData && $gradesData['success']) {
+            $data = $gradesData['data'];
+            $summary = $data['summary'] ?? [];
+            
+            $response .= "*RENDIMIENTO ACADÉMICO*\n\n";
+            $response .= "• *Cursos totales:* {$summary['total_courses']}\n";
+            $response .= "• *Cursos con calificación:* {$summary['courses_with_grades']}\n";
+            $response .= "• *Cursos completados:* {$summary['completed_courses']}\n";
+            $response .= "• *Cursos en progreso:* {$summary['in_progress_courses']}\n";
+            
+            if (isset($summary['average_grade']) && $summary['average_grade'] !== null) {
+                $response .= "• *Promedio actual:* " . number_format($summary['average_grade'], 2) . "\n";
+            }
+            $response .= "\n━━━━━━━━━━━━━━━━\n\n";
+            
+            // Lista de materias
+            if (!empty($summary['courses_list'])) {
+                $response .= "*AVANCE POR MATERIA*\n\n";
+                
+                foreach ($summary['courses_list'] as $index => $course) {
+                    $num = $index + 1;
+                    $courseName = $course['name'];
+                    $grade = $course['grade'] !== 'Sin calificación' ? $course['grade'] : 'Sin calificar';
+                    $activities = $course['activities_count'] ?? 0;
+                    $status = $course['completed'] ? '✓ Completado' : '○ En curso';
+                    
+                    $response .= "*{$num}. {$courseName}*\n";
+                    $response .= "   Calificación: {$grade}\n";
+                    $response .= "   Actividades: {$activities}\n";
+                    $response .= "   Estado: {$status}\n\n";
+                }
+                
+                $response .= "━━━━━━━━━━━━━━━━\n\n";
+            }
+        }
+        
+        // Observación general
+        $response .= "*Observación general:*\n";
+        
+        $observations = [];
+        
+        if ($paymentsData && $paymentsData['success']) {
+            $pending = $paymentsData['data']['total_pending'] ?? 0;
+            if ($pending == 0) {
+                $observations[] = "ha cumplido con todos sus pagos";
+            } else {
+                $observations[] = "tiene un saldo pendiente de \${$pending}";
+            }
+        }
+        
+        if ($gradesData && $gradesData['success']) {
+            $summary = $gradesData['data']['summary'] ?? [];
+            $withGrades = $summary['courses_with_grades'] ?? 0;
+            if ($withGrades > 0) {
+                $observations[] = "muestra avances en {$withGrades} materia(s)";
+            }
+        }
+        
+        if (!empty($observations)) {
+            $response .= ucfirst($studentName) . " " . implode(' y ', $observations) . ".";
+        } else {
+            $response .= "Información actualizada del estudiante.";
+        }
+        
+        return $response;
     }
 
     /**

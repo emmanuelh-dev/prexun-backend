@@ -836,6 +836,75 @@ class WhatsAppController extends Controller
   }
 
   /**
+   * Test de formato de reporte completo (pagos + calificaciones)
+   */
+  public function testCompleteReport(Request $request)
+  {
+    $validator = Validator::make($request->all(), [
+      'matricula' => 'required|string'
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Matrícula es requerida',
+        'errors' => $validator->errors()
+      ], 422);
+    }
+
+    try {
+      $studentId = (int) $request->matricula;
+
+      // Obtener información del estudiante
+      $studentResult = $this->mcpServer->executeFunction('get_student_by_id', [
+        'id' => (string) $studentId
+      ]);
+
+      if (!$studentResult['success']) {
+        return response()->json($studentResult, 404);
+      }
+
+      $studentData = $studentResult['data'];
+
+      // Obtener pagos
+      $paymentsResult = $this->mcpServer->executeFunction('get_student_payments', [
+        'student_id' => $studentId,
+        'limit' => 5
+      ]);
+
+      // Obtener calificaciones
+      $gradesResult = $this->mcpServer->executeFunction('get_student_grades', [
+        'student_id' => $studentId
+      ]);
+
+      // Generar reporte completo formateado
+      $formattedReport = $this->mcpServer->formatCompleteStudentReport(
+        $studentData,
+        $paymentsResult,
+        $gradesResult
+      );
+
+      return response()->json([
+        'success' => true,
+        'data' => [
+          'student' => $studentData,
+          'formatted_report' => $formattedReport,
+          'raw_data' => [
+            'payments' => $paymentsResult,
+            'grades' => $gradesResult
+          ]
+        ]
+      ]);
+
+    } catch (\Exception $e) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Error generando reporte: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
    * Probar respuesta en español (endpoint de testing)
    */
   public function testSpanishResponse(Request $request)
