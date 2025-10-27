@@ -27,6 +27,7 @@ class TransactionController extends Controller
     $search = $request->query('search');
     $payment_method = $request->query('payment_method');
     $card_id = $request->query('card_id');
+    $folio = $request->query('folio');
 
     $query = Transaction::with(['student', 'campus', 'student.grupo', 'card'])
       ->where('campus_id', $campus_id)
@@ -43,6 +44,17 @@ class TransactionController extends Controller
               ->orWhere('username', 'LIKE', '%' . $term . '%');
           });
         }
+      });
+    }
+
+    // Filtro por folio
+    if ($folio) {
+      $query->where(function ($q) use ($folio) {
+        $q->where('folio', 'LIKE', $folio . '%' )
+          ->orWhere('folio_new', 'LIKE', $folio . '%')
+          ->orWhere('folio_cash', 'LIKE', $folio . '%')
+          ->orWhere('folio_transfer', 'LIKE', $folio . '%')
+          ->orWhere('folio_card', 'LIKE', $folio . '%');
       });
     }
 
@@ -80,6 +92,7 @@ class TransactionController extends Controller
     $search = $request->query('search');
     $payment_method = $request->query('payment_method');
     $card_id = $request->query('card_id');
+    $folio = $request->query('folio');
 
     if (!$campus_id) {
       return response()->json(['error' => 'campus_id is required'], 400);
@@ -100,6 +113,17 @@ class TransactionController extends Controller
               ->orWhere('username', 'LIKE', '%' . $term . '%');
           });
         }
+      });
+    }
+
+    // Filtro por folio
+    if ($folio) {
+      $query->where(function ($q) use ($folio) {
+        $q->where('folio', 'LIKE', '%' . $folio)
+          ->orWhere('folio_new', 'LIKE', '%' . $folio . '%')
+          ->orWhere('folio_cash', 'LIKE', '%' . $folio)
+          ->orWhere('folio_transfer', 'LIKE', '%' . $folio)
+          ->orWhere('folio_card', 'LIKE', '%' . $folio);
       });
     }
 
