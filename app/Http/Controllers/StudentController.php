@@ -1990,29 +1990,40 @@ class StudentController extends Controller
 
       $phoneNumber = $this->normalizePhoneNumber($student->phone);
       
+      // $messageData = [
+      //   'messaging_product' => 'whatsapp',
+      //   'to' => $phoneNumber,
+      //   'type' => 'template',
+      //   'template' => [
+      //     'name' => 'mensaje_registro_exitoso',
+      //     'language' => [
+      //       'code' => 'es'
+      //     ],
+      //     'components' => [
+      //       [
+      //         'type' => 'body',
+      //         'parameters' => [
+      //           [
+      //             'type' => 'number',
+      //             'text' => (string) $student->id
+      //           ]
+      //         ]
+      //       ]
+      //     ]
+      //   ]
+      // ];
+
       $messageData = [
         'messaging_product' => 'whatsapp',
         'to' => $phoneNumber,
         'type' => 'template',
         'template' => [
-          'name' => 'mensaje_registro_exitoso',
+          'name' => 'registro',
           'language' => [
             'code' => 'es'
           ],
-          'components' => [
-            [
-              'type' => 'body',
-              'parameters' => [
-                [
-                  'type' => 'number',
-                  'text' => (string) $student->id
-                ]
-              ]
-            ]
-          ]
         ]
       ];
-
       $apiUrl = "https://graph.facebook.com/v20.0/{$phoneNumberId}/messages";
       
       $response = Http::withHeaders([
