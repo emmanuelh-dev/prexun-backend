@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Http;
 use PDO;
 
 class StudentController extends Controller
@@ -237,6 +238,12 @@ class StudentController extends Controller
 
       // Log student creation event
       StudentEvent::createEvent($student->id, StudentEvent::EVENT_CREATED, null, $student->toArray());
+
+      // Enviar plantilla de WhatsApp de registro exitoso si está habilitado
+      $sendWhatsApp = $request->input('send_whatsapp', true);
+      if ($student->phone && $sendWhatsApp) {
+        $this->sendRegistrationWhatsAppTemplate($student);
+      }
 
       return response()->json($student, 201);
     } catch (\Exception $e) {
@@ -1963,5 +1970,90 @@ class StudentController extends Controller
         'error' => $e->getMessage()
       ], 500);
     }
+  }
+
+  /**
+   * Enviar plantilla de WhatsApp de registro exitoso al estudiante
+   */
+  private function sendRegistrationWhatsAppTemplate(Student $student): void
+  {
+    try {
+      $whatsappToken = env('WHATSAPP_TOKEN');
+      $phoneNumberId = env('PHONE_NUMBER_ID');
+
+      if (!$whatsappToken || !$phoneNumberId) {
+        Log::warning('WhatsApp credentials not configured, skipping registration template', [
+          'student_id' => $student->id
+        ]);
+        return;
+      }
+
+      $phoneNumber = $this->normalizePhoneNumber($student->phone);
+      
+      $messageData = [
+        'messaging_product' => 'whatsapp',
+        'to' => $phoneNumber,
+        'type' => 'template',
+        'template' => [
+          'name' => 'mensaje_registro_exitoso',
+          'language' => [
+            'code' => 'es'
+          ],
+          'components' => [
+            [
+              'type' => 'body',
+              'parameters' => [
+                [
+                  'type' => 'number',
+                  'text' => (string) $student->id
+                ]
+              ]
+            ]
+          ]
+        ]
+      ];
+
+      $apiUrl = "https://graph.facebook.com/v20.0/{$phoneNumberId}/messages";
+      
+      $response = Http::withHeaders([
+        'Authorization' => 'Bearer ' . $whatsappToken,
+        'Content-Type' => 'application/json'
+      ])->post($apiUrl, $messageData);
+
+      if ($response->successful()) {
+        Log::info('WhatsApp registration template sent successfully', [
+          'student_id' => $student->id,
+          'matricula' => $student->id,
+          'phone_number' => $phoneNumber,
+          'response' => $response->json()
+        ]);
+      } else {
+        Log::error('Failed to send WhatsApp registration template', [
+          'student_id' => $student->id,
+          'phone_number' => $phoneNumber,
+          'status' => $response->status(),
+          'error' => $response->json()
+        ]);
+      }
+    } catch (\Exception $e) {
+      Log::error('Exception sending WhatsApp registration template', [
+        'student_id' => $student->id,
+        'error' => $e->getMessage()
+      ]);
+    }
+  }
+
+  /**
+   * Normalizar formato de número de teléfono para WhatsApp
+   */
+  private function normalizePhoneNumber($phoneNumber): string
+  {
+    $cleaned = preg_replace('/[^+\d]/', '', $phoneNumber);
+    
+    if (!str_starts_with($cleaned, '+')) {
+      $cleaned = '+' . $cleaned;
+    }
+    
+    return $cleaned;
   }
 }

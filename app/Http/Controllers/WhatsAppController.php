@@ -312,6 +312,131 @@ class WhatsAppController extends Controller
   }
 
   /**
+   * Listar plantillas disponibles desde WhatsApp Business
+   */
+  public function getWhatsAppTemplates()
+  {
+    if (!$this->whatsappToken || !$this->phoneNumberId) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Las credenciales de WhatsApp no están configuradas'
+      ], 500);
+    }
+
+    try {
+      $wabaid = env('WHATSAPP_BUSINESS_ACCOUNT_ID');
+      
+      if (!$wabaid) {
+        return response()->json([
+          'success' => false,
+          'message' => 'WHATSAPP_BUSINESS_ACCOUNT_ID no está configurado en .env'
+        ], 500);
+      }
+
+      $url = "https://graph.facebook.com/v20.0/{$wabaid}/message_templates";
+      
+      $response = Http::withHeaders([
+        'Authorization' => 'Bearer ' . $this->whatsappToken
+      ])->get($url);
+
+      if ($response->successful()) {
+        $templates = $response->json('data', []);
+        
+        $formattedTemplates = collect($templates)->map(function($template) {
+          return [
+            'name' => $template['name'],
+            'language' => $template['language'],
+            'status' => $template['status'],
+            'category' => $template['category'],
+            'id' => $template['id']
+          ];
+        });
+
+        return response()->json([
+          'success' => true,
+          'data' => $formattedTemplates,
+          'total' => count($formattedTemplates)
+        ]);
+      }
+
+      return response()->json([
+        'success' => false,
+        'message' => 'Error al obtener plantillas de WhatsApp',
+        'error' => $response->json()
+      ], $response->status());
+
+    } catch (\Exception $e) {
+      Log::error('Error obteniendo plantillas de WhatsApp', [
+        'error' => $e->getMessage()
+      ]);
+
+      return response()->json([
+        'success' => false,
+        'message' => 'Error: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
+   * Validar si una plantilla existe en WhatsApp
+   */
+  public function validateTemplate(Request $request)
+  {
+    $validator = Validator::make($request->all(), [
+      'template_name' => 'required|string',
+      'language_code' => 'nullable|string|size:2'
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'errors' => $validator->errors()
+      ], 422);
+    }
+
+    try {
+      $response = $this->getWhatsAppTemplates();
+      $data = $response->getData(true);
+
+      if (!$data['success']) {
+        return $response;
+      }
+
+      $templates = collect($data['data']);
+      $languageCode = $request->language_code ?? 'es';
+      
+      $template = $templates->first(function($t) use ($request, $languageCode) {
+        return $t['name'] === $request->template_name && 
+               $t['language'] === $languageCode;
+      });
+
+      if ($template) {
+        return response()->json([
+          'success' => true,
+          'exists' => true,
+          'template' => $template,
+          'message' => $template['status'] === 'APPROVED' 
+            ? 'Plantilla encontrada y aprobada' 
+            : "Plantilla encontrada pero en estado: {$template['status']}"
+        ]);
+      }
+
+      return response()->json([
+        'success' => true,
+        'exists' => false,
+        'message' => "La plantilla '{$request->template_name}' no existe en el idioma '{$languageCode}'",
+        'available_templates' => $templates->pluck('name')->unique()->values()
+      ]);
+
+    } catch (\Exception $e) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Error validando plantilla: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
    * Webhook para recibir mensajes de WhatsApp
    */
   public function receiveMessage(Request $request)

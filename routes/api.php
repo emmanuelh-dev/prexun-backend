@@ -97,6 +97,8 @@ Route::prefix('whatsapp')->group(function () {
 
   // Template routes
   Route::apiResource('templates', TemplateController::class);
+  Route::get('/whatsapp-templates', [WhatsAppController::class, 'getWhatsAppTemplates']);
+  Route::post('/validate-template', [WhatsAppController::class, 'validateTemplate']);
 });
 Route::get('/public/campuses', [App\Http\Controllers\Api\PublicStudentController::class, 'getCampuses']);
 
