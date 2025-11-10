@@ -168,6 +168,14 @@ class WhatsAppController extends Controller
         'string',
         'size:2',
         'regex:/^[a-z]{2}$/'
+      ],
+      'parameters' => [
+        'nullable',
+        'array'
+      ],
+      'parameters.*' => [
+        'required',
+        'string'
       ]
     ], [
       'phone_number.required' => 'El número de teléfono es obligatorio',
@@ -179,7 +187,10 @@ class WhatsAppController extends Controller
       'template_name.min' => 'El nombre de la plantilla no puede estar vacío',
       'template_name.max' => 'El nombre de la plantilla no puede exceder 100 caracteres',
       'language_code.size' => 'El código de idioma debe tener exactamente 2 caracteres',
-      'language_code.regex' => 'El código de idioma debe contener solo letras minúsculas (ej: es, en)'
+      'language_code.regex' => 'El código de idioma debe contener solo letras minúsculas (ej: es, en)',
+      'parameters.array' => 'Los parámetros deben ser un arreglo',
+      'parameters.*.required' => 'Todos los parámetros son obligatorios',
+      'parameters.*.string' => 'Los parámetros deben ser texto'
     ]);
 
     if ($validator->fails()) {
@@ -200,16 +211,34 @@ class WhatsAppController extends Controller
     // Normalize phone number format
     $phoneNumber = $this->normalizePhoneNumber($request->phone_number);
 
+    $templateData = [
+      'name' => $request->template_name,
+      'language' => [
+        'code' => $request->language_code ?? 'es'
+      ]
+    ];
+
+    // Agregar parámetros si existen
+    if ($request->has('parameters') && is_array($request->parameters) && count($request->parameters) > 0) {
+      $components = [
+        [
+          'type' => 'body',
+          'parameters' => array_map(function($value) {
+            return [
+              'type' => 'text',
+              'text' => $value
+            ];
+          }, $request->parameters)
+        ]
+      ];
+      $templateData['components'] = $components;
+    }
+
     $messageData = [
       'messaging_product' => 'whatsapp',
       'to' => $phoneNumber,
       'type' => 'template',
-      'template' => [
-        'name' => $request->template_name,
-        'language' => [
-          'code' => $request->language_code ?? 'es'
-        ]
-      ]
+      'template' => $templateData
     ];
 
     try {

@@ -12,11 +12,14 @@ class Template extends Model
     protected $fillable = [
         'name',
         'meta_id',
+        'parameters',
+        'example_message',
         'is_active'
     ];
 
     protected $casts = [
-        'is_active' => 'boolean'
+        'is_active' => 'boolean',
+        'parameters' => 'array'
     ];
 
     public function scopeActive($query)

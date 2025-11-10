@@ -33,12 +33,19 @@ class TemplateController extends Controller
             $validated = $request->validate([
                 'name' => 'required|string|max:255|unique:templates,name',
                 'meta_id' => 'required|string|max:255|unique:templates,meta_id',
+                'parameters' => 'nullable|array',
+                'parameters.*.name' => 'required|string',
+                'parameters.*.example' => 'required|string',
+                'example_message' => 'nullable|string',
                 'is_active' => 'boolean'
             ], [
                 'name.required' => 'El nombre de la plantilla es obligatorio',
                 'name.unique' => 'Ya existe una plantilla con este nombre',
                 'meta_id.required' => 'El ID de Meta es obligatorio',
-                'meta_id.unique' => 'Ya existe una plantilla con este ID de Meta'
+                'meta_id.unique' => 'Ya existe una plantilla con este ID de Meta',
+                'parameters.array' => 'Los parámetros deben ser un arreglo',
+                'parameters.*.name.required' => 'El nombre del parámetro es obligatorio',
+                'parameters.*.example.required' => 'El ejemplo del parámetro es obligatorio'
             ]);
 
             $template = Template::create($validated);
@@ -77,12 +84,19 @@ class TemplateController extends Controller
             $validated = $request->validate([
                 'name' => 'required|string|max:255|unique:templates,name,' . $template->id,
                 'meta_id' => 'required|string|max:255|unique:templates,meta_id,' . $template->id,
+                'parameters' => 'nullable|array',
+                'parameters.*.name' => 'required|string',
+                'parameters.*.example' => 'required|string',
+                'example_message' => 'nullable|string',
                 'is_active' => 'boolean'
             ], [
                 'name.required' => 'El nombre de la plantilla es obligatorio',
                 'name.unique' => 'Ya existe una plantilla con este nombre',
                 'meta_id.required' => 'El ID de Meta es obligatorio',
-                'meta_id.unique' => 'Ya existe una plantilla con este ID de Meta'
+                'meta_id.unique' => 'Ya existe una plantilla con este ID de Meta',
+                'parameters.array' => 'Los parámetros deben ser un arreglo',
+                'parameters.*.name.required' => 'El nombre del parámetro es obligatorio',
+                'parameters.*.example.required' => 'El ejemplo del parámetro es obligatorio'
             ]);
 
             $template->update($validated);
