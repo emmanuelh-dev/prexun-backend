@@ -1987,35 +1987,30 @@ class StudentController extends Controller
         ]);
         return;
       }
-
-      $phoneNumber = $this->normalizePhoneNumber($student->phone);
-      
       // $messageData = [
-      //   'messaging_product' => 'whatsapp',
-      //   'to' => $phoneNumber,
-      //   'type' => 'template',
-      //   'template' => [
-      //     'name' => 'mensaje_registro_exitoso',
-      //     'language' => [
-      //       'code' => 'es'
-      //     ],
-      //     'components' => [
-      //       [
-      //         'type' => 'body',
-      //         'parameters' => [
-      //           [
-      //             'type' => 'number',
-      //             'text' => (string) $student->id
-      //           ]
-      //         ]
-      //       ]
-      //     ]
-      //   ]
-      // ];
-
+        //   'messaging_product' => 'whatsapp',
+        //   'to' => $phoneNumber,
+        //   'type' => 'template',
+        //   'template' => [
+        //     'name' => 'mensaje_registro_exitoso',
+        //     'language' => [
+        //       'code' => 'es'
+        //     ],
+        //     'components' => [
+        //       [
+        //         'type' => 'body',
+        //         'parameters' => [
+        //           [
+        //             'type' => 'number',
+        //             'text' => (string) $student->id
+        //           ]
+        //         ]
+        //       ]
+        //     ]
+        //   ]
+        // ];
       $messageData = [
         'messaging_product' => 'whatsapp',
-        'to' => $phoneNumber,
         'type' => 'template',
         'template' => [
           'name' => 'registro',
@@ -2024,27 +2019,59 @@ class StudentController extends Controller
           ],
         ]
       ];
+      
       $apiUrl = "https://graph.facebook.com/v20.0/{$phoneNumberId}/messages";
       
-      $response = Http::withHeaders([
+      // Enviar mensaje al estudiante
+      $studentPhone = $this->normalizePhoneNumber($student->phone);
+      $studentMessageData = array_merge($messageData, ['to' => $studentPhone]);
+      
+      $studentResponse = Http::withHeaders([
         'Authorization' => 'Bearer ' . $whatsappToken,
         'Content-Type' => 'application/json'
-      ])->post($apiUrl, $messageData);
+      ])->post($apiUrl, $studentMessageData);
 
-      if ($response->successful()) {
-        Log::info('WhatsApp registration template sent successfully', [
+      if ($studentResponse->successful()) {
+        Log::info('WhatsApp registration template sent to student successfully', [
           'student_id' => $student->id,
           'matricula' => $student->id,
-          'phone_number' => $phoneNumber,
-          'response' => $response->json()
+          'phone_number' => $studentPhone,
+          'response' => $studentResponse->json()
         ]);
       } else {
-        Log::error('Failed to send WhatsApp registration template', [
+        Log::error('Failed to send WhatsApp registration template to student', [
           'student_id' => $student->id,
-          'phone_number' => $phoneNumber,
-          'status' => $response->status(),
-          'error' => $response->json()
+          'phone_number' => $studentPhone,
+          'status' => $studentResponse->status(),
+          'error' => $studentResponse->json()
         ]);
+      }
+
+      // Enviar mensaje al tutor si tiene teléfono
+      if ($student->tutor_phone) {
+        $tutorPhone = $this->normalizePhoneNumber($student->tutor_phone);
+        $tutorMessageData = array_merge($messageData, ['to' => $tutorPhone]);
+        
+        $tutorResponse = Http::withHeaders([
+          'Authorization' => 'Bearer ' . $whatsappToken,
+          'Content-Type' => 'application/json'
+        ])->post($apiUrl, $tutorMessageData);
+
+        if ($tutorResponse->successful()) {
+          Log::info('WhatsApp registration template sent to tutor successfully', [
+            'student_id' => $student->id,
+            'matricula' => $student->id,
+            'tutor_phone' => $tutorPhone,
+            'response' => $tutorResponse->json()
+          ]);
+        } else {
+          Log::error('Failed to send WhatsApp registration template to tutor', [
+            'student_id' => $student->id,
+            'tutor_phone' => $tutorPhone,
+            'status' => $tutorResponse->status(),
+            'error' => $tutorResponse->json()
+          ]);
+        }
       }
     } catch (\Exception $e) {
       Log::error('Exception sending WhatsApp registration template', [
