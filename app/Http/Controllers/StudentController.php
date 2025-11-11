@@ -2088,8 +2088,8 @@ class StudentController extends Controller
   {
     $cleaned = preg_replace('/[^+\d]/', '', $phoneNumber);
 
-    if (!str_starts_with($cleaned, '+')) {
-      $cleaned = '+' . $cleaned;
+    if (!str_starts_with($cleaned, '+52')) {
+      $cleaned = '+52' . $cleaned;
     }
 
     return $cleaned;
