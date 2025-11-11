@@ -32,7 +32,7 @@ class StudentController extends Controller
    * Display a listing of students.
    */
   public function index(Request $request)
-    {
+  {
     $bookDeliveryType = $request->get('book_delivery_type');
     $bookDelivered = $request->get('book_delivered');
     $campus_id = $request->get('campus_id');
@@ -69,7 +69,7 @@ class StudentController extends Controller
       'debts',
       'assignments'
     ]);
-    
+
     if ($bookDeliveryType) {
       $query->whereHas('assignments', function ($q) use ($bookDeliveryType) {
         $q->where('book_delivery_type', $bookDeliveryType);
@@ -282,7 +282,7 @@ class StudentController extends Controller
 
       // Capture original values before update for event logging
       $beforeData = $student->toArray();
-  
+
       // Update student basic info
       $student->update($request->only(['email', 'firstname', 'lastname']));
 
@@ -377,7 +377,7 @@ class StudentController extends Controller
    */
   public function show(Student $student)
   {
-    return response()->json($student->load(['grupo','transactions']));
+    return response()->json($student->load(['grupo', 'transactions']));
   }
 
   /**
@@ -1987,45 +1987,45 @@ class StudentController extends Controller
         ]);
         return;
       }
-      // $messageData = [
-        //   'messaging_product' => 'whatsapp',
-        //   'to' => $phoneNumber,
-        //   'type' => 'template',
-        //   'template' => [
-        //     'name' => 'mensaje_registro_exitoso',
-        //     'language' => [
-        //       'code' => 'es'
-        //     ],
-        //     'components' => [
-        //       [
-        //         'type' => 'body',
-        //         'parameters' => [
-        //           [
-        //             'type' => 'number',
-        //             'text' => (string) $student->id
-        //           ]
-        //         ]
-        //       ]
-        //     ]
-        //   ]
-        // ];
       $messageData = [
         'messaging_product' => 'whatsapp',
+        'to' => $phoneNumberId,
         'type' => 'template',
         'template' => [
-          'name' => 'registro',
+          'name' => 'mensaje_registro_exitoso',
           'language' => [
             'code' => 'es'
           ],
+          'components' => [
+            [
+              'type' => 'body',
+              'parameters' => [
+                [
+                  'type' => 'number',
+                  'text' => (string) $student->id
+                ]
+              ]
+            ]
+          ]
         ]
       ];
-      
+      // $messageData = [
+      //   'messaging_product' => 'whatsapp',
+      //   'type' => 'template',
+      //   'template' => [
+      //     'name' => 'registro',
+      //     'language' => [
+      //       'code' => 'es'
+      //     ],
+      //   ]
+      // ];
+
       $apiUrl = "https://graph.facebook.com/v20.0/{$phoneNumberId}/messages";
-      
+
       // Enviar mensaje al estudiante
       $studentPhone = $this->normalizePhoneNumber($student->phone);
       $studentMessageData = array_merge($messageData, ['to' => $studentPhone]);
-      
+
       $studentResponse = Http::withHeaders([
         'Authorization' => 'Bearer ' . $whatsappToken,
         'Content-Type' => 'application/json'
@@ -2051,7 +2051,7 @@ class StudentController extends Controller
       if ($student->tutor_phone) {
         $tutorPhone = $this->normalizePhoneNumber($student->tutor_phone);
         $tutorMessageData = array_merge($messageData, ['to' => $tutorPhone]);
-        
+
         $tutorResponse = Http::withHeaders([
           'Authorization' => 'Bearer ' . $whatsappToken,
           'Content-Type' => 'application/json'
@@ -2087,11 +2087,11 @@ class StudentController extends Controller
   private function normalizePhoneNumber($phoneNumber): string
   {
     $cleaned = preg_replace('/[^+\d]/', '', $phoneNumber);
-    
+
     if (!str_starts_with($cleaned, '+')) {
       $cleaned = '+' . $cleaned;
     }
-    
+
     return $cleaned;
   }
 }
