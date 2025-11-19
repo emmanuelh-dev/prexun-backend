@@ -127,19 +127,37 @@ class GrupoController extends Controller
     return response()->json($grupo, 201);
   }
 
+  public function show($id)
+  {
+    $grupo = Grupo::with(['period', 'campuses'])
+      ->withCount([
+        'activeAssignments as students_count'
+      ])
+      ->findOrFail($id);
+
+    return response()->json($grupo);
+  }
+
   public function getStudents($id)
   {
     $grupo = Grupo::with([
       'activeAssignments.student.carrera',
-      'activeAssignments.student.period'
+      'activeAssignments.student.period',
+      'students.carrera',
+      'students.period'
     ])->findOrFail($id);
     
-    // Obtener solo los estudiantes que tienen asignaciones activas y vigentes
-    $students = $grupo->activeAssignments->map(function ($assignment) {
+    // Primero intentar obtener estudiantes a través de asignaciones activas
+    $studentsFromAssignments = $grupo->activeAssignments->map(function ($assignment) {
       return $assignment->student;
     });
     
-    return response()->json($students);
+    // Si no hay estudiantes de asignaciones, buscar por grupo_id directo
+    if ($studentsFromAssignments->isEmpty()) {
+      return response()->json($grupo->students);
+    }
+    
+    return response()->json($studentsFromAssignments);
   }
 
 
@@ -274,5 +292,42 @@ class GrupoController extends Controller
     $grupo->load(['period', 'campuses']);
 
     return response()->json($grupo);
+  }
+
+  public function destroy($id)
+  {
+    $grupo = Grupo::findOrFail($id);
+    
+    // Eliminar cohort en Moodle si existe
+    if ($grupo->moodle_id) {
+      try {
+        $cohortData = [
+          'cohortids' => [$grupo->moodle_id]
+        ];
+
+        $response = $this->moodleService->deleteCohorts($cohortData);
+
+        if ($response['status'] === 'success') {
+          Log::info('Cohort deleted in Moodle', [
+            'grupo_id' => $grupo->id,
+            'moodle_id' => $grupo->moodle_id
+          ]);
+        } else {
+          Log::error('Failed to delete cohort in Moodle', [
+            'grupo_id' => $grupo->id,
+            'error' => $response['message'] ?? 'Unknown error'
+          ]);
+        }
+      } catch (\Exception $e) {
+        Log::error('Exception deleting cohort in Moodle', [
+          'grupo_id' => $grupo->id,
+          'error' => $e->getMessage()
+        ]);
+      }
+    }
+
+    $grupo->delete();
+
+    return response()->json(['message' => 'Grupo eliminado exitosamente'], 200);
   }
 }

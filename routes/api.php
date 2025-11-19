@@ -276,6 +276,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
   // Grupos
   Route::get('/grupos', [GrupoController::class, 'index']);
+  Route::get('/grupos/{id}', [GrupoController::class, 'show']);
   Route::post('/grupos', [GrupoController::class, 'store']);
   Route::put('/grupos/{id}', [GrupoController::class, 'update']);
   Route::delete('/grupos/{id}', [GrupoController::class, 'destroy']);
