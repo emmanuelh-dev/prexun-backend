@@ -33,6 +33,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ContextController;
 use App\Http\Controllers\StudentEventController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\TagController;
 use App\Http\Controllers\Api\DebtController;
 use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\TemplateController;
@@ -189,6 +190,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::put('/notes/{note}', [NoteController::class, 'update']);
   Route::delete('/notes/{note}', [NoteController::class, 'destroy']);
   Route::get('/students/{student}/notes', [NoteController::class, 'getStudentNotes']);
+
+  // Tags
+  Route::get('/tags', [TagController::class, 'index']);
+  Route::post('/tags', [TagController::class, 'store']);
+  Route::get('/tags/{tag}', [TagController::class, 'show']);
+  Route::put('/tags/{tag}', [TagController::class, 'update']);
+  Route::delete('/tags/{tag}', [TagController::class, 'destroy']);
 
   // Moodle Cohorts - Nuevas funcionalidades
   Route::prefix('moodle/cohorts')->group(function () {
