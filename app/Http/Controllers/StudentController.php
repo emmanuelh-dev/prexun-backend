@@ -67,7 +67,8 @@ class StudentController extends Controller
       'carrera',
       'grupo',
       'debts',
-      'assignments'
+      'assignments',
+      'tags'
     ]);
 
     if ($bookDeliveryType) {
@@ -377,7 +378,7 @@ class StudentController extends Controller
    */
   public function show(Student $student)
   {
-    return response()->json($student->load(['grupo', 'transactions']));
+    return response()->json($student->load(['grupo', 'transactions', 'tags']));
   }
 
   /**
@@ -2093,5 +2094,44 @@ class StudentController extends Controller
     }
 
     return $cleaned;
+  }
+
+  public function attachTags(Request $request, $id)
+  {
+    $validator = Validator::make($request->all(), [
+      'tag_ids' => 'required|array',
+      'tag_ids.*' => 'exists:tags,id',
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'message' => 'Error de validación',
+        'errors' => $validator->errors()
+      ], 422);
+    }
+
+    $student = Student::findOrFail($id);
+    $student->tags()->sync($request->tag_ids);
+
+    return response()->json([
+      'message' => 'Etiquetas actualizadas correctamente',
+      'tags' => $student->tags
+    ]);
+  }
+
+  public function detachTag(Request $request, $studentId, $tagId)
+  {
+    $student = Student::findOrFail($studentId);
+    $student->tags()->detach($tagId);
+
+    return response()->json([
+      'message' => 'Etiqueta removida correctamente'
+    ]);
+  }
+
+  public function getTags($id)
+  {
+    $student = Student::findOrFail($id);
+    return response()->json($student->tags);
   }
 }

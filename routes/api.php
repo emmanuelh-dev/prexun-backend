@@ -165,6 +165,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
   Route::patch('/students/hard-update', [StudentController::class, 'hardUpdate']);
   Route::put('/students/{id}/suspend', [StudentController::class, 'suspendStudent']);
+  Route::post('/students/{id}/tags', [StudentController::class, 'attachTags']);
+  Route::delete('/students/{studentId}/tags/{tagId}', [StudentController::class, 'detachTag']);
+  Route::get('/students/{id}/tags', [StudentController::class, 'getTags']);
   // Cohortes
   Route::get('/cohortes', [CohortController::class, 'index']);
   Route::post('/cohortes/generate', [CohortController::class, 'generate']);
