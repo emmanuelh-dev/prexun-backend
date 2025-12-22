@@ -7,6 +7,7 @@ use App\Models\Campus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Log;
 
 class CardController extends Controller
 {
@@ -144,6 +145,8 @@ class CardController extends Controller
      */
     public function apiUpdate(Request $request, Card $card)
     {
+
+        Log::info('Updating card: ', $request->all());
         $validator = Validator::make($request->all(), [
             'number' => 'required|string|unique:cards,number,' . $card->id,
             'name' => 'required|string|max:255',

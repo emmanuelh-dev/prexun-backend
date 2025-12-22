@@ -26,8 +26,8 @@ class Card extends Model
         'name',
         'clabe',
         'sat',
-        'campus_id',
         'is_hidden',
+        'campus_id',
     ];
 
     /**
