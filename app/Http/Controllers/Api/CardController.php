@@ -156,6 +156,11 @@ class CardController extends Controller
 
         $card->update($request->all());
         
+        if ($request->has('is_hidden')) {
+            $card->is_hidden = filter_var($request->is_hidden, FILTER_VALIDATE_BOOLEAN);
+            $card->save();
+        }
+        
         return response()->json(['message' => 'Card updated successfully', 'data' => $card], 200);
     }
 
