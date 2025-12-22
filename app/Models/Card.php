@@ -31,6 +31,16 @@ class Card extends Model
     ];
 
     /**
+     * The attributes that should be cast.
+     *
+     * @var array
+     */
+    protected $casts = [
+        'sat' => 'boolean',
+        'is_hidden' => 'boolean',
+    ];
+
+    /**
      * Get the campus associated with the card.
      */
     public function campus()
