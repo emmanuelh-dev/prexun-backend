@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('number')->unique();
             $table->string('clabe');
             $table->boolean('sat')->default(true);
-            $table->boolean('is_hidden')->default(false);
             $table->foreignId('campus_id')->constrained('campuses');
             $table->timestamps();
         });

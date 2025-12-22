@@ -16,10 +16,19 @@ class CardController extends Controller
     public function index(Request $request)
     {
         $campus_id = $request->get('campus_id');
+        $all = filter_var($request->get('all', false), FILTER_VALIDATE_BOOLEAN);
     
-        $cards = isset($campus_id) 
-            ? Card::where('campus_id', $campus_id)->get()
-            : Card::all(); 
+        $query = Card::query();
+    
+        if ($campus_id) {
+            $query->where('campus_id', $campus_id);
+        }
+    
+        if (!$all) {
+            $query->where('is_hidden', false);
+        }
+    
+        $cards = $query->get();
     
         return response()->json($cards);
     }
