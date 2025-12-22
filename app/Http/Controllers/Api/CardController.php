@@ -89,7 +89,7 @@ class CardController extends Controller
     public function update(Request $request, Card $card)
     {
         $validator = Validator::make($request->all(), [
-            'number' => 'required|string|unique:cards,number,' . $card->id,
+            'number' => 'sometimes|string|unique:cards,number,' . $card->id,
             'name' => 'required|string|max:255',
             'campus_id' => 'required|exists:campuses,id',
         ]);
