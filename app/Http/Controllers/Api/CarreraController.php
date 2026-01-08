@@ -13,7 +13,8 @@ class CarreraController extends Controller
 {
     public function index()
     {
-        $carreras = Carrera::with('modulos')->get();
+        // Ordenamos las carreras por el campo 'orden' de forma ascendente
+        $carreras = Carrera::with('modulos')->orderBy('orden', 'asc')->get();
         return response()->json($carreras);
     }
 
@@ -22,6 +23,7 @@ class CarreraController extends Controller
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'facultad_id' => 'required|exists:facultades,id',
+            'orden' => 'nullable|integer|unique:carreers,orden', // Validamos que sea único
             'modulo_ids' => 'sometimes|array',
             'modulo_ids.*' => 'exists:modulos,id',
         ]);
@@ -29,6 +31,7 @@ class CarreraController extends Controller
         $carrera = Carrera::create([
             'name' => $validatedData['name'],
             'facultad_id' => $validatedData['facultad_id'],
+            'orden' => $validatedData['orden'] ?? null,
         ]);
 
         if (isset($validatedData['modulo_ids'])) {
@@ -45,6 +48,7 @@ class CarreraController extends Controller
         $validatedData = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'facultad_id' => 'sometimes|required|exists:facultades,id',
+            'orden' => 'nullable|integer|unique:carreers,orden,' . $id, // Único, ignorando el ID actual
             'modulo_ids' => 'sometimes|array',
             'modulo_ids.*' => 'exists:modulos,id',
         ]);
@@ -52,6 +56,7 @@ class CarreraController extends Controller
         $carrera->update([
             'name' => $validatedData['name'] ?? $carrera->name,
             'facultad_id' => $validatedData['facultad_id'] ?? $carrera->facultad_id,
+            'orden' => $validatedData['orden'] ?? $carrera->orden,
         ]);
     
         if (isset($validatedData['modulo_ids'])) {
