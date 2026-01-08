@@ -9,6 +9,7 @@ class Tag extends Model
     protected $fillable = [
         'campus_id',
         'name',
+        'color',
     ];
 
     public function campus()

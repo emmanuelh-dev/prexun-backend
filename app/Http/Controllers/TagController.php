@@ -28,6 +28,7 @@ class TagController extends Controller
         $validator = Validator::make($request->all(), [
             'campus_id' => 'required|exists:campuses,id',
             'name' => 'required|string|max:255',
+            'color' => 'nullable|string|max:7',
         ]);
 
         if ($validator->fails()) {
@@ -37,7 +38,7 @@ class TagController extends Controller
             ], 422);
         }
 
-        $tag = Tag::create($request->only(['campus_id', 'name']));
+        $tag = Tag::create($request->only(['campus_id', 'name', 'color']));
         $tag->load('campus:id,name');
 
         return response()->json($tag, 201);
@@ -55,6 +56,7 @@ class TagController extends Controller
         
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
+            'color' => 'nullable|string|max:7',
         ]);
 
         if ($validator->fails()) {
@@ -64,7 +66,10 @@ class TagController extends Controller
             ], 422);
         }
 
-        $tag->update(['name' => $request->name]);
+        $tag->update([
+            'name' => $request->name,
+            'color' => $request->color ?? $tag->color
+        ]);
         $tag->load('campus:id,name');
 
         return response()->json($tag);
