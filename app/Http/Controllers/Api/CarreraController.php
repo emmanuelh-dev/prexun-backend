@@ -11,12 +11,14 @@ use Illuminate\Validation\ValidationException;
 
 class CarreraController extends Controller
 {
-    public function index()
-    {
-        // Ordenamos las carreras por el campo 'orden' de forma ascendente
-        $carreras = Carrera::with('modulos')->orderBy('orden', 'asc')->get();
-        return response()->json($carreras);
-    }
+  public function index()
+  {
+      $carreras = Carrera::with('modulos')
+          ->orderByRaw('orden IS NULL')
+          ->orderBy('orden', 'asc')
+          ->get();
+      return response()->json($carreras);
+  }
 
     public function store(Request $request)
     {
