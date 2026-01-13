@@ -120,6 +120,90 @@ class StudentController extends Controller
       $query->whereDate('created_at', $searchDate);
     }
 
+    $tagFilter = $request->get('tag_ids');
+    if ($tagFilter === null) {
+      $tagFilter = $request->get('tag');
+    }
+    if ($tagFilter === null) {
+      $tagFilter = $request->get('tags');
+    }
+    if ($tagFilter === null) {
+      $tagFilter = $request->get('tag_id');
+    }
+    if ($tagFilter === null) {
+      $tagFilter = $request->get('tagIds');
+    }
+
+    $tagValues = [];
+    if (is_array($tagFilter)) {
+      $tagValues = $tagFilter;
+    } elseif (is_string($tagFilter)) {
+      $parts = array_map('trim', explode(',', $tagFilter));
+      $parts = array_values(array_filter($parts, fn($v) => $v !== ''));
+      $tagValues = count($parts) > 0 ? $parts : [$tagFilter];
+    } elseif ($tagFilter !== null) {
+      $tagValues = [$tagFilter];
+    }
+
+    $normalizedTagValues = [];
+    foreach ($tagValues as $value) {
+      if (is_array($value)) {
+        if (array_key_exists('id', $value)) {
+          $normalizedTagValues[] = $value['id'];
+          continue;
+        }
+        if (array_key_exists('value', $value)) {
+          $normalizedTagValues[] = $value['value'];
+          continue;
+        }
+        if (array_key_exists('name', $value)) {
+          $normalizedTagValues[] = $value['name'];
+          continue;
+        }
+        continue;
+      }
+      $normalizedTagValues[] = $value;
+    }
+
+    $tagIds = [];
+    $tagNames = [];
+    foreach ($normalizedTagValues as $value) {
+      if ($value === null) {
+        continue;
+      }
+      if (is_string($value)) {
+        $value = trim($value);
+      }
+      if ($value === '') {
+        continue;
+      }
+      if (is_numeric($value)) {
+        $tagIds[] = (int) $value;
+      } else {
+        $tagNames[] = (string) $value;
+      }
+    }
+
+    $tagIds = array_values(array_unique($tagIds));
+    $tagNames = array_values(array_unique($tagNames));
+
+    if (count($tagIds) > 0 || count($tagNames) > 0) {
+      $query->whereHas('tags', function ($q) use ($tagIds, $tagNames) {
+        $q->where(function ($inner) use ($tagIds, $tagNames) {
+          if (count($tagIds) > 0) {
+            $inner->whereIn('tags.id', $tagIds);
+          }
+          if (count($tagNames) > 0) {
+            if (count($tagIds) > 0) {
+              $inner->orWhereIn('tags.name', $tagNames);
+            } else {
+              $inner->whereIn('tags.name', $tagNames);
+            }
+          }
+        });
+      });
+    }
+
     // Only apply other filters if no specific search is being performed
     if (!$isSpecificSearch) {
       if ($period) {

@@ -18,7 +18,7 @@ class TagController extends Controller
             $query->where('campus_id', $campusId);
         }
         
-        $tags = $query->get();
+        $tags = $query->orderBy('is_favorite', 'desc')->orderBy('name', 'asc')->get();
         
         return response()->json($tags);
     }
@@ -29,6 +29,7 @@ class TagController extends Controller
             'campus_id' => 'required|exists:campuses,id',
             'name' => 'required|string|max:255',
             'color' => 'nullable|string|max:7',
+            'is_favorite' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -38,7 +39,7 @@ class TagController extends Controller
             ], 422);
         }
 
-        $tag = Tag::create($request->only(['campus_id', 'name', 'color']));
+        $tag = Tag::create($request->only(['campus_id', 'name', 'color', 'is_favorite']));
         $tag->load('campus:id,name');
 
         return response()->json($tag, 201);
@@ -55,8 +56,9 @@ class TagController extends Controller
         $tag = Tag::findOrFail($id);
         
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name' => 'sometimes|string|max:255',
             'color' => 'nullable|string|max:7',
+            'is_favorite' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -67,8 +69,9 @@ class TagController extends Controller
         }
 
         $tag->update([
-            'name' => $request->name,
-            'color' => $request->color ?? $tag->color
+            'name' => $request->get('name', $tag->name),
+            'color' => $request->get('color', $tag->color),
+            'is_favorite' => $request->exists('is_favorite') ? $request->is_favorite : $tag->is_favorite,
         ]);
         $tag->load('campus:id,name');
 
