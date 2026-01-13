@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 
@@ -531,6 +532,58 @@ class TransactionController extends Controller
     $charge = Transaction::find($id);
     $charge->delete();
     return response()->json(['message' => 'Charge deleted successfully']);
+  }
+
+  public function destroyImage($id)
+  {
+    try {
+      return DB::transaction(function () use ($id) {
+        $transaction = Transaction::findOrFail($id);
+
+        if (!$transaction->image) {
+          return response()->json([
+            'message' => 'No hay comprobante para eliminar',
+            'transaction' => $transaction
+          ], 200);
+        }
+
+        $imagePath = $transaction->image;
+
+        if (preg_match('/^https?:\\/\\//i', $imagePath)) {
+          $parsedUrl = parse_url($imagePath);
+          $path = $parsedUrl['path'] ?? null;
+          if ($path) {
+            $storagePos = strpos($path, '/storage/');
+            if ($storagePos !== false) {
+              $imagePath = ltrim(substr($path, $storagePos + strlen('/storage/')), '/');
+            }
+          }
+        } elseif (str_starts_with($imagePath, 'storage/')) {
+          $imagePath = substr($imagePath, strlen('storage/'));
+        } elseif (str_starts_with($imagePath, '/storage/')) {
+          $imagePath = ltrim(substr($imagePath, strlen('/storage/')), '/');
+        }
+
+        if ($imagePath && Storage::disk('public')->exists($imagePath)) {
+          Storage::disk('public')->delete($imagePath);
+        }
+
+        $transaction->image = null;
+        $transaction->save();
+
+        return response()->json([
+          'message' => 'Comprobante eliminado correctamente',
+          'transaction' => $transaction
+        ], 200);
+      });
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+      return response()->json(['message' => 'Transacción no encontrada'], 404);
+    } catch (\Exception $e) {
+      return response()->json([
+        'message' => 'Error al eliminar el comprobante',
+        'error' => $e->getMessage()
+      ], 500);
+    }
   }
 
   public function importFolios(Request $request)
