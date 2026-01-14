@@ -15,7 +15,7 @@ abstract class BaseMoodleService
     {
         $this->client = new Client(['http_errors' => false]);
         $this->token = env('MOODLE_TOKEN', 'test_token');
-        $this->url = env('MOODLE_URL', 'https://test.moodle.com/webservice/rest/server.php');
+        $this->url = env('MOODLE_URL', 'https://prexun.com/webservice/rest/server.php');
     }
 
     /**
