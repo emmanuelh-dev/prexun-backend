@@ -67,9 +67,13 @@ class MoodleUserService extends BaseMoodleService
             ];
         }
 
+        $errorMessage = $response['message'] ?? 'Error creating user in Moodle';
+        
         return [
             'status' => 'error',
-            'message' => 'Error creating user in Moodle',
+            'message' => $errorMessage,
+            'code' => $response['code'] ?? null,
+            'debuginfo' => $response['debuginfo'] ?? null,
             'response' => $response
         ];
     }

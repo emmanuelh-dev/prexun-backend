@@ -289,7 +289,13 @@ class StudentController extends Controller
       Log::info('Moodle Response before validation', ['moodleResponse' => $moodleResponse]);
       if ($moodleResponse['status'] !== 'success' || !isset($moodleResponse['data'][0]['id'])) {
         Log::error('Validation failed', ['moodleResponse' => $moodleResponse]);
-        throw new \Exception('Invalid Moodle API response format');
+        
+        $errorDetails = $moodleResponse['message'] ?? 'Error desconocido de Moodle';
+        if (isset($moodleResponse['code'])) {
+            $errorDetails .= ' (Código: ' . $moodleResponse['code'] . ')';
+        }
+        
+        throw new \Exception('Error al crear usuario en Moodle: ' . $errorDetails);
       }
 
       $student->moodle_id = $moodleResponse['data'][0]['id'];

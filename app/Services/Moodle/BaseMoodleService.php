@@ -48,10 +48,17 @@ abstract class BaseMoodleService
             // Verificar si hay errores en la respuesta
             if ($statusCode !== 200 || isset($body['exception']) || isset($body['errorcode'])) {
                 Log::error("Moodle API error", ['status' => $statusCode, 'response' => $body]);
+                
+                $errorMessage = $body['message'] ?? 'Error desconocido';
+                if (isset($body['debuginfo'])) {
+                    $errorMessage .= ' - ' . $body['debuginfo'];
+                }
+                
                 return [
                     'status' => 'error',
-                    'message' => $body['message'] ?? 'Error desconocido',
-                    'code' => $body['errorcode'] ?? $statusCode
+                    'message' => $errorMessage,
+                    'code' => $body['errorcode'] ?? $statusCode,
+                    'debuginfo' => $body['debuginfo'] ?? null
                 ];
             }
 
