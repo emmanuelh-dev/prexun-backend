@@ -43,7 +43,7 @@ El frontend ya está listo en [`/app/(protected)/chat/page.tsx`](app/(protected)
 
 Ya está configurada en tu `.env`:
 ```bash
-GEMINI_API_KEY=AIzaSyB3vPVwn9UCEiW69b6nYoAiwg72S7yru2Y
+GEMINI_API_KEY=
 ```
 
 ### 2. Verificar Base de Datos
