@@ -137,7 +137,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
   //mensajes
   Route::post('/mensajes', [MensajeController::class, 'guardarmensaje']);
-  Route::get('/mensajes', [MensajeController::class, 'index']); // NUEVA
+  Route::get('/mensajes', [MensajeController::class, 'index']);
+  Route::delete('/mensajes', [MensajeController::class, 'destroy']);
 
 
   // Add admin

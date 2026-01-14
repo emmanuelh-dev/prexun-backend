@@ -25,7 +25,7 @@ class CarreraController extends Controller
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'facultad_id' => 'required|exists:facultades,id',
-            'orden' => 'nullable|integer|unique:carreers,orden', // Validamos que sea único
+            'orden' => 'nullable|integer|unique:carreers,orden',
             'modulo_ids' => 'sometimes|array',
             'modulo_ids.*' => 'exists:modulos,id',
         ]);

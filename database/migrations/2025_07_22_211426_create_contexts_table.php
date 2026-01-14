@@ -13,12 +13,11 @@ return new class extends Migration
     {
         Schema::create('contexts', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->unique(); // Nombre de la instrucción
-            $table->text('instructions'); // Instrucciones para ChatGPT
-            $table->boolean('is_active')->default(true); // Si está activo
+            $table->string('name')->unique();
+            $table->text('instructions');
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
             
-            // Índice para optimizar consultas
             $table->index(['is_active']);
         });
     }
