@@ -223,6 +223,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::get('/charges/{campus_id}', [TransactionController::class, 'index']);
   Route::post('/charges', [TransactionController::class, 'store']);
   Route::put('/charges/{id}', [TransactionController::class, 'update']);
+  Route::delete('/charges/{id}/image', [TransactionController::class, 'destroyImage']);
   Route::delete('/charges/{id}', [TransactionController::class, 'destroy']);
   Route::post('/charges/import-folios', [TransactionController::class, 'importFolios']);
   Route::put('/charges/{id}/update-folio', [TransactionController::class, 'updateFolio']);

@@ -10,6 +10,7 @@ class Tag extends Model
         'campus_id',
         'name',
         'color',
+        'is_favorite',
     ];
 
     public function campus()
