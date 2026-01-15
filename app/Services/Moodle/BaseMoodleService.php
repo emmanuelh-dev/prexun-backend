@@ -14,7 +14,7 @@ abstract class BaseMoodleService
     public function __construct()
     {
         $this->client = new Client(['http_errors' => false]);
-        $this->token = env('MOODLE_TOKEN', 'test_token');
+        $this->token = env('MOODLE_TOKEN', 'abcaf870846999cdb4eba50003e06142');
         $this->url = env('MOODLE_URL', 'https://prexun.com/webservice/rest/server.php');
     }
 
