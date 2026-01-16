@@ -25,6 +25,7 @@ class UsersController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
             'password' => ['required'],
+            'rfc' => ['nullable', 'string', 'max:20'],
             'campuses' => ['array'],
             'suspendido' => ['boolean'],
         ]);
@@ -32,6 +33,7 @@ class UsersController extends Controller
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
+            'rfc' => $request->rfc,
             'password' => Hash::make($request->password),
             'suspendido' => $request->suspendido ?? false,
         ]);
@@ -57,6 +59,7 @@ class UsersController extends Controller
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,'.$id],
                 'role' => ['required', 'string'],
+                'rfc' => ['nullable', 'string', 'max:20'],
                 'password' => ['nullable', 'string', 'min:8'],
                 'grupos' => ['array', 'nullable'],
                 'grupos.*' => ['exists:grupos,id'],
@@ -67,6 +70,7 @@ class UsersController extends Controller
             $user->name = $validatedData['name'];
             $user->email = $validatedData['email'];
             $user->role = $validatedData['role'];
+            $user->rfc = $request->rfc;
             
             if (isset($validatedData['suspendido'])) {
                 $user->suspendido = $validatedData['suspendido'];
