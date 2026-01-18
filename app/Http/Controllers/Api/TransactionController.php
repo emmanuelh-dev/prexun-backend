@@ -534,8 +534,16 @@ class TransactionController extends Controller
     return response()->json(['message' => 'Charge deleted successfully']);
   }
 
-  public function destroyImage($id)
+  public function destroyImage(Request $request, $id)
   {
+    $user = $request->user();
+    $allowedRoles = ['super_admin', 'contador', 'contadora'];
+    if (!$user || !in_array($user->role, $allowedRoles, true)) {
+      return response()->json([
+        'message' => 'No tienes permisos para eliminar el comprobante'
+      ], 403);
+    }
+
     try {
       return DB::transaction(function () use ($id) {
         $transaction = Transaction::findOrFail($id);
