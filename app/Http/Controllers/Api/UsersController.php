@@ -51,6 +51,13 @@ class UsersController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            Log::info('Intento de actualización de usuario', [
+                'id' => $id,
+                'request_data' => $request->all(),
+                'has_password' => $request->has('password'),
+                'password_length' => strlen($request->input('password', ''))
+            ]);
+
             DB::beginTransaction();
 
             $user = User::findOrFail($id);
@@ -70,14 +77,16 @@ class UsersController extends Controller
             $user->name = $validatedData['name'];
             $user->email = $validatedData['email'];
             $user->role = $validatedData['role'];
-            $user->rfc = $request->rfc;
+            if ($request->has('rfc')) {
+                $user->rfc = $request->rfc;
+            }
             
             if (isset($validatedData['suspendido'])) {
                 $user->suspendido = $validatedData['suspendido'];
             }
             
-            if (!empty($validatedData['password'])) {
-                $user->password = Hash::make($validatedData['password']);
+            if ($request->filled('password')) {
+                $user->password = Hash::make($request->input('password'));
             }
 
             $user->save();
