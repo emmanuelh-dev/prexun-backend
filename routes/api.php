@@ -41,6 +41,9 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\MensajeController;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\ChecadorController;
+use App\Http\Controllers\Api\NominaAdminController;
+use App\Http\Controllers\Api\NominaUserController;
+use App\Http\Controllers\Api\NotificationController;
 
 Route::get('/test', function () {
   return response()->json(['message' => 'Hello, world!']);
@@ -441,4 +444,30 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/chat/send', [App\Http\Controllers\Api\WhatsAppChatController::class, 'sendMessage']);
     Route::delete('/chat/history/{phoneNumber}', [App\Http\Controllers\Api\WhatsAppChatController::class, 'clearHistory']);
   });
+
+  // Nominas
+  Route::prefix('nominas')->group(function () {
+    // Admin
+    Route::middleware(['role:contador'])->group(function () {
+      Route::get('/admin', [NominaAdminController::class, 'index']);
+      Route::get('/admin/users', [NominaAdminController::class, 'getActiveUsers']);
+      Route::post('/admin/upload', [NominaAdminController::class, 'store']);
+      Route::post('/admin/upload-to-user', [NominaAdminController::class, 'uploadToUser']);
+      Route::get('/admin/seccion/{seccion}', [NominaAdminController::class, 'showSeccion']);
+      Route::get('/admin/nomina/{nomina}', [NominaAdminController::class, 'showNomina']);
+    });
+
+    // User
+    Route::get('/user', [NominaUserController::class, 'index']);
+    Route::post('/user/{nomina}/sign', [NominaUserController::class, 'sign']);
+    Route::get('/user/{nomina}/view', [NominaUserController::class, 'show']);
+  });
+
+  // Notificaciones
+  Route::prefix('notifications')->group(function () {
+    Route::get('/', [NotificationController::class, 'index']);
+    Route::post('/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
+  });
 });
+
