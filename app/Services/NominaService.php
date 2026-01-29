@@ -97,9 +97,9 @@ class NominaService
      */
     public function signNomina(Nomina $nomina, string $signatureBase64): void
     {
-        if ($nomina->estado === 'firmado') {
-            throw new Exception("Esta nómina ya ha sido firmada.");
-        }
+        // if ($nomina->estado === 'firmado') {
+        //     throw new Exception("Esta nómina ya ha sido firmada.");
+        // }
 
         $pdfContent = Storage::disk('private')->get($nomina->archivo_original_path);
         $tempOriginalFile = tempnam(sys_get_temp_dir(), 'pdf_orig');
@@ -118,20 +118,19 @@ class NominaService
             $templateId = $pdf->importPage($pageNo);
             $size = $pdf->getTemplateSize($templateId);
 
+            // Importante: Usar exactamente el mismo tamaño para evitar saltos de página
             $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
             $pdf->useTemplate($templateId);
 
-            // Solo estampar en la última página o en todas? 
-            // Usualmente es en la última página o donde esté el espacio de firma.
-            // Para este caso, estamparemos en la última página.
+            // Estampar firma (sello) solo en la última página
             if ($pageNo === $pageCount) {
-                // Coordenadas aproximadas para el pie de página (derecha abajo)
-                // Se puede ajustar según el formato de la nómina
-                $pdf->Image($tempSignatureFile, $size['width'] - 60, $size['height'] - 40, 40, 20, 'PNG');
-                
-                $pdf->SetFont('helvetica', 'I', 8);
-                $pdf->SetXY($size['width'] - 60, $size['height'] - 20);
-                $pdf->Cell(40, 10, 'Firmado digitalmente el: ' . now()->format('d/m/Y H:i'), 0, 0, 'C');
+                // Posición: Esquina inferior derecha
+                $w = 50; // Ancho del sello
+                $x = $size['width'] - $w - 10;
+                $y = $size['height'] - 35; // Margen desde el fondo
+
+                // Estampar imagen (el sello ya incluye la firma, el borde y la fecha)
+                $pdf->Image($tempSignatureFile, $x, $y, $w, 0, 'PNG');
             }
         }
 
