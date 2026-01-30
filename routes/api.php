@@ -455,6 +455,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
       Route::post('/admin/upload-to-user', [NominaAdminController::class, 'uploadToUser']);
       Route::get('/admin/seccion/{seccion}', [NominaAdminController::class, 'showSeccion']);
       Route::get('/admin/nomina/{nomina}', [NominaAdminController::class, 'showNomina']);
+      Route::delete('/admin/nomina/{nomina}', [NominaAdminController::class, 'destroy']);
     });
 
     // User

@@ -151,4 +151,26 @@ class NominaAdminController extends Controller
             return response()->json(['error' => $e->getMessage()], 404);
         }
     }
+    /**
+     * Elimina una nómina y sus archivos asociados.
+     */
+    public function destroy(Nomina $nomina)
+    {
+        try {
+            // Eliminar archivos del storage
+            if ($nomina->archivo_original_path) {
+                \Illuminate\Support\Facades\Storage::disk('private')->delete($nomina->archivo_original_path);
+            }
+            if ($nomina->archivo_firmado_path) {
+                \Illuminate\Support\Facades\Storage::disk('private')->delete($nomina->archivo_firmado_path);
+            }
+
+            // Eliminar registro
+            $nomina->delete();
+
+            return response()->json(['message' => 'Nómina eliminada correctamente']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'No se pudo eliminar la nómina: ' . $e->getMessage()], 500);
+        }
+    }
 }
