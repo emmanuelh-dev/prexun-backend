@@ -117,13 +117,15 @@ class NominaService
             // Añadimos la página con el tamaño exacto de la original para que coincidan
             $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
             $pdf->useTemplate($templateId);
-    
+            $pdf->SetLineWidth(0);
+            $pdf->SetDrawColor(0,0,0,0);
             // Solo estampamos en la última página
             if ($pageNo === $pageCount) {
                 // Ajuste de coordenadas:
                 // w = ancho de la firma en mm
                 // x = posición horizontal (derecha)
                 // y = posición vertical (abajo)
+                
                 $w = 20; 
                 $x = $size['width'] - $w - 20; 
                 $y = $size['height'] - 150; 
