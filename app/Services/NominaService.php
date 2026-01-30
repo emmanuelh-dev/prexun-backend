@@ -128,7 +128,8 @@ class NominaService
                 $x = $size['width'] - $w - 20; 
                 $y = $size['height'] - 150; 
     
-                $pdf->Image($tempSignatureFile, $x, $y, $w, 0, 'PNG');
+                $h = 10; 
+                $pdf->Image($tempSignatureFile, $x, $y, 0, $h, 'PNG');
             }
         }
     
