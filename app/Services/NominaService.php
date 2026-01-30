@@ -97,58 +97,55 @@ class NominaService
      */
     public function signNomina(Nomina $nomina, string $signatureBase64): void
     {
-        // if ($nomina->estado === 'firmado') {
-        //     throw new Exception("Esta nómina ya ha sido firmada.");
-        // }
-
         $pdfContent = Storage::disk('private')->get($nomina->archivo_original_path);
         $tempOriginalFile = tempnam(sys_get_temp_dir(), 'pdf_orig');
         file_put_contents($tempOriginalFile, $pdfContent);
-
+    
         // Procesar firma base64
         $signatureData = explode(',', $signatureBase64);
         $signatureImg = base64_decode(end($signatureData));
         $tempSignatureFile = tempnam(sys_get_temp_dir(), 'sig');
         file_put_contents($tempSignatureFile, $signatureImg);
-
+    
         $pdf = new Fpdi();
         $pageCount = $pdf->setSourceFile($tempOriginalFile);
-
+    
         for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
             $templateId = $pdf->importPage($pageNo);
             $size = $pdf->getTemplateSize($templateId);
-
-            // Importante: Usar exactamente el mismo tamaño para evitar saltos de página
+    
+            // Añadimos la página con el tamaño exacto de la original para que coincidan
             $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
             $pdf->useTemplate($templateId);
-
-            // Estampar firma (sello) solo en la última página
+    
+            // Solo estampamos en la última página
             if ($pageNo === $pageCount) {
-                // Posición: Esquina inferior derecha
-                $w = 50; // Ancho del sello
-                $x = $size['width'] - $w - 10;
-                $y = $size['height'] - 35; // Margen desde el fondo
-
-                // Estampar imagen (el sello ya incluye la firma, el borde y la fecha)
+                // Ajuste de coordenadas:
+                // w = ancho de la firma en mm
+                // x = posición horizontal (derecha)
+                // y = posición vertical (abajo)
+                $w = 20; 
+                $x = $size['width'] - $w - 20; 
+                $y = $size['height'] - 150; 
+    
                 $pdf->Image($tempSignatureFile, $x, $y, $w, 0, 'PNG');
             }
         }
-
+    
         $signedPdfContent = $pdf->Output('', 'S');
         $signedPath = str_replace('.pdf', '_firmado.pdf', $nomina->archivo_original_path);
         
         Storage::disk('private')->put($signedPath, $signedPdfContent);
-
+    
         $nomina->update([
             'archivo_firmado_path' => $signedPath,
             'estado' => 'firmado',
             'fecha_firma' => now(),
         ]);
-
-        // Limpiar temporales
+    
         @unlink($tempOriginalFile);
         @unlink($tempSignatureFile);
-    }
+    } 
 
     /**
      * Obtiene el contenido del archivo de forma segura.
