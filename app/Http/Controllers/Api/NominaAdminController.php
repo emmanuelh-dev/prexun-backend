@@ -103,8 +103,11 @@ class NominaAdminController extends Controller
         $seccion = NominaSeccion::findOrFail($request->seccion_id);
         $user = User::findOrFail($request->user_id);
         
-        $path = $request->file('file')->store("nominas/{$seccion->id}", 'private');
-
+        $file = $request->file('file');
+        // Generas un nombre tipo: 17152345_nomina_enero.pdf
+        $fileName = time() . '_' . $file->getClientOriginalName();
+        $path = $file->storeAs("nominas/{$seccion->id}", $fileName, 'private');
+        
         $nomina = Nomina::create([
             'user_id' => $user->id,
             'seccion_id' => $seccion->id,
