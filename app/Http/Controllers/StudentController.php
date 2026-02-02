@@ -220,11 +220,13 @@ class StudentController extends Controller
         });
       }
 
-      if ($assignedGrupo) {
-        $query->whereHas('assignments', function ($q) use ($assignedGrupo) {
-          $q->where('grupo_id', $assignedGrupo);
-        });
-      }
+     if ($assignedGrupo) {
+    $groupIds = is_array($assignedGrupo) ? $assignedGrupo : explode(',', $assignedGrupo);
+    
+    $query->whereHas('assignments', function ($q) use ($groupIds) {
+        $q->whereIn('grupo_id', (array)$groupIds);
+    });
+}
 
 
       if ($semanaIntensivaId) {
