@@ -248,7 +248,7 @@ class TransactionController extends Controller
       'payment_method' => ['required', Rule::in(['cash', 'transfer', 'card'])],
       'transaction_type' => ['nullable', Rule::in(['income', 'payment', 'ingreso'])],
       'expiration_date' => 'nullable|date',
-      'payment_date' => 'nullable|date_format:Y-m-d H:i:s',
+      'payment_date' => 'nullable|date',
       'notes' => 'nullable|string|max:255',
       'paid' => 'required|boolean',
       'debt_id' => 'nullable|exists:debts,id',
@@ -369,7 +369,7 @@ class TransactionController extends Controller
       'notes' => 'nullable|string|max:255',
       'paid' => 'nullable|boolean',
       'cash_register_id' => 'nullable|exists:cash_registers,id',
-      'payment_date' => 'nullable|date_format:Y-m-d H:i:s',
+      'payment_date' => 'nullable|date',
       'image' => 'nullable|image',
       'card_id' => 'nullable|exists:cards,id',
       'sat' => 'nullable|boolean'
