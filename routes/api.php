@@ -43,6 +43,7 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\ChecadorController;
 use App\Http\Controllers\Api\NominaAdminController;
 use App\Http\Controllers\Api\NominaUserController;
+use App\Http\Controllers\Api\NominaPublicController;
 use App\Http\Controllers\Api\NotificationController;
 
 Route::get('/test', function () {
@@ -72,6 +73,12 @@ Route::prefix('public/gastos')->group(function () {
   Route::get('/{id}/info', [GastoController::class, 'getPublicInfo']);
   Route::post('/{id}/sign', [GastoController::class, 'signExternally']);
   Route::get('/{id}/signature-status', [GastoController::class, 'getPublicSignatureStatus']);
+});
+
+Route::prefix('public/nominas')->group(function () {
+  Route::get('/{token}/info', [NominaPublicController::class, 'getInfo']);
+  Route::post('/{token}/sign', [NominaPublicController::class, 'sign']);
+  Route::get('/{token}/view', [NominaPublicController::class, 'view']);
 });
 
 // WhatsApp routes
