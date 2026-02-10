@@ -2066,6 +2066,56 @@ class StudentController extends Controller
   }
 
   /**
+   * Update student password in Moodle.
+   */
+  public function updatePassword(Request $request, $id)
+  {
+    $student = Student::findOrFail($id);
+
+    $validator = Validator::make($request->all(), [
+      'password' => 'required|string|min:6',
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    try {
+      $this->ensureStudentHasMoodleId($student);
+
+      $moodleResponse = $this->moodleService->users()->updateUser([[
+        'id' => $student->moodle_id,
+        'password' => $request->password
+      ]]);
+
+      if ($moodleResponse['status'] !== 'success') {
+        throw new \Exception($moodleResponse['message'] ?? 'Error updating password in Moodle');
+      }
+
+      // Log student update event
+      StudentEvent::createEvent(
+        $student->id,
+        StudentEvent::EVENT_UPDATED,
+        null,
+        null,
+        "Contraseña actualizada en Moodle"
+      );
+
+      return response()->json(['message' => 'Contraseña actualizada correctamente en Moodle']);
+    } catch (\Exception $e) {
+      Log::error('Error updating student password', [
+        'student_id' => $id,
+        'error' => $e->getMessage()
+      ]);
+
+      return response()->json([
+        'message' => 'Error al actualizar la contraseña',
+        'error' => $e->getMessage()
+      ], 500);
+    }
+  }
+
+  /**
    * Enviar plantilla de WhatsApp de registro exitoso al estudiante
    */
   private function sendRegistrationWhatsAppTemplate(Student $student): void
