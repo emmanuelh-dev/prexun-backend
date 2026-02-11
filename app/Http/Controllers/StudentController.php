@@ -1059,7 +1059,7 @@ class StudentController extends Controller
       "firstname" => strtoupper($student->firstname),
       "lastname" => strtoupper($student->lastname),
       "email" => $student->email,
-      "createpassword" => true,
+      "password" => "12345678",
       "auth" => "manual",
       "idnumber" => (string) $student->id,
       "lang" => "es_mx",
