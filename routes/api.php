@@ -74,6 +74,9 @@ Route::prefix('public/gastos')->group(function () {
   Route::get('/{id}/signature-status', [GastoController::class, 'getPublicSignatureStatus']);
 });
 
+// Ruta pública para registro de asistencia por teléfono
+Route::post('/public/asistencia/registrar', [App\Http\Controllers\Api\PublicAttendanceController::class, 'registerByPhone']);
+
 // WhatsApp routes
 Route::prefix('whatsapp')->group(function () {
   Route::post('/send-message', [WhatsAppController::class, 'sendMessage']);
