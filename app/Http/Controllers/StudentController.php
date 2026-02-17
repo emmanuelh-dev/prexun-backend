@@ -1067,7 +1067,7 @@ class StudentController extends Controller
       "timezone" => "America/Mexico_City",
       "preferences" => [
         [
-          "name" => "auth_forcepasswordchange",
+          "type" => "auth_forcepasswordchange",
           "value" => "1"
         ]
       ]
