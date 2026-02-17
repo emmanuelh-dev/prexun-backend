@@ -75,6 +75,8 @@ Route::prefix('public/gastos')->group(function () {
   Route::get('/{id}/signature-status', [GastoController::class, 'getPublicSignatureStatus']);
 });
 
+// Ruta pública para registro de asistencia por teléfono
+Route::post('/public/asistencia/registrar', [App\Http\Controllers\Api\PublicAttendanceController::class, 'registerByPhone']);
 Route::prefix('public/nominas')->group(function () {
   Route::get('/{token}/info', [NominaPublicController::class, 'getInfo']);
   Route::post('/{token}/sign', [NominaPublicController::class, 'sign']);

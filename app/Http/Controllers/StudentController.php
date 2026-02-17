@@ -1064,7 +1064,13 @@ class StudentController extends Controller
       "idnumber" => (string) $student->id,
       "lang" => "es_mx",
       "calendartype" => "gregorian",
-      "timezone" => "America/Mexico_City"
+      "timezone" => "America/Mexico_City",
+      "preferences" => [
+        [
+          "name" => "auth_forcepasswordchange",
+          "value" => "1"
+        ]
+      ]
     ];
   }
 
