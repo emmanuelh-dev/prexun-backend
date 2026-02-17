@@ -43,6 +43,7 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\ChecadorController;
 use App\Http\Controllers\Api\NominaAdminController;
 use App\Http\Controllers\Api\NominaUserController;
+use App\Http\Controllers\Api\NominaPublicController;
 use App\Http\Controllers\Api\NotificationController;
 
 Route::get('/test', function () {
@@ -76,6 +77,11 @@ Route::prefix('public/gastos')->group(function () {
 
 // Ruta pública para registro de asistencia por teléfono
 Route::post('/public/asistencia/registrar', [App\Http\Controllers\Api\PublicAttendanceController::class, 'registerByPhone']);
+Route::prefix('public/nominas')->group(function () {
+  Route::get('/{token}/info', [NominaPublicController::class, 'getInfo']);
+  Route::post('/{token}/sign', [NominaPublicController::class, 'sign']);
+  Route::get('/{token}/view', [NominaPublicController::class, 'view']);
+});
 
 // WhatsApp routes
 Route::prefix('whatsapp')->group(function () {
@@ -172,6 +178,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::post('/students/restore/{id}', [StudentController::class, 'restore']);
   Route::patch('/students/hard-update', [StudentController::class, 'hardUpdate']);
   Route::put('/students/{id}/suspend', [StudentController::class, 'suspendStudent']);
+  Route::put('/students/{id}/password', [StudentController::class, 'updatePassword']);
   Route::post('/students/{id}/tags', [StudentController::class, 'attachTags']);
   Route::delete('/students/{studentId}/tags/{tagId}', [StudentController::class, 'detachTag']);
   Route::get('/students/{id}/tags', [StudentController::class, 'getTags']);

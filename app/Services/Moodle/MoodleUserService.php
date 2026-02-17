@@ -85,17 +85,16 @@ class MoodleUserService extends BaseMoodleService
     {
         $response = $this->sendRequest('core_user_update_users', $this->formatUsers($users));
 
-        if (is_array($response) && !empty($response) && isset($response[0]['id'])) {
+        if ($response['status'] === 'success') {
             return [
                 'status' => 'success',
-                'data' => $response,
-                'moodle_user_ids' => array_column($response, 'id')
+                'data' => $response['data'] ?? null,
             ];
         }
 
         return [
             'status' => 'error',
-            'message' => 'Error updating user in Moodle',
+            'message' => $response['message'] ?? 'Error updating user in Moodle',
             'response' => $response
         ];
     }    /**
