@@ -13,6 +13,7 @@ class Nomina extends Model
     protected $fillable = [
         'user_id',
         'seccion_id',
+        'external_token',
         'archivo_original_path',
         'archivo_firmado_path',
         'estado',
@@ -22,6 +23,15 @@ class Nomina extends Model
     protected $casts = [
         'fecha_firma' => 'datetime',
     ];
+
+    protected static function booted()
+    {
+        static::creating(function ($nomina) {
+            if (!$nomina->external_token) {
+                $nomina->external_token = (string) \Illuminate\Support\Str::uuid();
+            }
+        });
+    }
 
     public function user(): BelongsTo
     {
