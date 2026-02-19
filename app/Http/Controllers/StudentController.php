@@ -35,6 +35,8 @@ class StudentController extends Controller
   {
     $bookDeliveryType = $request->get('book_delivery_type');
     $bookDelivered = $request->get('book_delivered');
+    $bookModulos = $request->get('book_modulos');
+    $bookGeneral = $request->get('book_general');
     $campus_id = $request->get('campus_id');
     $search = $request->get('search');
     $searchFirstname = $request->get('searchFirstname');
@@ -79,6 +81,18 @@ class StudentController extends Controller
     if ($bookDelivered !== null && $bookDelivered !== '') {
       $query->whereHas('assignments', function ($q) use ($bookDelivered) {
         $q->where('book_delivered', filter_var($bookDelivered, FILTER_VALIDATE_BOOLEAN));
+      });
+    }
+
+    if ($bookModulos) {
+      $query->whereHas('assignments', function ($q) use ($bookModulos) {
+        $q->where('book_modulos', $bookModulos);
+      });
+    }
+
+    if ($bookGeneral) {
+      $query->whereHas('assignments', function ($q) use ($bookGeneral) {
+        $q->where('book_general', $bookGeneral);
       });
     }
 
@@ -220,13 +234,13 @@ class StudentController extends Controller
         });
       }
 
-     if ($assignedGrupo) {
-    $groupIds = is_array($assignedGrupo) ? $assignedGrupo : explode(',', $assignedGrupo);
-    
-    $query->whereHas('assignments', function ($q) use ($groupIds) {
-        $q->whereIn('grupo_id', (array)$groupIds);
-    });
-}
+      if ($assignedGrupo) {
+        $groupIds = is_array($assignedGrupo) ? $assignedGrupo : explode(',', $assignedGrupo);
+
+        $query->whereHas('assignments', function ($q) use ($groupIds) {
+          $q->whereIn('grupo_id', (array) $groupIds);
+        });
+      }
 
 
       if ($semanaIntensivaId) {
@@ -291,12 +305,12 @@ class StudentController extends Controller
       Log::info('Moodle Response before validation', ['moodleResponse' => $moodleResponse]);
       if ($moodleResponse['status'] !== 'success' || !isset($moodleResponse['data'][0]['id'])) {
         Log::error('Validation failed', ['moodleResponse' => $moodleResponse]);
-        
+
         $errorDetails = $moodleResponse['message'] ?? 'Error desconocido de Moodle';
         if (isset($moodleResponse['code'])) {
-            $errorDetails .= ' (Código: ' . $moodleResponse['code'] . ')';
+          $errorDetails .= ' (Código: ' . $moodleResponse['code'] . ')';
         }
-        
+
         throw new \Exception('Error al crear usuario en Moodle: ' . $errorDetails);
       }
 
@@ -710,11 +724,11 @@ class StudentController extends Controller
   {
     $fileName = 'students.csv';
     $headers = [
-      "Content-type"        => "text/csv",
+      "Content-type" => "text/csv",
       "Content-Disposition" => "attachment; filename=$fileName",
-      "Pragma"              => "no-cache",
-      "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
-      "Expires"             => "0"
+      "Pragma" => "no-cache",
+      "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+      "Expires" => "0"
     ];
 
     $columns = ['username', 'email', 'grupo'];
@@ -1097,12 +1111,14 @@ class StudentController extends Controller
 
     if ($result['status'] === 'success') {
       $user = $result['data'];
-      $this->moodleService->users()->updateUser([[
-        "id" => $user['id'],
-        "email" => $student->email,
-        "firstname" => $student->firstname,
-        "lastname" => $student->lastname
-      ]]);
+      $this->moodleService->users()->updateUser([
+        [
+          "id" => $user['id'],
+          "email" => $student->email,
+          "firstname" => $student->firstname,
+          "lastname" => $student->lastname
+        ]
+      ]);
     }
 
     return $result;
@@ -2000,10 +2016,12 @@ class StudentController extends Controller
       }
 
       // Suspender/activar en Moodle
-      $moodleUsers = [[
-        'id' => $student->moodle_id,
-        'suspended' => $suspended
-      ]];
+      $moodleUsers = [
+        [
+          'id' => $student->moodle_id,
+          'suspended' => $suspended
+        ]
+      ];
 
       Log::info("Attempting to {$action} individual student in Moodle", [
         'student_id' => $id,
@@ -2089,10 +2107,12 @@ class StudentController extends Controller
     try {
       $this->ensureStudentHasMoodleId($student);
 
-      $moodleResponse = $this->moodleService->users()->updateUser([[
-        'id' => $student->moodle_id,
-        'password' => $request->password
-      ]]);
+      $moodleResponse = $this->moodleService->users()->updateUser([
+        [
+          'id' => $student->moodle_id,
+          'password' => $request->password
+        ]
+      ]);
 
       if ($moodleResponse['status'] !== 'success') {
         throw new \Exception($moodleResponse['message'] ?? 'Error updating password in Moodle');
