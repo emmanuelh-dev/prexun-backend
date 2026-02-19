@@ -36,6 +36,7 @@ class StudentAssignment extends Model
         'book_delivered' => 'boolean',
         'book_delivery_date' => 'date',
         'book_modulos' => 'string',
+        'book_general' => 'string',
     ];
 
     protected static function boot()
