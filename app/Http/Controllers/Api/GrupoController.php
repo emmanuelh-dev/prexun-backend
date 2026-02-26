@@ -142,38 +142,20 @@ class GrupoController extends Controller
 
   public function getStudents(Request $request, $id)
   {
-    $plantelId = $request->query('plantel_id');
-
     $grupoQuery = Grupo::with([
-      'activeAssignments' => function ($query) use ($plantelId) {
-        if ($plantelId) {
-          $query->whereHas('student', function ($q) use ($plantelId) {
-            $q->where('campus_id', $plantelId);
-          });
-        }
-      },
+      'activeAssignments',
       'activeAssignments.student.carrera',
       'activeAssignments.student.period',
-      'students' => function ($query) use ($plantelId) {
-        if ($plantelId) {
-          $query->where('campus_id', $plantelId);
-        }
-      },
-      'students.carrera',
-      'students.period'
     ]);
 
     $grupo = $grupoQuery->findOrFail($id);
 
-    // Primero intentar obtener estudiantes a través de asignaciones activas
+    // Obtener estudiantes por asignaciones activas (método vigente)
     $studentsFromAssignments = $grupo->activeAssignments->map(function ($assignment) {
       return $assignment->student;
-    });
-
-    // Si no hay estudiantes de asignaciones, buscar por grupo_id directo
-    if ($studentsFromAssignments->isEmpty()) {
-      return response()->json($grupo->students);
-    }
+    })->filter()
+      ->unique('id')
+      ->values();
 
     return response()->json($studentsFromAssignments);
   }
