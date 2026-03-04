@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Student;
+use App\Models\StudentAssignment;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -17,30 +18,70 @@ class PublicAttendanceController extends Controller
     public function registerByPhone(Request $request)
     {
         $request->validate([
-            'phone' => 'required|string',
+            'phone' => 'nullable|string|required_without:whatsapp',
+            'whatsapp' => 'nullable|string|required_without:phone',
+            'campus_id' => 'nullable|integer|exists:campuses,id',
         ]);
 
-        $phone = $this->normalizePhone($request->phone);
+        $rawPhone = $request->input('whatsapp') ?: $request->input('phone');
+        $phone = $this->normalizePhone($rawPhone);
+        $campusId = $request->input('campus_id');
 
-        // Buscar al estudiante por su teléfono o el de su tutor
-        $student = Student::where('phone', 'LIKE', "%$phone%")
-            ->orWhere('tutor_phone', 'LIKE', "%$phone%")
-            ->first();
+        if (strlen($phone) < 10) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Número de teléfono inválido. Debe contener al menos 10 dígitos.'
+            ], 422);
+        }
+
+        $phoneDigits = substr($phone, -10);
+
+        $studentQuery = Student::query()
+            ->where(function ($query) use ($phoneDigits) {
+                $query
+                    ->where('phone', 'LIKE', "%{$phoneDigits}%")
+                    ->orWhere('phone', 'LIKE', "%+52{$phoneDigits}%")
+                    ->orWhere('phone', 'LIKE', "%52{$phoneDigits}%")
+                    ->orWhere('tutor_phone', 'LIKE', "%{$phoneDigits}%")
+                    ->orWhere('tutor_phone', 'LIKE', "%+52{$phoneDigits}%")
+                    ->orWhere('tutor_phone', 'LIKE', "%52{$phoneDigits}%");
+            });
+
+        if ($campusId) {
+            $studentQuery->where('campus_id', $campusId);
+        }
+
+        $student = $studentQuery->first();
 
         if (!$student) {
             return response()->json([
                 'success' => false,
-                'message' => 'Estudiante no encontrado con el número: ' . $phone
+                'message' => 'Estudiante no encontrado con el número proporcionado.'
             ], 404);
         }
 
-        // Obtener el grupo del estudiante
-        // Intentamos primero por grupo_id directo, luego por asignaciones si es necesario
-        $grupoId = $student->grupo_id;
+        $assignmentQuery = StudentAssignment::query()
+            ->active()
+            ->current()
+            ->where('student_id', $student->id)
+            ->whereNotNull('grupo_id')
+            ->orderByDesc('assigned_at')
+            ->orderByDesc('id');
 
-        if (!$grupoId && $student->assignments()->exists()) {
-            $grupoId = $student->assignments()->first()->grupo_id;
+        if ($campusId) {
+            $assignmentQuery->whereHas('grupo', function ($query) use ($campusId) {
+                $query->where(function ($grupoQuery) use ($campusId) {
+                    $grupoQuery
+                        ->where('plantel_id', $campusId)
+                        ->orWhereHas('campuses', function ($campusQuery) use ($campusId) {
+                            $campusQuery->where('campuses.id', $campusId);
+                        });
+                });
+            });
         }
+
+        $assignment = $assignmentQuery->first();
+        $grupoId = $assignment?->grupo_id;
 
         if (!$grupoId) {
             return response()->json([
@@ -48,12 +89,12 @@ class PublicAttendanceController extends Controller
                 'message' => 'El estudiante ' . $student->firstname . ' ' . $student->lastname . ' no tiene un grupo asignado.',
                 'student' => [
                     'name' => $student->firstname . ' ' . $student->lastname,
-                    'matricula' => $student->id
+                    'matricula' => $student->matricula ?: $student->id
                 ]
             ], 422);
         }
 
-        $today = Carbon::today()->toDateString();
+        $today = Carbon::now('America/Mexico_City')->toDateString();
         
         // Verificar si ya tiene asistencia hoy
         $existing = Attendance::where('student_id', $student->id)
@@ -67,7 +108,7 @@ class PublicAttendanceController extends Controller
                 'already_registered' => true,
                 'student' => [
                     'name' => $student->firstname . ' ' . $student->lastname,
-                    'matricula' => $student->id,
+                    'matricula' => $student->matricula ?: $student->id,
                     'phone' => $student->phone
                 ],
                 'attendance' => $existing
@@ -80,8 +121,8 @@ class PublicAttendanceController extends Controller
             'grupo_id' => $grupoId,
             'date' => $today,
             'present' => true,
-            'attendance_time' => Carbon::now(),
-            'notes' => 'Registrado vía API pública (Teléfono)'
+            'attendance_time' => Carbon::now('America/Mexico_City'),
+            'notes' => 'Registrado vía API pública (WhatsApp)'
         ]);
 
         Log::info('Asistencia pública registrada', [
@@ -96,7 +137,7 @@ class PublicAttendanceController extends Controller
             'already_registered' => false,
             'student' => [
                 'name' => $student->firstname . ' ' . $student->lastname,
-                'matricula' => $student->id,
+                'matricula' => $student->matricula ?: $student->id,
                 'phone' => $student->phone
             ],
             'attendance' => $attendance
