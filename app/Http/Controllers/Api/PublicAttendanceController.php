@@ -36,18 +36,34 @@ class PublicAttendanceController extends Controller
 
         $phoneDigits = substr($phone, -10);
 
-        $studentQuery = Student::query()
-            ->where(function ($query) use ($phoneDigits) {
+        $phoneSql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '+', ''), '-', ''), '(', ''), ')', ''), '.', ''), ',', '')";
+        $tutorPhoneSql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(tutor_phone, ''), ' ', ''), '+', ''), '-', ''), '(', ''), ')', ''), '.', ''), ',', '')";
+
+        $baseStudentQuery = Student::query()
+            ->where(function ($query) use ($phoneDigits, $phoneSql, $tutorPhoneSql) {
                 $query
-                    ->whereRaw('RIGHT(phone, 10) = ?', [$phoneDigits])
-                    ->orWhereRaw('RIGHT(tutor_phone, 10) = ?', [$phoneDigits]);
+                    ->whereRaw("RIGHT({$phoneSql}, 10) = ?", [$phoneDigits])
+                    ->orWhereRaw("RIGHT({$tutorPhoneSql}, 10) = ?", [$phoneDigits]);
             });
 
+        $studentQuery = clone $baseStudentQuery;
         if ($campusId) {
             $studentQuery->where('campus_id', $campusId);
         }
 
         $student = $studentQuery->first();
+
+        if (!$student && $campusId) {
+            $studentInOtherCampus = (clone $baseStudentQuery)->first();
+
+            if ($studentInOtherCampus) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El número existe, pero no corresponde al plantel configurado en este enlace.',
+                    'code' => 'CAMPUS_MISMATCH',
+                ], 422);
+            }
+        }
 
         if (!$student) {
             return response()->json([
