@@ -20,6 +20,7 @@ class PublicAttendanceController extends Controller
         $request->validate([
             'phone' => 'nullable|string|required_without:whatsapp',
             'whatsapp' => 'nullable|string|required_without:phone',
+            'attendance_time' => 'nullable|date',
         ]);
 
         $rawPhone = $request->input('whatsapp') ?: $request->input('phone');
@@ -97,12 +98,16 @@ class PublicAttendanceController extends Controller
         }
 
         // Crear el registro de asistencia
+        $attendanceTime = $request->input('attendance_time')
+            ? Carbon::parse($request->input('attendance_time'))
+            : Carbon::now();
+
         $attendance = Attendance::create([
             'student_id' => $student->id,
             'grupo_id' => $grupoId,
             'date' => $today,
             'present' => true,
-            'attendance_time' => Carbon::now('America/Mexico_City'),
+            'attendance_time' => $attendanceTime,
             'notes' => 'Registrado vía API pública (WhatsApp)'
         ]);
 
