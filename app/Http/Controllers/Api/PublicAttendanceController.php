@@ -20,12 +20,10 @@ class PublicAttendanceController extends Controller
         $request->validate([
             'phone' => 'nullable|string|required_without:whatsapp',
             'whatsapp' => 'nullable|string|required_without:phone',
-            'campus_id' => 'nullable|integer|exists:campuses,id',
         ]);
 
         $rawPhone = $request->input('whatsapp') ?: $request->input('phone');
         $phone = $this->normalizePhone($rawPhone);
-        $campusId = $request->input('campus_id');
 
         if (strlen($phone) < 10) {
             return response()->json([
@@ -46,35 +44,7 @@ class PublicAttendanceController extends Controller
                     ->orWhereRaw("RIGHT({$tutorPhoneSql}, 10) = ?", [$phoneDigits]);
             });
 
-        $studentQuery = clone $baseStudentQuery;
-        if ($campusId) {
-            $studentQuery->where('campus_id', $campusId);
-        }
-
-        $student = $studentQuery->first();
-
-        if (!$student && $campusId) {
-            $studentInOtherCampus = (clone $baseStudentQuery)->first();
-
-            if ($studentInOtherCampus) {
-                Log::warning('Public attendance campus mismatch', [
-                    'input_phone' => $rawPhone,
-                    'normalized_phone' => $phone,
-                    'last_ten_digits' => $phoneDigits,
-                    'requested_campus_id' => (int) $campusId,
-                    'matched_student_id' => $studentInOtherCampus->id,
-                    'matched_student_campus_id' => $studentInOtherCampus->campus_id,
-                    'matched_student_phone' => $studentInOtherCampus->phone,
-                    'matched_student_tutor_phone' => $studentInOtherCampus->tutor_phone,
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'El número existe, pero no corresponde al plantel configurado en este enlace.',
-                    'code' => 'CAMPUS_MISMATCH',
-                ], 422);
-            }
-        }
+        $student = (clone $baseStudentQuery)->first();
 
         if (!$student) {
             return response()->json([
@@ -90,18 +60,6 @@ class PublicAttendanceController extends Controller
             ->whereNotNull('grupo_id')
             ->orderByDesc('assigned_at')
             ->orderByDesc('id');
-
-        if ($campusId) {
-            $assignmentQuery->whereHas('grupo', function ($query) use ($campusId) {
-                $query->where(function ($grupoQuery) use ($campusId) {
-                    $grupoQuery
-                        ->where('plantel_id', $campusId)
-                        ->orWhereHas('campuses', function ($campusQuery) use ($campusId) {
-                            $campusQuery->where('campuses.id', $campusId);
-                        });
-                });
-            });
-        }
 
         $assignment = $assignmentQuery->first();
         $grupoId = $assignment?->grupo_id;
