@@ -57,6 +57,17 @@ class PublicAttendanceController extends Controller
             $studentInOtherCampus = (clone $baseStudentQuery)->first();
 
             if ($studentInOtherCampus) {
+                Log::warning('Public attendance campus mismatch', [
+                    'input_phone' => $rawPhone,
+                    'normalized_phone' => $phone,
+                    'last_ten_digits' => $phoneDigits,
+                    'requested_campus_id' => (int) $campusId,
+                    'matched_student_id' => $studentInOtherCampus->id,
+                    'matched_student_campus_id' => $studentInOtherCampus->campus_id,
+                    'matched_student_phone' => $studentInOtherCampus->phone,
+                    'matched_student_tutor_phone' => $studentInOtherCampus->tutor_phone,
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'El número existe, pero no corresponde al plantel configurado en este enlace.',
