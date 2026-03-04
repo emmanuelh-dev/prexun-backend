@@ -39,12 +39,8 @@ class PublicAttendanceController extends Controller
         $studentQuery = Student::query()
             ->where(function ($query) use ($phoneDigits) {
                 $query
-                    ->where('phone', 'LIKE', "%{$phoneDigits}%")
-                    ->orWhere('phone', 'LIKE', "%+52{$phoneDigits}%")
-                    ->orWhere('phone', 'LIKE', "%52{$phoneDigits}%")
-                    ->orWhere('tutor_phone', 'LIKE', "%{$phoneDigits}%")
-                    ->orWhere('tutor_phone', 'LIKE', "%+52{$phoneDigits}%")
-                    ->orWhere('tutor_phone', 'LIKE', "%52{$phoneDigits}%");
+                    ->whereRaw('RIGHT(phone, 10) = ?', [$phoneDigits])
+                    ->orWhereRaw('RIGHT(tutor_phone, 10) = ?', [$phoneDigits]);
             });
 
         if ($campusId) {
@@ -153,8 +149,8 @@ class PublicAttendanceController extends Controller
         $normalized = preg_replace('/[^0-9]/', '', $phone);
         
         // Si tiene 12 dígitos y empieza con 52 (México), tomamos los últimos 10
-        if (strlen($normalized) == 12 && str_starts_with($normalized, '52')) {
-            $normalized = substr($normalized, 2);
+        if (strlen($normalized) > 10) {
+            $normalized = substr($normalized, -10);
         }
         
         return $normalized;
