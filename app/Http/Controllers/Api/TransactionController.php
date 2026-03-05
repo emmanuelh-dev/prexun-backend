@@ -34,6 +34,7 @@ class TransactionController extends Controller
     $dateTo = $request->query('date_to');
     $groupByMonth = $request->query('group_by_month', false);
     $groupId = $request->query('group_id');
+    $rangePreset = $request->query('range_preset', 'all');
 
     $allowedSorts = ['folio', 'created_at', 'payment_date'];
     $allowedDirections = ['asc', 'desc'];
@@ -93,7 +94,18 @@ class TransactionController extends Controller
       });
     }
 
-    // Filtro por rango de fechas
+    // Presets de rango por fecha de pago
+    if ($rangePreset === 'current_month') {
+      $query->whereMonth('payment_date', now()->month)
+        ->whereYear('payment_date', now()->year);
+    }
+
+    if ($rangePreset === 'last_3_months') {
+      $startDate = now()->copy()->startOfMonth()->subMonths(2);
+      $query->whereDate('payment_date', '>=', $startDate->toDateString());
+    }
+
+    // Filtro por rango de fechas manual
     if ($dateFrom) {
       $query->whereDate('payment_date', '>=', $dateFrom);
     }
@@ -108,12 +120,27 @@ class TransactionController extends Controller
             ->orderByRaw('YEAR(payment_date) ' . $sortDirection . ', MONTH(payment_date) ' . $sortDirection);
     }
 
+    // Folios siempre ordenados dentro de su mes por payment_date
     if ($sortBy === 'folio') {
+      $query->orderByRaw("YEAR(payment_date) {$sortDirection}");
+      $query->orderByRaw("MONTH(payment_date) {$sortDirection}");
       $query->orderByRaw("COALESCE(folio, folio_cash, folio_transfer, folio_card, 0) {$sortDirection}");
       $query->orderBy('folio_new', $sortDirection);
+      $query->orderBy('payment_date', $sortDirection);
     } else {
       $query->orderBy($sortBy, $sortDirection);
       $query->orderByRaw('COALESCE(folio, folio_cash, folio_transfer, folio_card, 0) desc');
+    }
+
+    if ($rangePreset === 'last_100_folios') {
+      $latestFolioIds = (clone $query)
+        ->orderByRaw('YEAR(payment_date) desc')
+        ->orderByRaw('MONTH(payment_date) desc')
+        ->orderByRaw('COALESCE(folio, folio_cash, folio_transfer, folio_card, 0) desc')
+        ->limit(100)
+        ->pluck('id');
+
+      $query->whereIn('id', $latestFolioIds);
     }
 
     $transactions = $query->paginate($perPage, ['*'], 'page', $page);
