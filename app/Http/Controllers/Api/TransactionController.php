@@ -20,10 +20,9 @@ class TransactionController extends Controller
 {
   use GeneratesFolios;
 
-  public function index(Request $request)
+  public function index(Request $request, $campus_id)
   {
-    $campus_id = $request->campus_id;
-    $perPage = (int) $request->query('per_page', 10);
+    $perPage = (int) $request->query('per_page', 50);
     $page = (int) $request->query('page', 1);
     $search = $request->query('search');
     $payment_method = $request->query('payment_method');
@@ -65,14 +64,16 @@ class TransactionController extends Controller
       });
     }
 
-    // Filtro por folio
+    // Filtro por folio - Mejorado para permitir búsqueda parcial y completa (ej: LI-0325 | 1205)
     if ($folio) {
-      $query->where(function ($q) use ($folio) {
-        $q->where('folio', 'LIKE', $folio . '%' )
-          ->orWhere('folio_new', 'LIKE', $folio . '%')
-          ->orWhere('folio_cash', 'LIKE', $folio . '%')
-          ->orWhere('folio_transfer', 'LIKE', $folio . '%')
-          ->orWhere('folio_card', 'LIKE', $folio . '%');
+      $cleanSearch = str_replace([' ', '|', '-'], '', $folio);
+      $query->where(function ($q) use ($folio, $cleanSearch) {
+        $q->where('folio', 'LIKE', '%' . $folio . '%')
+          ->orWhere('folio_new', 'LIKE', '%' . $folio . '%')
+          ->orWhere('folio_cash', 'LIKE', '%' . $folio . '%')
+          ->orWhere('folio_transfer', 'LIKE', '%' . $folio . '%')
+          ->orWhere('folio_card', 'LIKE', '%' . $folio . '%')
+          ->orWhere(DB::raw("REPLACE(REPLACE(REPLACE(CONCAT(COALESCE(folio_new, ''), LPAD(COALESCE(folio, folio_cash, folio_transfer, folio_card, 0), 4, '0')), ' ', ''), '|', ''), '-', '')"), 'LIKE', '%' . $cleanSearch . '%');
       });
     }
 
@@ -109,6 +110,7 @@ class TransactionController extends Controller
 
     if ($sortBy === 'folio') {
       $query->orderByRaw("COALESCE(folio, folio_cash, folio_transfer, folio_card, 0) {$sortDirection}");
+      $query->orderBy('folio_new', $sortDirection);
     } else {
       $query->orderBy($sortBy, $sortDirection);
       $query->orderByRaw('COALESCE(folio, folio_cash, folio_transfer, folio_card, 0) desc');
@@ -141,6 +143,7 @@ class TransactionController extends Controller
 
     return response()->json($response, 200);
   }
+
 
 
 
