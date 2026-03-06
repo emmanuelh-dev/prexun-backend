@@ -493,7 +493,37 @@ class StudentController extends Controller
    */
   public function show(Student $student)
   {
-    return response()->json($student->load(['grupo', 'transactions', 'tags']));
+    $student->load(['grupo', 'transactions', 'tags']);
+
+    $moodleLastAccess = null;
+
+    try {
+      if ($student->moodle_id) {
+        $moodleByIdResponse = $this->moodleService->users()->getUsersByField('id', [(string) $student->moodle_id]);
+
+        if ($moodleByIdResponse['status'] === 'success' && !empty($moodleByIdResponse['data'][0])) {
+          $moodleLastAccess = $moodleByIdResponse['data'][0]['lastaccess'] ?? null;
+        }
+      }
+
+      if (!$moodleLastAccess) {
+        $moodleByUsernameResponse = $this->moodleService->users()->getUsersByField('username', [(string) $student->id]);
+
+        if ($moodleByUsernameResponse['status'] === 'success' && !empty($moodleByUsernameResponse['data'][0])) {
+          $moodleLastAccess = $moodleByUsernameResponse['data'][0]['lastaccess'] ?? null;
+        }
+      }
+    } catch (\Throwable $exception) {
+      Log::warning('No se pudo obtener lastaccess de Moodle para el estudiante', [
+        'student_id' => $student->id,
+        'moodle_id' => $student->moodle_id,
+        'error' => $exception->getMessage(),
+      ]);
+    }
+
+    $student->moodle_lastaccess = $moodleLastAccess ? (int) $moodleLastAccess : null;
+
+    return response()->json($student);
   }
 
   /**

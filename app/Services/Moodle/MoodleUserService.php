@@ -7,6 +7,35 @@ use Illuminate\Support\Facades\Log;
 class MoodleUserService extends BaseMoodleService
 {
     /**
+     * Obtener usuarios por campo usando core_user_get_users_by_field.
+     */
+    public function getUsersByField(string $field, array $values): array
+    {
+        $data = [
+            'field' => $field,
+        ];
+
+        foreach (array_values($values) as $index => $value) {
+            $data["values[{$index}]"] = (string) $value;
+        }
+
+        $response = $this->sendRequest('core_user_get_users_by_field', $data);
+
+        if ($response['status'] === 'success' && is_array($response['data'])) {
+            return [
+                'status' => 'success',
+                'data' => $response['data'],
+            ];
+        }
+
+        return [
+            'status' => 'error',
+            'message' => $response['message'] ?? 'Error fetching users by field',
+            'response' => $response,
+        ];
+    }
+
+    /**
      * Formatear usuarios para la API de Moodle.
      */
     private function formatUsers(array $users): array
