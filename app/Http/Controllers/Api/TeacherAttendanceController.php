@@ -111,6 +111,7 @@ class TeacherAttendanceController extends Controller
       $absentCount = 0;
       $alreadyExistsCount = 0;
       $newRecordsCount = 0;
+      $processedRecords = [];
 
       foreach ($attendanceBatches as $batch) {
         $grupoId = $batch['grupo_id'] ?? null;
@@ -142,6 +143,12 @@ class TeacherAttendanceController extends Controller
               'notes' => $notes,
             ]);
 
+            $processedRecords[] = [
+              'grupo_id' => (string) $grupoId,
+              'student_id' => (string) $studentId,
+              'attendance_id' => (string) $existingAttendance->id,
+            ];
+
             Log::info('Asistencia existente actualizada', [
               'attendance_id' => $existingAttendance->id,
               'student_id' => $studentId,
@@ -172,6 +179,12 @@ class TeacherAttendanceController extends Controller
           if (!$attendance) {
             throw new \Exception('Error al guardar la asistencia para el estudiante ' . $studentId);
           }
+
+          $processedRecords[] = [
+            'grupo_id' => (string) $grupoId,
+            'student_id' => (string) $studentId,
+            'attendance_id' => (string) $attendance->id,
+          ];
 
           $attendanceCount++;
           $newRecordsCount++;
@@ -217,7 +230,8 @@ class TeacherAttendanceController extends Controller
           'already_existed' => $alreadyExistsCount,
           'present_count' => $presentCount,
           'absent_count' => $absentCount
-        ]
+        ],
+        'processed_records' => $processedRecords,
       ]);
     } catch (\Exception $e) {
       DB::rollBack();
@@ -480,7 +494,7 @@ class TeacherAttendanceController extends Controller
       return response()->json([
         'success' => true,
         'message' => 'Asistencia guardada correctamente',
-        'data' => $existingAttendance->fresh(),
+        'data' => $attendance->fresh(),
         'updated_from_absent' => false
       ]);
     } catch (\Exception $e) {
