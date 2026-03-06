@@ -286,6 +286,39 @@ class StudentController extends Controller
           ->where('is_active', true)
           ->get();
       }
+
+      $student->moodle_lastaccess = null;
+    }
+
+    try {
+      $usernames = collect($students->items())
+        ->pluck('id')
+        ->filter()
+        ->map(fn($id) => (string) $id)
+        ->values()
+        ->all();
+
+      if (!empty($usernames)) {
+        $moodleUsersResponse = $this->moodleService->users()->getUsersByField('username', $usernames);
+
+        if (($moodleUsersResponse['status'] ?? 'error') === 'success') {
+          $moodleUsers = collect($moodleUsersResponse['data'] ?? []);
+          $lastAccessByUsername = $moodleUsers
+            ->filter(fn($user) => isset($user['username']))
+            ->keyBy(fn($user) => (string) $user['username'])
+            ->map(fn($user) => isset($user['lastaccess']) ? (int) $user['lastaccess'] : null)
+            ->all();
+
+          foreach ($students as $student) {
+            $student->moodle_lastaccess = $lastAccessByUsername[(string) $student->id] ?? null;
+          }
+        }
+      }
+    } catch (\Throwable $exception) {
+      Log::warning('No se pudo enriquecer estudiantes con lastaccess de Moodle', [
+        'error' => $exception->getMessage(),
+        'campus_id' => $campus_id,
+      ]);
     }
 
     return response()->json($students);
