@@ -34,8 +34,8 @@ class GoogleContactsService
     private function createContact(GoogleSession $session, $data)
     {
         $client = new Client();
-        $client->setClientId(env('GOOGLE_CLIENT_ID'));
-        $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
+        $client->setClientId(config('services.google.client_id'));
+        $client->setClientSecret(config('services.google.client_secret'));
         
         $client->setAccessToken($session->access_token);
 

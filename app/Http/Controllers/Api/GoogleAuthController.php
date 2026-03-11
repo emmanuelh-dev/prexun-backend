@@ -14,9 +14,9 @@ class GoogleAuthController extends Controller
             return response()->json(['message' => 'El campus_id es obligatorio'], 400);
         }
 
-        $clientId = env('GOOGLE_CLIENT_ID');
-        $clientSecret = env('GOOGLE_CLIENT_SECRET');
-        $redirectUri = env('GOOGLE_REDIRECT_URI');
+        $clientId = config('services.google.client_id');
+        $clientSecret = config('services.google.client_secret');
+        $redirectUri = config('services.google.redirect');
 
         if (!$clientId || !$clientSecret || !$redirectUri) {
             return response()->json(['message' => 'Las credenciales de Google (Client ID, Secret o Redirect URI) no están configuradas en el entorno (archivo .env).'], 500);
@@ -50,9 +50,9 @@ class GoogleAuthController extends Controller
             return response()->json(['message' => 'Faltan parámetros en la respuesta de Google'], 400);
         }
 
-        $clientId = env('GOOGLE_CLIENT_ID');
-        $clientSecret = env('GOOGLE_CLIENT_SECRET');
-        $redirectUri = env('GOOGLE_REDIRECT_URI');
+        $clientId = config('services.google.client_id');
+        $clientSecret = config('services.google.client_secret');
+        $redirectUri = config('services.google.redirect');
 
         if (!$clientId || !$clientSecret || !$redirectUri) {
             return response()->json(['message' => 'Las credenciales de Google no están configuradas en el servidor.'], 500);
