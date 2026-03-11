@@ -394,6 +394,25 @@ class StudentController extends Controller
         $this->sendRegistrationWhatsAppTemplate($student);
       }
 
+      // Sincronizar con Google Contacts del Plantel (Campus)
+      try {
+        if ($student->campus_id) {
+          $googleContactsService = app(\App\Services\GoogleContactsService::class);
+          $grupo = \App\Models\Grupo::find($student->grupo_id);
+          $grupoPrefix = $grupo ? $grupo->name . ' - ' : '';
+          
+          $googleContactsService->syncContactToCampus($student->campus_id, [
+            'name' => trim($grupoPrefix . $student->lastname . ' ' . $student->firstname),
+            'email' => $student->email,
+            'phone' => $student->phone,
+            'secondaryPhone' => $student->tutor_phone,
+          ]);
+        }
+      } catch (\Exception $e) {
+        Log::error('Error en sincronización post-creación con Google Contacts: ' . $e->getMessage());
+        // No detenemos el flujo completo si falla Google Contacts
+      }
+
       return response()->json($student, 201);
     } catch (\Exception $e) {
       DB::rollBack();

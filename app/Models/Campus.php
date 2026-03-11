@@ -54,4 +54,9 @@ class Campus extends Model
     {
         return $this->belongsToMany(SemanaIntensiva::class, 'campus_semana_intensiva_pivot', 'campus_id', 'semana_intensiva_id');
     }
+
+    public function googleSessions()
+    {
+        return $this->hasMany(GoogleSession::class);
+    }
 }

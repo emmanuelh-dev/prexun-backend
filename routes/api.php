@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\MensajeController;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\ChecadorController;
+use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\NominaAdminController;
 use App\Http\Controllers\Api\NominaUserController;
 use App\Http\Controllers\Api\NominaPublicController;
@@ -49,6 +50,11 @@ use App\Http\Controllers\Api\NotificationController;
 Route::get('/test', function () {
   return response()->json(['message' => 'Hello, world!']);
 });
+
+// Google Auth (Público para el callback y generación de URL, protegido para listar/borrar)
+Route::get('/google/auth-url', [GoogleAuthController::class, 'authUrl']);
+Route::get('/google/callback', [GoogleAuthController::class, 'callback']);
+
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout']);
@@ -159,6 +165,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::get('/campuses/{id}', [CampusController::class, 'show']);
   Route::put('/campuses/{id}', [CampusController::class, 'update']);
   Route::delete('/campuses/{id}', [CampusController::class, 'destroy']);
+  Route::get('/campuses/{campusId}/google-sessions', [GoogleAuthController::class, 'index']);
+  Route::delete('/google-sessions/{id}', [GoogleAuthController::class, 'destroy']);
 
   // Students
   Route::get('/students', [StudentController::class, 'index']);
