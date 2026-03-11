@@ -92,9 +92,7 @@ class GoogleAuthController extends Controller
         );
 
         // Redirigir de nuevo al frontend (planteles/estudiantes o configuración)
-        $frontendUrlString = env('FRONTEND_URL', 'http://localhost:3000');
-        $frontendUrls = explode(',', $frontendUrlString);
-        $frontendUrl = trim($frontendUrls[0]); // Toma la primera URL si hay varias (ej. producción)
+        $frontendUrl = 'https://admin.prexun.com';
 
         return redirect()->away($frontendUrl . '/planteles/estudiantes?google_auth=success');
     }
