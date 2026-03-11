@@ -92,9 +92,10 @@ class GoogleAuthController extends Controller
         );
 
         // Redirigir de nuevo al frontend (planteles/estudiantes o configuración)
-        // Puedes pasar un parámetro success para mostrar un mensaje en el frontend
-        $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
-        
+        $frontendUrlString = env('FRONTEND_URL', 'http://localhost:3000');
+        $frontendUrls = explode(',', $frontendUrlString);
+        $frontendUrl = trim($frontendUrls[0]); // Toma la primera URL si hay varias (ej. producción)
+
         return redirect()->away($frontendUrl . '/planteles/estudiantes?google_auth=success');
     }
 
