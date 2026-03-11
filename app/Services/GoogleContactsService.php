@@ -22,7 +22,7 @@ class GoogleContactsService
             try {
                 $this->createContact($session, $contactData);
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Error sincronizando contacto de Google para sesión {$session->id}: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error("Error sincronizando contacto de Google para sesión {$session->id}: {$e->getMessage()}");
                 // Podríamos marcar la sesión como is_active = false si el error es 'invalid_grant'
                 if (str_contains($e->getMessage(), 'invalid_grant')) {
                     $session->update(['is_active' => false]);
