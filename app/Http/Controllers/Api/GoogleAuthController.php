@@ -14,10 +14,18 @@ class GoogleAuthController extends Controller
             return response()->json(['message' => 'El campus_id es obligatorio'], 400);
         }
 
+        $clientId = env('GOOGLE_CLIENT_ID');
+        $clientSecret = env('GOOGLE_CLIENT_SECRET');
+        $redirectUri = env('GOOGLE_REDIRECT_URI');
+
+        if (!$clientId || !$clientSecret || !$redirectUri) {
+            return response()->json(['message' => 'Las credenciales de Google (Client ID, Secret o Redirect URI) no están configuradas en el entorno (archivo .env).'], 500);
+        }
+
         $client = new \Google\Client();
-        $client->setClientId(env('GOOGLE_CLIENT_ID'));
-        $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
-        $client->setRedirectUri(env('GOOGLE_REDIRECT_URI'));
+        $client->setClientId($clientId);
+        $client->setClientSecret($clientSecret);
+        $client->setRedirectUri($redirectUri);
         $client->setAccessType('offline');
         $client->setPrompt('consent');
         
@@ -42,10 +50,18 @@ class GoogleAuthController extends Controller
             return response()->json(['message' => 'Faltan parámetros en la respuesta de Google'], 400);
         }
 
+        $clientId = env('GOOGLE_CLIENT_ID');
+        $clientSecret = env('GOOGLE_CLIENT_SECRET');
+        $redirectUri = env('GOOGLE_REDIRECT_URI');
+
+        if (!$clientId || !$clientSecret || !$redirectUri) {
+            return response()->json(['message' => 'Las credenciales de Google no están configuradas en el servidor.'], 500);
+        }
+
         $client = new \Google\Client();
-        $client->setClientId(env('GOOGLE_CLIENT_ID'));
-        $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
-        $client->setRedirectUri(env('GOOGLE_REDIRECT_URI'));
+        $client->setClientId($clientId);
+        $client->setClientSecret($clientSecret);
+        $client->setRedirectUri($redirectUri);
 
         // Canjea el código por un token
         $token = $client->fetchAccessTokenWithAuthCode($code);
