@@ -388,6 +388,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::post('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkStore']);
   Route::put('/student-assignments/bulk', [StudentAssignmentController::class, 'bulkUpdate']);
   Route::patch('/student-assignments/{id}/toggle-active', [StudentAssignmentController::class, 'toggleActive']);
+  Route::post('/student-assignments/{id}/resync-moodle', [StudentAssignmentController::class, 'resyncToMoodle']);
 
   // Student Grades and Courses from Moodle
   Route::get('/students/{student_id}/grades', [StudentAssignmentController::class, 'getStudentGrades']);

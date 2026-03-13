@@ -374,10 +374,22 @@ class StudentAssignmentController extends Controller
     }
 
     /**
-     * Toggle active status of assignments.
+     * Toggle active status for one assignment (by route id) or multiple assignments.
      */
-    public function toggleActive(Request $request)
+    public function toggleActive(Request $request, $id = null)
     {
+        if ($id) {
+            $assignment = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
+                ->findOrFail($id);
+
+            $assignment->update(['is_active' => !$assignment->is_active]);
+
+            return response()->json([
+                'message' => 'Estado de asignación actualizado correctamente',
+                'assignment' => $assignment->fresh(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
+            ]);
+        }
+
         $validator = Validator::make($request->all(), [
             'assignment_ids' => 'required|array|min:1',
             'assignment_ids.*' => 'exists:student_assignments,id',
@@ -390,14 +402,15 @@ class StudentAssignmentController extends Controller
             ], 422);
         }
 
-        $assignments = StudentAssignment::whereIn('id', $request->assignment_ids)->get();
+        $assignmentIds = $request->assignment_ids;
+        $assignments = StudentAssignment::whereIn('id', $assignmentIds)->get();
 
         foreach ($assignments as $assignment) {
             $assignment->update(['is_active' => !$assignment->is_active]);
         }
 
         $updatedAssignments = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
-            ->whereIn('id', $request->assignment_ids)
+            ->whereIn('id', $assignmentIds)
             ->get();
 
         return response()->json([
@@ -504,6 +517,22 @@ class StudentAssignmentController extends Controller
         }
 
         return response()->json($students);
+    }
+
+    /**
+     * Re-sync a specific assignment to Moodle.
+     */
+    public function resyncToMoodle($id)
+    {
+        $assignment = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
+            ->findOrFail($id);
+
+        $this->syncAssignmentWithMoodle($assignment);
+
+        return response()->json([
+            'message' => 'Reasignación a Moodle enviada correctamente',
+            'assignment' => $assignment->fresh(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
+        ]);
     }
 
     /**
