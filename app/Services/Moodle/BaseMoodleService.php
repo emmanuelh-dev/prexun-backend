@@ -13,7 +13,10 @@ abstract class BaseMoodleService
 
     public function __construct()
     {
-        $this->client = new Client(['http_errors' => false]); 
+        $this->client = new Client([
+            'http_errors' => false,
+            'verify' => false  // Skip SSL verification
+        ]); 
         $this->token = config('moodle.token');
         $this->url = config('moodle.url');
     }

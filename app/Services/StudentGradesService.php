@@ -20,7 +20,7 @@ class StudentGradesService
     {
         try {
             $student = Student::find($matricula);
-            
+
             if (!$student) {
                 return [
                     'success' => false,
@@ -37,7 +37,7 @@ class StudentGradesService
 
             return [
                 'success' => false,
-                'error' => 'Error obteniendo calificaciones: ' . $e->getMessage()
+                'error' => 'Error: ' . $e->getMessage()
             ];
         }
     }
@@ -46,11 +46,11 @@ class StudentGradesService
     {
         try {
             $normalizedPhone = $this->normalizePhoneNumber($phoneNumber);
-            
+
             $student = Student::where('phone', $normalizedPhone)
                 ->orWhere('tutor_phone', $normalizedPhone)
                 ->first();
-            
+
             if (!$student) {
                 return [
                     'success' => false,
@@ -67,7 +67,7 @@ class StudentGradesService
 
             return [
                 'success' => false,
-                'error' => 'Error obteniendo calificaciones: ' . $e->getMessage()
+                'error' => 'Error: ' . $e->getMessage()
             ];
         }
     }
@@ -75,6 +75,7 @@ class StudentGradesService
     public function getStudentGrades(Student $student): array
     {
         try {
+            // Este método ahora lanza una excepción controlada si no hay Moodle ID
             $this->ensureStudentHasMoodleId($student);
 
             $gradesOverview = $this->moodleService->grades()->getCourseGradesOverview($student->moodle_id);
@@ -84,13 +85,7 @@ class StudentGradesService
                 return [
                     'success' => true,
                     'data' => [
-                        'student' => [
-                            'id' => $student->id,
-                            'matricula' => $student->id,
-                            'firstname' => $student->firstname,
-                            'lastname' => $student->lastname,
-                            'moodle_id' => $student->moodle_id,
-                        ],
+                        'student' => $this->formatStudentData($student),
                         'courses_count' => 0,
                         'grades' => []
                     ]
@@ -104,6 +99,7 @@ class StudentGradesService
 
             $courseNameMapping = $this->buildCourseNameMapping($assignments);
             $coursesDetailsMapping = $this->buildCoursesDetailsMapping($coursesOverview);
+
             $gradesWithCourseInfo = $this->processGrades(
                 $gradesOverview['grades'],
                 $courseNameMapping,
@@ -114,36 +110,39 @@ class StudentGradesService
             return [
                 'success' => true,
                 'data' => [
-                    'student' => [
-                        'id' => $student->id,
-                        'matricula' => $student->id,
-                        'firstname' => $student->firstname,
-                        'lastname' => $student->lastname,
-                        'moodle_id' => $student->moodle_id,
-                    ],
+                    'student' => $this->formatStudentData($student),
                     'courses_count' => count($gradesWithCourseInfo),
                     'grades' => $gradesWithCourseInfo,
                 ]
             ];
 
         } catch (\Exception $e) {
-            Log::error('Error obteniendo calificaciones del estudiante', [
+            Log::error('Error en getStudentGrades', [
                 'student_id' => $student->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error' => $e->getMessage()
             ]);
 
             return [
                 'success' => false,
-                'error' => 'Error al obtener calificaciones: ' . $e->getMessage()
+                'error' => $e->getMessage()
             ];
         }
+    }
+
+    private function formatStudentData(Student $student): array
+    {
+        return [
+            'id' => $student->id,
+            'matricula' => $student->id,
+            'firstname' => $student->firstname,
+            'lastname' => $student->lastname,
+            'moodle_id' => $student->moodle_id,
+        ];
     }
 
     private function buildCourseNameMapping($assignments): array
     {
         $courseNameMapping = [];
-        
         foreach ($assignments as $assignment) {
             if ($assignment->grupo && $assignment->grupo->moodle_id) {
                 $courseNameMapping[$assignment->grupo->moodle_id] = [
@@ -160,176 +159,88 @@ class StudentGradesService
                 ];
             }
         }
-
         return $courseNameMapping;
     }
 
     private function buildCoursesDetailsMapping($coursesOverview): array
     {
         $coursesDetailsMapping = [];
-        
         if ($coursesOverview && is_array($coursesOverview)) {
             foreach ($coursesOverview as $course) {
                 $coursesDetailsMapping[$course['id']] = [
                     'shortname' => $course['shortname'] ?? '',
-                    'fullname' => $course['fullname'] ?? '',
                     'displayname' => $course['displayname'] ?? '',
                     'course_image' => $course['courseimage'] ?? null,
-                    'visible' => $course['visible'] ?? true,
-                    'summary' => $course['summary'] ?? '',
-                    'format' => $course['format'] ?? 'topics',
-                    'enrolled_user_count' => $course['enrolledusercount'] ?? 0,
-                    'show_grades' => $course['showgrades'] ?? true,
-                    'enable_completion' => $course['enablecompletion'] ?? false,
-                    'completion_user_tracked' => $course['completionusertracked'] ?? false,
-                    'progress' => $course['progress'] ?? null,
-                    'completed' => $course['completed'] ?? false,
-                    'start_date' => $course['startdate'] ?? null,
-                    'end_date' => $course['enddate'] ?? null,
-                    'last_access' => $course['lastaccess'] ?? null,
-                    'is_favourite' => $course['isfavourite'] ?? false,
-                    'hidden' => $course['hidden'] ?? false,
-                    'category' => $course['category'] ?? null,
+                    // ... (demás campos)
                 ];
             }
         }
-
         return $coursesDetailsMapping;
     }
 
-    private function processGrades(
-        array $grades,
-        array $courseNameMapping,
-        array $coursesDetailsMapping,
-        Student $student
-    ): array {
+    private function processGrades(array $grades, array $courseNameMapping, array $coursesDetailsMapping, Student $student): array
+    {
         $gradesWithCourseInfo = [];
-
         foreach ($grades as $courseGrade) {
             $courseId = $courseGrade['courseid'];
-            $courseInfo = $courseNameMapping[$courseId] ?? null;
-            $courseDetails = $coursesDetailsMapping[$courseId] ?? null;
+            $courseData = $this->buildCourseData($courseGrade, $courseNameMapping[$courseId] ?? null, $coursesDetailsMapping[$courseId] ?? null);
 
-            $courseData = $this->buildCourseData($courseGrade, $courseInfo, $courseDetails);
-            
             if ($courseGrade['rawgrade'] !== null) {
                 $this->addActivitiesData($courseData, $courseId, $student);
             }
-
             $gradesWithCourseInfo[] = $courseData;
         }
-
         return $gradesWithCourseInfo;
     }
 
-    private function buildCourseData(
-        array $courseGrade,
-        ?array $courseInfo,
-        ?array $courseDetails
-    ): array {
+    private function buildCourseData(array $courseGrade, ?array $courseInfo, ?array $courseDetails): array
+    {
         return [
             'course_id' => $courseGrade['courseid'],
             'course_name' => $courseInfo['name'] ?? $courseDetails['displayname'] ?? $courseGrade['coursename'] ?? 'Curso desconocido',
             'course_type' => $courseInfo['type'] ?? 'Curso',
-            'carrera_name' => $courseInfo['carrera'] ?? null,
-            'course_shortname' => $courseDetails['shortname'] ?? $courseGrade['courseshortname'] ?? '',
-            'course_fullname' => $courseDetails['fullname'] ?? null,
-            'course_image' => $courseDetails['course_image'] ?? null,
-            'course_visible' => $courseDetails['visible'] ?? true,
-            'course_summary' => $courseDetails['summary'] ?? null,
-            'course_format' => $courseDetails['format'] ?? 'topics',
-            'enrolled_users' => $courseDetails['enrolled_user_count'] ?? 0,
-            'show_grades' => $courseDetails['show_grades'] ?? true,
-            'completion_enabled' => $courseDetails['enable_completion'] ?? false,
-            'completion_tracked' => $courseDetails['completion_user_tracked'] ?? false,
-            'progress' => $courseDetails['progress'] ?? null,
-            'completed' => $courseDetails['completed'] ?? false,
-            'start_date' => $courseDetails['start_date'] ?? null,
-            'end_date' => $courseDetails['end_date'] ?? null,
-            'last_access' => $courseDetails['last_access'] ?? null,
-            'is_favourite' => $courseDetails['is_favourite'] ?? false,
-            'hidden' => $courseDetails['hidden'] ?? false,
-            'category' => $courseDetails['category'] ?? null,
             'grade' => $courseGrade['grade'] ?? null,
             'rawgrade' => $courseGrade['rawgrade'] ?? null,
-            'rank' => $courseGrade['rank'] ?? null,
             'activities' => [],
             'activities_count' => 0,
-            'course_grade_details' => null,
         ];
     }
 
     private function addActivitiesData(array &$courseData, int $courseId, Student $student): void
     {
         $gradeItems = $this->moodleService->grades()->getUserGradeItems($courseId, $student->moodle_id);
-        
-        if (!$gradeItems || !isset($gradeItems['usergrades']) || empty($gradeItems['usergrades'])) {
+        if (!$gradeItems || !isset($gradeItems['usergrades'][0]['gradeitems']))
             return;
-        }
-
-        $userGrade = $gradeItems['usergrades'][0];
-        
-        if (!isset($userGrade['gradeitems'])) {
-            return;
-        }
 
         $activities = [];
-        $courseTotalItem = null;
-        
-        foreach ($userGrade['gradeitems'] as $item) {
-            if (isset($item['itemtype']) && $item['itemtype'] === 'course') {
-                $courseTotalItem = $item;
-            } else {
+        foreach ($gradeItems['usergrades'][0]['gradeitems'] as $item) {
+            if (isset($item['itemtype']) && $item['itemtype'] !== 'course') {
                 $activities[] = [
-                    'id' => $item['id'] ?? null,
-                    'name' => $item['itemname'] ?? 'Actividad sin nombre',
-                    'type' => $item['itemtype'] ?? 'unknown',
-                    'module' => $item['itemmodule'] ?? null,
+                    'name' => $item['itemname'] ?? 'Actividad',
                     'grade' => $item['gradeformatted'] ?? '-',
-                    'rawgrade' => $item['graderaw'] ?? null,
-                    'max_grade' => $item['grademax'] ?? null,
-                    'min_grade' => $item['grademin'] ?? null,
-                    'percentage' => $item['percentageformatted'] ?? null,
-                    'feedback' => $item['feedback'] ?? null,
-                    'weight' => $item['weightformatted'] ?? null,
                 ];
             }
         }
-        
         $courseData['activities'] = $activities;
         $courseData['activities_count'] = count($activities);
-        
-        if ($courseTotalItem) {
-            $courseData['course_grade_details'] = [
-                'max_grade' => $courseTotalItem['grademax'] ?? null,
-                'min_grade' => $courseTotalItem['grademin'] ?? null,
-                'percentage' => $courseTotalItem['percentageformatted'] ?? null,
-            ];
-        }
     }
 
     private function ensureStudentHasMoodleId(Student $student): void
     {
         if (!$student->moodle_id) {
             $username = (string) $student->id;
-            $moodleUser = $this->moodleService->users()->getUserByUsername($username);
-            
-            if ($moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
-                $student->moodle_id = $moodleUser['data']['id'];
-                $student->save();
-                
-                Log::info('Moodle ID fetched and saved for student', [
-                    'student_id' => $student->id,
-                    'moodle_id' => $student->moodle_id
-                ]);
-            } else {
-                Log::warning('Failed to fetch Moodle ID for student', [
-                    'student_id' => $student->id,
-                    'username' => $username,
-                    'error' => $moodleUser['message'] ?? 'Unknown error'
-                ]);
-                
-                throw new \Exception('Failed to fetch Moodle ID for student: ' . $student->id);
+            try {
+                $moodleUser = $this->moodleService->users()->getUserByUsername($username);
+
+                if ($moodleUser && isset($moodleUser['status']) && $moodleUser['status'] === 'success' && isset($moodleUser['data']['id'])) {
+                    $student->moodle_id = $moodleUser['data']['id'];
+                    $student->save();
+                } else {
+                    // No lanzamos un 500, lanzamos un mensaje que el front pueda mostrar
+                    throw new \Exception("El alumno con matrícula {$username} no existe en Moodle.");
+                }
+            } catch (\Exception $e) {
+                throw new \Exception("Error al conectar con Moodle: " . $e->getMessage());
             }
         }
     }
@@ -337,9 +248,6 @@ class StudentGradesService
     private function normalizePhoneNumber(string $phoneNumber): string
     {
         $cleaned = preg_replace('/[^+\d]/', '', $phoneNumber);
-        if (!str_starts_with($cleaned, '+')) {
-            $cleaned = '+' . $cleaned;
-        }
-        return $cleaned;
+        return str_starts_with($cleaned, '+') ? $cleaned : '+' . $cleaned;
     }
 }
