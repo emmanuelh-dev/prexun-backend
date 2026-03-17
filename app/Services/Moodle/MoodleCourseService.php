@@ -31,7 +31,7 @@ class MoodleCourseService
                 }
             }
 
-            $response = Http::get($this->moodleUrl . '/webservice/rest/server.php', $params);
+            $response = Http::withoutVerifying()->get($this->moodleUrl . '/webservice/rest/server.php', $params);
 
             if ($response->failed()) {
                 Log::error('Error al obtener cursos de Moodle', [
@@ -68,7 +68,7 @@ class MoodleCourseService
                 'courseid' => $courseId,
             ];
 
-            $response = Http::get($this->moodleUrl . '/webservice/rest/server.php', $params);
+            $response = Http::withoutVerifying()->get($this->moodleUrl . '/webservice/rest/server.php', $params);
 
             if ($response->failed()) {
                 Log::error('Error al obtener contenidos del curso de Moodle', [
@@ -110,7 +110,7 @@ class MoodleCourseService
                 'userid' => $userId,
             ];
 
-            $response = Http::get($this->moodleUrl . '/webservice/rest/server.php', $params);
+            $response = Http::withoutVerifying()->get($this->moodleUrl . '/webservice/rest/server.php', $params);
 
             if ($response->failed()) {
                 Log::error('Error al obtener cursos del usuario de Moodle', [

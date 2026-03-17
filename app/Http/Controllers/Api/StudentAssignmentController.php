@@ -364,14 +364,10 @@ class StudentAssignmentController extends Controller
         });
     }
 
-<<<<<<< Updated upstream
     /**
      * Toggle active status for one assignment (by route id) or multiple assignments.
      */
     public function toggleActive(Request $request, $id = null)
-=======
-    public function toggleActive(Request $request)
->>>>>>> Stashed changes
     {
         if ($id) {
             $assignment = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
@@ -503,7 +499,6 @@ class StudentAssignmentController extends Controller
         return response()->json($students);
     }
 
-<<<<<<< Updated upstream
     /**
      * Re-sync a specific assignment to Moodle.
      */
@@ -523,8 +518,6 @@ class StudentAssignmentController extends Controller
     /**
      * Sync assignment with Moodle when creating new assignments.
      */
-=======
->>>>>>> Stashed changes
     private function syncAssignmentWithMoodle(StudentAssignment $assignment)
     {
         try {

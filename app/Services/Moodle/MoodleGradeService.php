@@ -28,7 +28,7 @@ class MoodleGradeService
                 'groupid' => $groupId,
             ];
 
-            $response = Http::get($this->moodleUrl . '/webservice/rest/server.php', $params);
+            $response = Http::withoutVerifying()->get($this->moodleUrl . '/webservice/rest/server.php', $params);
 
             if ($response->failed()) {
                 Log::error('Error al obtener calificaciones del usuario de Moodle', [
@@ -81,7 +81,7 @@ class MoodleGradeService
                 'userid' => $userId,
             ];
 
-            $response = Http::get($this->moodleUrl . '/webservice/rest/server.php', $params);
+            $response = Http::withoutVerifying()->get($this->moodleUrl . '/webservice/rest/server.php', $params);
 
             if ($response->failed()) {
                 Log::error('Error al obtener resumen de calificaciones de Moodle', [
