@@ -566,7 +566,12 @@ class StudentAssignmentController extends Controller
     private function updateMoodleCohorts(StudentAssignment $assignment, $oldG, $newG, $oldS, $newS, $oldC, $newC)
     {
         $student = $assignment->student;
-        if (!$student || !$student->moodle_id)
+        if (!$student)
+            return;
+
+        $this->ensureStudentHasMoodleId($student);
+
+        if (!$student->moodle_id)
             return;
 
         $toRemove = $this->prepareCohortsToRemove($student, $oldG, $newG, $oldS, $newS, $oldC, $newC);
