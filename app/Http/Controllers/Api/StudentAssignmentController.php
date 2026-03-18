@@ -91,7 +91,7 @@ class StudentAssignmentController extends Controller
             'period_id' => 'nullable|exists:periods,id',
             'grupo_id' => 'nullable|exists:grupos,id',
             'semana_intensiva_id' => 'nullable|exists:semanas_intensivas,id',
-            'carrera_id' => 'nullable|exists:carreras,id',
+            'carrer_id' => 'nullable|exists:carreers,id',
             'assigned_at' => 'nullable|date',
             'valid_until' => 'nullable|date|after_or_equal:assigned_at',
             'is_active' => 'boolean',
@@ -151,7 +151,7 @@ class StudentAssignmentController extends Controller
             'period_id' => 'nullable|exists:periods,id',
             'grupo_id' => 'nullable|exists:grupos,id',
             'semana_intensiva_id' => 'nullable|exists:semanas_intensivas,id',
-            'carrera_id' => 'nullable|exists:carreras,id',
+            'carrer_id' => 'nullable|exists:carreers,id',
             'assigned_at' => 'sometimes|date',
             'valid_until' => 'nullable|date|after_or_equal:assigned_at',
             'is_active' => 'sometimes|boolean',
@@ -174,13 +174,13 @@ class StudentAssignmentController extends Controller
         return DB::transaction(function () use ($assignment, $validator) {
             $oldGrupoId = $assignment->grupo_id;
             $oldSemanaIntensivaId = $assignment->semana_intensiva_id;
-            $oldCarreraId = $assignment->carrera_id;
+            $oldCarreraId = $assignment->carrer_id;
 
             $assignment->update($validator->validated());
 
             $newGrupoId = $assignment->grupo_id;
             $newSemanaIntensivaId = $assignment->semana_intensiva_id;
-            $newCarreraId = $assignment->carrera_id;
+            $newCarreraId = $assignment->carrer_id;
 
             if ($oldGrupoId !== $newGrupoId || $oldSemanaIntensivaId !== $newSemanaIntensivaId || $oldCarreraId !== $newCarreraId) {
                 $this->updateMoodleCohorts($assignment, $oldGrupoId, $newGrupoId, $oldSemanaIntensivaId, $newSemanaIntensivaId, $oldCarreraId, $newCarreraId);
@@ -261,7 +261,7 @@ class StudentAssignmentController extends Controller
             'assignments.*.period_id' => 'nullable|exists:periods,id',
             'assignments.*.grupo_id' => 'nullable|exists:grupos,id',
             'assignments.*.semana_intensiva_id' => 'nullable|exists:semanas_intensivas,id',
-            'assignments.*.carrera_id' => 'nullable|exists:carreras,id',
+            'assignments.*.carrer_id' => 'nullable|exists:carreers,id',
             'assignments.*.assigned_at' => 'nullable|date',
             'assignments.*.valid_until' => 'nullable|date',
             'assignments.*.is_active' => 'boolean',
@@ -310,7 +310,7 @@ class StudentAssignmentController extends Controller
             'updates.period_id' => 'nullable|exists:periods,id',
             'updates.grupo_id' => 'nullable|exists:grupos,id',
             'updates.semana_intensiva_id' => 'nullable|exists:semanas_intensivas,id',
-            'updates.carrera_id' => 'nullable|exists:carreras,id',
+            'updates.carrer_id' => 'nullable|exists:carreers,id',
             'updates.valid_until' => 'nullable|date',
             'updates.is_active' => 'sometimes|boolean',
             'updates.notes' => 'nullable|string|max:1000',
@@ -330,7 +330,7 @@ class StudentAssignmentController extends Controller
             $updates = $request->updates;
 
             $assignmentsBeforeUpdate = StudentAssignment::whereIn('id', $assignmentIds)
-                ->select('id', 'student_id', 'grupo_id', 'semana_intensiva_id', 'carrera_id')
+                ->select('id', 'student_id', 'grupo_id', 'semana_intensiva_id', 'carrer_id')
                 ->get()
                 ->keyBy('id');
 
@@ -340,7 +340,7 @@ class StudentAssignmentController extends Controller
                 ->whereIn('id', $assignmentIds)
                 ->get();
 
-            if (isset($updates['grupo_id']) || isset($updates['semana_intensiva_id']) || isset($updates['carrera_id'])) {
+            if (isset($updates['grupo_id']) || isset($updates['semana_intensiva_id']) || isset($updates['carrer_id'])) {
                 foreach ($updatedAssignments as $assignment) {
                     $oldAssignment = $assignmentsBeforeUpdate->get($assignment->id);
                     if ($oldAssignment) {
@@ -350,8 +350,8 @@ class StudentAssignmentController extends Controller
                             $assignment->grupo_id,
                             $oldAssignment->semana_intensiva_id,
                             $assignment->semana_intensiva_id,
-                            $oldAssignment->carrera_id,
-                            $assignment->carrera_id
+                            $oldAssignment->carrer_id,
+                            $assignment->carrer_id
                         );
                     }
                 }
@@ -542,7 +542,7 @@ class StudentAssignmentController extends Controller
                 ];
             }
 
-            if ($assignment->carrera_id && $assignment->carrera) {
+            if ($assignment->carrer_id && $assignment->carrera) {
                 $carrera = $assignment->carrera()->with('modulos')->first();
                 foreach ($carrera->modulos as $modulo) {
                     if ($modulo->moodle_id) {
@@ -652,7 +652,7 @@ class StudentAssignmentController extends Controller
                 $cohortsToRemove[] = ['cohortid' => $assignment->semanaIntensiva->moodle_id, 'userid' => $student->moodle_id];
             }
 
-            if ($assignment->carrera_id && $assignment->carrera) {
+            if ($assignment->carrer_id && $assignment->carrera) {
                 $carrera = $assignment->carrera()->with('modulos')->first();
                 foreach ($carrera->modulos as $modulo) {
                     if ($modulo->moodle_id)
