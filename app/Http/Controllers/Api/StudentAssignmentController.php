@@ -537,7 +537,7 @@ class StudentAssignmentController extends Controller
 
             if ($assignment->semana_intensiva_id && $assignment->semanaIntensiva && $assignment->semanaIntensiva->moodle_id) {
                 $cohortsToAdd[] = [
-                    'cohorttype' => ['type' => 'id', 'value' => $assignment->semana_intensiva->moodle_id],
+                    'cohorttype' => ['type' => 'id', 'value' => $assignment->semanaIntensiva->moodle_id],
                     'usertype' => ['type' => 'username', 'value' => (string) $student->id]
                 ];
             }
