@@ -727,6 +727,30 @@ class StudentAssignmentController extends Controller
         }
     }
 
+    public function getBatchGrades(Request $request)
+    {
+        $request->validate([
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'required|integer',
+        ]);
+
+        try {
+            if (!method_exists($this->gradesService, 'getBatchGrades')) {
+                throw new \Exception("El método getBatchGrades no existe en StudentGradesService.");
+            }
+
+            $results = $this->gradesService->getBatchGrades($request->student_ids);
+            
+            return response()->json($results);
+        } catch (\Exception $e) {
+            Log::error("Error en notas en lote: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Error interno al obtener calificaciones en lote',
+                'debug' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function getStudentCourses(Request $request, $studentId)
     {
         try {

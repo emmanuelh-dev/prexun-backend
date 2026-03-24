@@ -321,6 +321,95 @@ class TeacherAttendanceController extends Controller
     }
   }
 
+  public function batchGetAttendance(Request $request)
+  {
+    $request->validate([
+      'grupo_ids' => 'required|array|min:1',
+      'date' => 'required|string',
+      'plantel_id' => 'nullable'
+    ]);
+
+    try {
+      $grupoIds = $request->grupo_ids;
+      $date = $request->date;
+      $plantelId = $request->plantel_id;
+      
+      // Procesar formato de fecha
+      if (strpos($date, 'T') !== false) {
+        $date = Carbon::parse($date)->format('Y-m-d');
+      } elseif (strpos($date, '/') !== false) {
+        $formats = ['d/m/Y', 'j/n/Y', 'd/n/Y', 'j/m/Y'];
+        $parsed = false;
+        foreach ($formats as $format) {
+          try {
+            $date = Carbon::createFromFormat($format, $date)->format('Y-m-d');
+            $parsed = true;
+            break;
+          } catch (\Exception $e) { continue; }
+        }
+        if (!$parsed) throw new \Exception("No se pudo convertir la fecha: {$date}");
+      } else {
+        $date = Carbon::parse($date)->format('Y-m-d');
+      }
+
+      // 1. Obtener ALUMNOS
+      $assignmentsQuery = \App\Models\StudentAssignment::whereIn('grupo_id', $grupoIds)
+        ->active()
+        ->with(['student.carrera', 'student.period']);
+
+      if ($plantelId) {
+        $assignmentsQuery->whereHas('student', function ($q) use ($plantelId) {
+          $q->where('campus_id', $plantelId);
+        });
+      }
+      
+      $assignments = $assignmentsQuery->get();
+      $studentsWithGroup = [];
+      foreach ($assignments as $assignment) {
+        if (!$assignment->student) continue;
+        
+        $studentData = $assignment->student->toArray();
+        $studentData['grupo_id'] = (string) $assignment->grupo_id;
+        $studentData['attendance_key'] = $assignment->grupo_id . '-' . $assignment->student->id;
+        
+        $studentsWithGroup[] = $studentData;
+      }
+
+      // 2. Obtener ASISTENCIAS
+      $attendancesQuery = Attendance::with('student')
+        ->whereIn('grupo_id', $grupoIds)
+        ->where('date', $date);
+
+      if ($plantelId) {
+        $attendancesQuery->whereHas('student', function ($q) use ($plantelId) {
+          $q->where('campus_id', $plantelId);
+        });
+      }
+
+      $attendanceRecords = $attendancesQuery->get();
+
+      return response()->json([
+        'success' => true,
+        'data' => [
+          'students' => $studentsWithGroup,
+          'attendance' => $attendanceRecords
+        ]
+      ]);
+
+    } catch (\Exception $e) {
+      Log::error('Error en batchGetAttendance:', [
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
+      ]);
+
+      return response()->json([
+        'success' => false,
+        'message' => 'Error al obtener la asistencia en lote',
+        'error' => $e->getMessage()
+      ], 500);
+    }
+  }
+
   public function findStudent(Request $request, Student $student)
   {
     $plantelId = $request->query('plantel_id');

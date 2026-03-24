@@ -72,7 +72,7 @@ class StudentGradesService
         }
     }
 
-    public function getStudentGrades(Student $student): array
+    public function getStudentGrades(Student $student, bool $withActivities = true): array
     {
         try {
             // Este método ahora lanza una excepción controlada si no hay Moodle ID
@@ -104,7 +104,8 @@ class StudentGradesService
                 $gradesOverview['grades'],
                 $courseNameMapping,
                 $coursesDetailsMapping,
-                $student
+                $student,
+                $withActivities
             );
 
             return [
@@ -127,6 +128,24 @@ class StudentGradesService
                 'error' => $e->getMessage()
             ];
         }
+    }
+
+    public function getBatchGrades(array $studentIds): array
+    {
+        $results = [];
+        $students = Student::whereIn('id', $studentIds)->get();
+
+        foreach ($students as $student) {
+            $result = $this->getStudentGrades($student, false); // $withActivities = false
+            
+            if (isset($result['success']) && !$result['success']) {
+                $results[$student->id] = [];
+            } else {
+                $results[$student->id] = $result['data']['grades'] ?? $result['grades'] ?? [];
+            }
+        }
+        
+        return $results;
     }
 
     private function formatStudentData(Student $student): array
@@ -178,14 +197,14 @@ class StudentGradesService
         return $coursesDetailsMapping;
     }
 
-    private function processGrades(array $grades, array $courseNameMapping, array $coursesDetailsMapping, Student $student): array
+    private function processGrades(array $grades, array $courseNameMapping, array $coursesDetailsMapping, Student $student, bool $withActivities = true): array
     {
         $gradesWithCourseInfo = [];
         foreach ($grades as $courseGrade) {
             $courseId = $courseGrade['courseid'];
             $courseData = $this->buildCourseData($courseGrade, $courseNameMapping[$courseId] ?? null, $coursesDetailsMapping[$courseId] ?? null);
 
-            if ($courseGrade['rawgrade'] !== null) {
+            if ($withActivities && $courseGrade['rawgrade'] !== null) {
                 $this->addActivitiesData($courseData, $courseId, $student);
             }
             $gradesWithCourseInfo[] = $courseData;

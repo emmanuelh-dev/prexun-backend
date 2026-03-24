@@ -339,6 +339,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/groups/assign', [TeacherGroupController::class, 'assignGroups']);
     Route::get('/{id}/groups', [TeacherGroupController::class, 'getTeacherGroups']);
     Route::post('/{id}/groups/assign', [TeacherGroupController::class, 'assignGroups']);
+    Route::post('/attendance/batch-get', [TeacherAttendanceController::class, 'batchGetAttendance']);
     Route::post('/attendance', [TeacherAttendanceController::class, 'store']);
     Route::get('/attendance/{grupo_id}/{date}', [TeacherAttendanceController::class, 'getAttendance']);
     Route::get('/student/{student}', [TeacherAttendanceController::class, 'findStudent']);
@@ -391,6 +392,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::post('/student-assignments/{id}/resync-moodle', [StudentAssignmentController::class, 'resyncToMoodle']);
 
   // Student Grades and Courses from Moodle
+  Route::post('/students/batch-grades', [StudentAssignmentController::class, 'getBatchGrades']);
   Route::get('/students/{student_id}/grades', [StudentAssignmentController::class, 'getStudentGrades']);
   Route::get('/students/{student_id}/courses', [StudentAssignmentController::class, 'getStudentCourses']);
   Route::get('/students/{student_id}/courses/{course_id}/activities', [StudentAssignmentController::class, 'getCourseActivities']);
