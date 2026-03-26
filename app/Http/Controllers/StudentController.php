@@ -439,6 +439,7 @@ class StudentController extends Controller
       'email' => 'required|email|unique:students,email,' . $request->id,
       'firstname' => 'sometimes|string|max:255',
       'lastname' => 'sometimes|string|max:255',
+      'campus_id' => 'sometimes|exists:campuses,id',
     ]);
 
     if ($validator->fails()) {
@@ -453,16 +454,16 @@ class StudentController extends Controller
       // Capture original values before update for event logging
       $beforeData = $student->toArray();
 
-      // Update student basic info
-      $student->update($request->only(['email', 'firstname', 'lastname']));
+      // Update student info
+      $student->update($request->only(['email', 'firstname', 'lastname', 'campus_id']));
 
       // Capture updated values for event logging
       $afterData = $student->fresh()->toArray();
 
       // Get changed fields
       $changedFields = [];
-      foreach ($request->only(['email', 'firstname', 'lastname', 'grupo_id', 'semana_intensiva_id']) as $field => $value) {
-        if ($beforeData[$field] !== $value) {
+      foreach ($request->only(['email', 'firstname', 'lastname', 'campus_id']) as $field => $value) {
+        if (isset($beforeData[$field]) && $beforeData[$field] != $value) {
           $changedFields[] = $field;
         }
       }
@@ -547,7 +548,7 @@ class StudentController extends Controller
    */
   public function show(Student $student)
   {
-    $student->load(['grupo', 'transactions', 'tags']);
+    $student->load(['grupo', 'transactions', 'tags', 'campus']);
 
     $moodleLastAccess = null;
 
