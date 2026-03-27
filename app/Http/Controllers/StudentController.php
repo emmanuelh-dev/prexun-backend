@@ -548,7 +548,11 @@ class StudentController extends Controller
   public function show(Student $student)
   {
     $student->load(['grupo', 'transactions', 'tags', 'campus']);
+    return response()->json($student);
+  }
 
+  public function getMoodleActivity(Student $student)
+  {
     $moodleLastAccess = null;
 
     try {
@@ -575,9 +579,9 @@ class StudentController extends Controller
       ]);
     }
 
-    $student->moodle_lastaccess = $moodleLastAccess ? (int) $moodleLastAccess : null;
-
-    return response()->json($student);
+    return response()->json([
+      'moodle_lastaccess' => $moodleLastAccess ? (int) $moodleLastAccess : null
+    ]);
   }
 
   /**

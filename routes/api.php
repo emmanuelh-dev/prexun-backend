@@ -173,6 +173,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
   Route::post('/students', [StudentController::class, 'store']);
   Route::put('/students/{id}', [StudentController::class, 'update']);
   Route::get('/student/{student}', [StudentController::class, 'show']);
+  Route::get('/student/{student}/moodle-activity', [StudentController::class, 'getMoodleActivity']);
   Route::get('/students/export-email-group', [StudentController::class, 'exportCsv']);
   Route::post('/students/sync-module', [StudentController::class, 'syncMoodle']);
   Route::post('/students/sync-modules', [StudentController::class, 'syncStudentModules']);
