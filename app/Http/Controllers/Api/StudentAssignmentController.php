@@ -447,8 +447,9 @@ class StudentAssignmentController extends Controller
                 $q->where('period_id', $periodId)->where('is_active', true);
             });
 
-        if ($campus_id)
+        if ($campus_id && !$grupo) {
             $query->where('campus_id', $campus_id);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -484,6 +485,7 @@ class StudentAssignmentController extends Controller
         }
 
         $students = $query->paginate($perPage, ['*'], 'page', $page);
+        Log::info('Fetched students count', ['count' => count($students->items())]);
 
         // Map through results for calculations
         $students->getCollection()->transform(function ($student) {
@@ -732,6 +734,8 @@ class StudentAssignmentController extends Controller
         $request->validate([
             'student_ids' => 'required|array|min:1',
             'student_ids.*' => 'required|integer',
+            'period_id' => 'nullable|integer',
+            'sync_moodle' => 'nullable|boolean',
         ]);
 
         try {
@@ -739,7 +743,11 @@ class StudentAssignmentController extends Controller
                 throw new \Exception("El método getBatchGrades no existe en StudentGradesService.");
             }
 
-            $results = $this->gradesService->getBatchGrades($request->student_ids);
+            $results = $this->gradesService->getBatchGrades(
+                $request->student_ids, 
+                $request->period_id, 
+                $request->boolean('sync_moodle', false)
+            );
             
             return response()->json($results);
         } catch (\Exception $e) {

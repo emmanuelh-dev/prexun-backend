@@ -27,6 +27,7 @@ class StudentAssignment extends Model
         'book_notes',
         'book_modulos',
         'book_general',
+        'grades',
     ];
 
     protected $casts = [
@@ -37,6 +38,7 @@ class StudentAssignment extends Model
         'book_delivery_date' => 'date',
         'book_modulos' => 'string',
         'book_general' => 'string',
+        'grades' => 'array',
     ];
 
     protected static function boot()

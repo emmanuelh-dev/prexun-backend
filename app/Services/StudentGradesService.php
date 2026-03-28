@@ -130,19 +130,72 @@ class StudentGradesService
         }
     }
 
-    public function getBatchGrades(array $studentIds): array
+    public function getBatchGrades(array $studentIds, ?int $periodId = null, bool $syncMoodle = false): array
     {
         $results = [];
         $students = Student::whereIn('id', $studentIds)->get();
 
         foreach ($students as $student) {
-            $result = $this->getStudentGrades($student, false); // $withActivities = false
+            $assignment = null;
+            $dbGrades = [];
             
-            if (isset($result['success']) && !$result['success']) {
-                $results[$student->id] = [];
-            } else {
-                $results[$student->id] = $result['data']['grades'] ?? $result['grades'] ?? [];
+            if ($periodId) {
+                $assignment = StudentAssignment::where('student_id', $student->id)
+                    ->where('period_id', $periodId)
+                    ->where('is_active', true)
+                    ->first();
+                    
+                if ($assignment && $assignment->grades) {
+                    $dbGrades = $assignment->grades;
+                }
             }
+
+            if ($syncMoodle || empty($dbGrades)) {
+                $result = $this->getStudentGrades($student, false); // $withActivities = false
+                $moodleGrades = [];
+                
+                if (!isset($result['success']) || $result['success']) {
+                    $moodleGrades = $result['data']['grades'] ?? $result['grades'] ?? [];
+                }
+
+                if ($assignment) {
+                    $mergedGrades = $dbGrades;
+                    
+                    foreach ($moodleGrades as $mGrade) {
+                        if (!isset($mGrade['course_id'])) continue;
+                        
+                        $existingKey = null;
+                        foreach ($mergedGrades as $key => $dbGrade) {
+                            if (isset($dbGrade['course_id']) && $dbGrade['course_id'] == $mGrade['course_id']) {
+                                $existingKey = $key;
+                                break;
+                            }
+                        }
+                        
+                        if ($existingKey !== null) {
+                            // Actualizar los valores de la materia existente sin borrarla
+                            $mergedGrades[$existingKey]['grade'] = $mGrade['grade'] ?? $mergedGrades[$existingKey]['grade'] ?? null;
+                            $mergedGrades[$existingKey]['rawgrade'] = $mGrade['rawgrade'] ?? $mergedGrades[$existingKey]['rawgrade'] ?? null;
+                            if (isset($mGrade['activities'])) {
+                                $mergedGrades[$existingKey]['activities'] = $mGrade['activities'];
+                                $mergedGrades[$existingKey]['activities_count'] = count($mGrade['activities']);
+                            }
+                        } else {
+                            // Agregar nueva materia
+                            $mergedGrades[] = $mGrade;
+                        }
+                    }
+                    
+                    $assignment->grades = $mergedGrades;
+                    $assignment->save();
+                    
+                    $dbGrades = $mergedGrades;
+                } else {
+                    $dbGrades = $moodleGrades;
+                }
+            }
+            
+            $results[$student->id] = $dbGrades;
         }
         
         return $results;
