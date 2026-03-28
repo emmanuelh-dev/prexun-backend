@@ -150,7 +150,7 @@ class StudentGradesService
                 }
             }
 
-            if ($syncMoodle || empty($dbGrades)) {
+            if ($syncMoodle) {
                 $result = $this->getStudentGrades($student, false); // $withActivities = false
                 $moodleGrades = [];
                 
