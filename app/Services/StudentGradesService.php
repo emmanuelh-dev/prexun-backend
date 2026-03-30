@@ -151,7 +151,7 @@ class StudentGradesService
             }
 
             if ($syncMoodle) {
-                $result = $this->getStudentGrades($student, false); // $withActivities = false
+                $result = $this->getStudentGrades($student, true); // incluir actividades para guardarlas en JSONB
                 $moodleGrades = [];
                 
                 if (!isset($result['success']) || $result['success']) {
