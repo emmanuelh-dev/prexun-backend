@@ -161,37 +161,45 @@ class StudentGradesService
                 if ($assignment) {
                     $mergedGrades = $dbGrades;
                     
-                    foreach ($moodleGrades as $mGrade) {
-                        if (!isset($mGrade['course_id'])) continue;
-                        
-                        $existingKey = null;
-                        foreach ($mergedGrades as $key => $dbGrade) {
-                            if (isset($dbGrade['course_id']) && $dbGrade['course_id'] == $mGrade['course_id']) {
-                                $existingKey = $key;
-                                break;
-                            }
-                        }
-                        
-                        if ($existingKey !== null) {
-                            // Actualizar los valores de la materia existente sin borrarla
-                            $mergedGrades[$existingKey]['grade'] = $mGrade['grade'] ?? $mergedGrades[$existingKey]['grade'] ?? null;
-                            $mergedGrades[$existingKey]['rawgrade'] = $mGrade['rawgrade'] ?? $mergedGrades[$existingKey]['rawgrade'] ?? null;
-                            if (isset($mGrade['activities'])) {
-                                $mergedGrades[$existingKey]['activities'] = $mGrade['activities'];
-                                $mergedGrades[$existingKey]['activities_count'] = count($mGrade['activities']);
-                            }
-                        } else {
-                            // Agregar nueva materia
-                            $mergedGrades[] = $mGrade;
+                    // Usar un mapa indexado por course_id para asegurar 0 duplicados
+                    $uniqueGradesMap = [];
+                    foreach ($mergedGrades as $dbGrade) {
+                        if (isset($dbGrade['course_id'])) {
+                            $uniqueGradesMap[$dbGrade['course_id']] = $dbGrade;
                         }
                     }
                     
-                    $assignment->grades = $mergedGrades;
+                    foreach ($moodleGrades as $mGrade) {
+                        if (!isset($mGrade['course_id'])) continue;
+                        $cId = $mGrade['course_id'];
+                        
+                        if (isset($uniqueGradesMap[$cId])) {
+                            // Actualizar los valores de la materia existente sin borrarla
+                            $uniqueGradesMap[$cId]['grade'] = $mGrade['grade'] ?? $uniqueGradesMap[$cId]['grade'] ?? null;
+                            $uniqueGradesMap[$cId]['rawgrade'] = $mGrade['rawgrade'] ?? $uniqueGradesMap[$cId]['rawgrade'] ?? null;
+                            if (isset($mGrade['activities'])) {
+                                $uniqueGradesMap[$cId]['activities'] = $mGrade['activities'];
+                                $uniqueGradesMap[$cId]['activities_count'] = count($mGrade['activities']);
+                            }
+                        } else {
+                            // Agregar nueva materia
+                            $uniqueGradesMap[$cId] = $mGrade;
+                        }
+                    }
+                    
+                    $assignment->grades = array_values($uniqueGradesMap);
                     $assignment->save();
                     
-                    $dbGrades = $mergedGrades;
+                    $dbGrades = array_values($uniqueGradesMap);
                 } else {
-                    $dbGrades = $moodleGrades;
+                    // Prevenir duplicados incluso si solo vienen de Moodle
+                    $uniqueGradesMap = [];
+                    foreach ($moodleGrades as $mGrade) {
+                        if (isset($mGrade['course_id'])) {
+                            $uniqueGradesMap[$mGrade['course_id']] = $mGrade;
+                        }
+                    }
+                    $dbGrades = array_values($uniqueGradesMap);
                 }
             }
             
