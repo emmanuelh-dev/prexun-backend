@@ -487,6 +487,9 @@ class StudentAssignmentController extends Controller
         $students = $query->paginate($perPage, ['*'], 'page', $page);
         Log::info('Fetched students count', ['count' => count($students->items())]);
 
+        // Active student IDs to exclude from transferred list
+        $activeStudentIds = $students->pluck('id')->toArray();
+
         // Map through results for calculations
         $students->getCollection()->transform(function ($student) {
             $periodCost = $student->period ? $student->period->price : 0;
@@ -495,10 +498,46 @@ class StudentAssignmentController extends Controller
 
             // Re-using the already loaded assignment info from our optimized 'with'
             $student->period_assignments = $student->assignments;
+            $student->transferred = false;
             return $student;
         });
 
-        return response()->json($students);
+        // ── Alumnos transferidos: asignaciones INACTIVAS en este grupo con calificaciones ──
+        $transferredStudents = [];
+        if ($grupo) {
+            $inactiveAssignments = \App\Models\StudentAssignment::with(['student'])
+                ->where('grupo_id', $grupo)
+                ->where('period_id', $periodId)
+                ->where('is_active', false)
+                ->whereNotNull('grades')
+                ->whereRaw("jsonb_array_length(grades::jsonb) > 0")
+                ->whereNotIn('student_id', $activeStudentIds)
+                ->get();
+
+            foreach ($inactiveAssignments as $assignment) {
+                if (!$assignment->student) continue;
+
+                $student = $assignment->student;
+                $studentData = [
+                    'id'                 => $student->id,
+                    'firstname'          => $student->firstname,
+                    'lastname'           => $student->lastname,
+                    'email'              => $student->email,
+                    'matricula'          => $student->id,
+                    'phone'              => $student->phone ?? null,
+                    'transferred'        => true,
+                    'transferred_grades' => $assignment->grades ?? [],
+                    'period_assignments' => [],
+                    'current_debt'       => 0,
+                ];
+                $transferredStudents[] = $studentData;
+            }
+        }
+
+        $responseData = $students->toArray();
+        $responseData['transferred_students'] = $transferredStudents;
+
+        return response()->json($responseData);
     }
 
     /**
