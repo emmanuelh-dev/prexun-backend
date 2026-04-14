@@ -350,12 +350,16 @@ class SiteSettingController extends Controller
                 $paymentMethods = json_decode($paymentMethods, true);
             }
 
+            $maintenanceValue = SiteSetting::getValue('maintenance_mode', 'false');
+
             $config = [
                 'default_period_id' => \App\Helpers\SiteConfigHelper::getDefaultPeriodId(),
                 'default_items_per_page' => (int) SiteSetting::getValue('default_items_per_page', 10),
                 'default_theme' => SiteSetting::getValue('default_theme', 'light'),
                 'payment_methods_enabled' => $paymentMethods,
                 'default_payment_method' => SiteSetting::getValue('default_payment_method', 'cash'),
+                'maintenance_mode' => $maintenanceValue === 'true' || $maintenanceValue === true,
+                'maintenance_message' => SiteSetting::getValue('maintenance_message', 'El sistema se encuentra en mantenimiento. Algunos servicios pueden estar limitados.'),
             ];
 
             return response()->json([
