@@ -510,7 +510,7 @@ class StudentAssignmentController extends Controller
                 ->where('period_id', $periodId)
                 ->where('is_active', false)
                 ->whereNotNull('grades')
-                ->whereRaw("jsonb_array_length(grades::jsonb) > 0")
+                ->whereRaw("JSON_LENGTH(grades) > 0")
                 ->whereNotIn('student_id', $activeStudentIds)
                 ->get();
 
