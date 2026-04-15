@@ -265,7 +265,7 @@ class StudentGradesService
             $courseId = $courseGrade['courseid'];
             $courseData = $this->buildCourseData($courseGrade, $courseNameMapping[$courseId] ?? null, $coursesDetailsMapping[$courseId] ?? null);
 
-            if ($withActivities && $courseGrade['rawgrade'] !== null) {
+            if ($withActivities) {
                 $this->addActivitiesData($courseData, $courseId, $student);
             }
             $gradesWithCourseInfo[] = $courseData;
@@ -296,8 +296,12 @@ class StudentGradesService
         foreach ($gradeItems['usergrades'][0]['gradeitems'] as $item) {
             if (isset($item['itemtype']) && $item['itemtype'] !== 'course') {
                 $activities[] = [
-                    'name' => $item['itemname'] ?? 'Actividad',
-                    'grade' => $item['gradeformatted'] ?? '-',
+                    'name'     => $item['itemname'] ?? 'Actividad',
+                    'grade'    => $item['gradeformatted'] ?? '-',
+                    'rawgrade' => isset($item['graderaw']) && $item['graderaw'] !== null
+                        ? (float) $item['graderaw']
+                        : null,
+                    'max_grade' => isset($item['grademax']) ? (float) $item['grademax'] : null,
                 ];
             }
         }
