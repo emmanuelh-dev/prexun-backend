@@ -447,9 +447,6 @@ class StudentAssignmentController extends Controller
                 $q->where('period_id', $periodId)->where('is_active', true);
             });
 
-        if ($campus_id && !$grupo) {
-            $query->where('campus_id', $campus_id);
-        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -465,6 +462,13 @@ class StudentAssignmentController extends Controller
             $query->where('id', 'LIKE', "%{$searchMatricula}%");
         if ($searchDate)
             $query->whereDate('created_at', $searchDate);
+
+        // Filtrar por plantel SIEMPRE que se reciba campus_id
+        // Bug anterior: solo filtraba cuando no había grupo, haciendo que en calificaciones
+        // (que siempre envía grupo) aparecieran todos los alumnos sin importar el plantel.
+        if ($campus_id) {
+            $query->where('campus_id', $campus_id);
+        }
 
         if ($grupo) {
             $query->where(function ($q) use ($grupo, $periodId) {
