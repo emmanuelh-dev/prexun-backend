@@ -426,9 +426,14 @@ class StudentAssignmentController extends Controller
         $perPage = $request->get('perPage', 10);
         $page = $request->get('page', 1);
 
-        Log::info('Fetching students by assigned period', ['period_id' => $periodId]);
+        Log::info('Fetching students by assigned period', [
+            'period_id' => $periodId,
+            'campus_id' => $campus_id,
+            'grupo'     => $grupo,
+        ]);
 
-        // Optimized query with eager loading to prevent dozens of database hits
+        // Optimized query with eager loading to prevent N+1 database hits
+        // We load 'assignments' with a filter to only get active assignments for the message draft
         $query = Student::with([
             'period',
             'transactions',
@@ -447,7 +452,12 @@ class StudentAssignmentController extends Controller
                 $q->where('period_id', $periodId)->where('is_active', true);
             });
 
+        // 1. Apply campus filter strictly (Primary isolation)
+        if ($campus_id && $campus_id !== 'all') {
+            $query->where('campus_id', $campus_id);
+        }
 
+        // 2. Apply general search (Name/Email)
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('firstname', 'LIKE', "%{$search}%")
@@ -456,45 +466,53 @@ class StudentAssignmentController extends Controller
             });
         }
 
-        if ($searchPhone)
-            $query->where('phone', 'LIKE', "%{$searchPhone}%");
-        if ($searchMatricula)
-            $query->where('id', 'LIKE', "%{$searchMatricula}%");
-        if ($searchDate)
-            $query->whereDate('created_at', $searchDate);
-
-        // Filtrar por plantel SIEMPRE que se reciba campus_id
-        // Bug anterior: solo filtraba cuando no había grupo, haciendo que en calificaciones
-        // (que siempre envía grupo) aparecieran todos los alumnos sin importar el plantel.
-        if ($campus_id) {
-            $query->where('campus_id', $campus_id);
-        }
-
-        if ($grupo) {
-            $query->where(function ($q) use ($grupo, $periodId) {
-                $q->where('grupo_id', $grupo)
-                    ->orWhereHas('assignments', function ($subQ) use ($grupo, $periodId) {
-                        $subQ->where('grupo_id', $grupo)->where('period_id', $periodId)->where('is_active', true);
-                    });
+        // 3. Apply specific searches (Phone/Matricula/Date)
+        if ($searchPhone) {
+            $query->where(function ($q) use ($searchPhone) {
+                $q->where('phone', 'LIKE', "%{$searchPhone}%")
+                    ->orWhere('tutor_phone', 'LIKE', "%{$searchPhone}%");
             });
         }
 
-        if ($semanaIntensivaFilter) {
-            $query->where(function ($q) use ($semanaIntensivaFilter, $periodId) {
-                $q->where('semana_intensiva_id', $semanaIntensivaFilter)
-                    ->orWhereHas('assignments', function ($subQ) use ($semanaIntensivaFilter, $periodId) {
-                        $subQ->where('semana_intensiva_id', $semanaIntensivaFilter)->where('period_id', $periodId)->where('is_active', true);
+        if ($searchMatricula) {
+            $query->where('id', 'LIKE', "%{$searchMatricula}%");
+        }
+
+        if ($searchDate) {
+            $query->whereDate('created_at', $searchDate);
+        }
+
+        // 4. Apply group/semana filters (Nested to maintain campus isolation)
+        if ($grupo || $semanaIntensivaFilter) {
+            $query->where(function ($q) use ($grupo, $semanaIntensivaFilter, $periodId) {
+                if ($grupo) {
+                    $q->where(function ($inner) use ($grupo, $periodId) {
+                        $inner->where('grupo_id', $grupo)
+                            ->orWhereHas('assignments', function ($subQ) use ($grupo, $periodId) {
+                                $subQ->where('grupo_id', $grupo)
+                                    ->where('period_id', $periodId)
+                                    ->where('is_active', true);
+                            });
                     });
+                }
+
+                if ($semanaIntensivaFilter) {
+                    $q->where(function ($inner) use ($semanaIntensivaFilter, $periodId) {
+                        $inner->where('semana_intensiva_id', $semanaIntensivaFilter)
+                            ->orWhereHas('assignments', function ($subQ) use ($semanaIntensivaFilter, $periodId) {
+                                $subQ->where('semana_intensiva_id', $semanaIntensivaFilter)
+                                    ->where('period_id', $periodId)
+                                    ->where('is_active', true);
+                            });
+                    });
+                }
             });
         }
 
         $students = $query->paginate($perPage, ['*'], 'page', $page);
-        Log::info('Fetched students count', ['count' => count($students->items())]);
-
-        // Active student IDs to exclude from transferred list
+        
+        // Map through results for calculations (In-memory to keep query clean)
         $activeStudentIds = $students->pluck('id')->toArray();
-
-        // Map through results for calculations
         $students->getCollection()->transform(function ($student) {
             $periodCost = $student->period ? $student->period->price : 0;
             $totalPaid = $student->transactions->sum('amount');
@@ -522,7 +540,7 @@ class StudentAssignmentController extends Controller
                 if (!$assignment->student) continue;
 
                 $student = $assignment->student;
-                $studentData = [
+                $transferredStudents[] = [
                     'id'                 => $student->id,
                     'firstname'          => $student->firstname,
                     'lastname'           => $student->lastname,
@@ -534,7 +552,6 @@ class StudentAssignmentController extends Controller
                     'period_assignments' => [],
                     'current_debt'       => 0,
                 ];
-                $transferredStudents[] = $studentData;
             }
         }
 
@@ -547,7 +564,7 @@ class StudentAssignmentController extends Controller
     /**
      * Re-sync a specific assignment to Moodle.
      */
-    public function resyncToMoodle($id)
+     public function resyncToMoodle($id)
     {
         $assignment = StudentAssignment::with(['student', 'period', 'grupo', 'semanaIntensiva', 'carrera'])
             ->findOrFail($id);
@@ -608,78 +625,77 @@ class StudentAssignmentController extends Controller
         }
     }
 
-    private function updateMoodleCohorts(StudentAssignment $assignment, $oldG, $newG, $oldS, $newS, $oldC, $newC)
+    private function updateMoodleCohorts(StudentAssignment $assignment, $oldGrupoId, $newGrupoId, $oldSemanaId, $newSemanaId, $oldCarreraId, $newCarreraId)
     {
         $student = $assignment->student;
-        if (!$student)
-            return;
+        if (!$student) return;
 
         $this->ensureStudentHasMoodleId($student);
+        if (!$student->moodle_id) return;
 
-        if (!$student->moodle_id)
-            return;
-
-        $toRemove = $this->prepareCohortsToRemove($student, $oldG, $newG, $oldS, $newS, $oldC, $newC);
-        if (!empty($toRemove))
+        $toRemove = $this->prepareCohortsToRemove($student, $oldGrupoId, $newGrupoId, $oldSemanaId, $newSemanaId, $oldCarreraId, $newCarreraId);
+        if (!empty($toRemove)) {
             $this->moodleService->cohorts()->removeUsersFromCohorts($toRemove);
+        }
 
-        $toAdd = $this->prepareCohortsToAdd($student, $oldG, $newG, $oldS, $newS, $oldC, $newC);
-        if (!empty($toAdd))
+        $toAdd = $this->prepareCohortsToAdd($student, $oldGrupoId, $newGrupoId, $oldSemanaId, $newSemanaId, $oldCarreraId, $newCarreraId);
+        if (!empty($toAdd)) {
             $this->moodleService->cohorts()->addUserToCohort($toAdd);
+        }
     }
 
-    private function prepareCohortsToRemove($student, $oldGrupoId, $newGrupoId, $oldS, $newS, $oldC, $newC)
+    private function prepareCohortsToRemove($student, $oldGrupoId, $newGrupoId, $oldSemanaId, $newSemanaId, $oldCarreraId, $newCarreraId)
     {
         $cohortsToRemove = [];
         $sid = $student->moodle_id;
 
         if ($oldGrupoId && $oldGrupoId !== $newGrupoId) {
-            $g = Grupo::find($oldGrupoId);
-            if ($g && $g->moodle_id)
-                $cohortsToRemove[] = ['cohortid' => $g->moodle_id, 'userid' => $sid];
+            $grupo = Grupo::find($oldGrupoId);
+            if ($grupo && $grupo->moodle_id)
+                $cohortsToRemove[] = ['cohortid' => $grupo->moodle_id, 'userid' => $sid];
         }
 
-        if ($oldS && $oldS !== $newS) {
-            $s = SemanaIntensiva::find($oldS);
-            if ($s && $s->moodle_id)
-                $cohortsToRemove[] = ['cohortid' => $s->moodle_id, 'userid' => $sid];
+        if ($oldSemanaId && $oldSemanaId !== $newSemanaId) {
+            $semana = SemanaIntensiva::find($oldSemanaId);
+            if ($semana && $semana->moodle_id)
+                $cohortsToRemove[] = ['cohortid' => $semana->moodle_id, 'userid' => $sid];
         }
 
-        if ($oldC && $oldC !== $newC) {
-            $c = Carrera::with('modulos')->find($oldC);
-            if ($c) {
-                foreach ($c->modulos as $m) {
-                    if ($m->moodle_id)
-                        $cohortsToRemove[] = ['cohortid' => $m->moodle_id, 'userid' => $sid];
+        if ($oldCarreraId && $oldCarreraId !== $newCarreraId) {
+            $carrera = Carrera::with('modulos')->find($oldCarreraId);
+            if ($carrera) {
+                foreach ($carrera->modulos as $modulo) {
+                    if ($modulo->moodle_id)
+                        $cohortsToRemove[] = ['cohortid' => $modulo->moodle_id, 'userid' => $sid];
                 }
             }
         }
         return $cohortsToRemove;
     }
 
-    private function prepareCohortsToAdd($student, $oldG, $newGrupoId, $oldS, $newS, $oldC, $newC)
+    private function prepareCohortsToAdd($student, $oldGrupoId, $newGrupoId, $oldSemanaId, $newSemanaId, $oldCarreraId, $newCarreraId)
     {
         $cohortsToAdd = [];
-        $uname = (string) $student->id;
+        $username = (string) $student->id;
 
-        if ($newGrupoId && $newGrupoId !== $oldG) {
-            $g = Grupo::find($newGrupoId);
-            if ($g && $g->moodle_id)
-                $cohortsToAdd[] = ['cohorttype' => ['type' => 'id', 'value' => $g->moodle_id], 'usertype' => ['type' => 'username', 'value' => $uname]];
+        if ($newGrupoId && $newGrupoId !== $oldGrupoId) {
+            $grupo = Grupo::find($newGrupoId);
+            if ($grupo && $grupo->moodle_id)
+                $cohortsToAdd[] = ['cohorttype' => ['type' => 'id', 'value' => $grupo->moodle_id], 'usertype' => ['type' => 'username', 'value' => $username]];
         }
 
-        if ($newS && $newS !== $oldS) {
-            $s = SemanaIntensiva::find($newS);
-            if ($s && $s->moodle_id)
-                $cohortsToAdd[] = ['cohorttype' => ['type' => 'id', 'value' => $s->moodle_id], 'usertype' => ['type' => 'username', 'value' => $uname]];
+        if ($newSemanaId && $newSemanaId !== $oldSemanaId) {
+            $semana = SemanaIntensiva::find($newSemanaId);
+            if ($semana && $semana->moodle_id)
+                $cohortsToAdd[] = ['cohorttype' => ['type' => 'id', 'value' => $semana->moodle_id], 'usertype' => ['type' => 'username', 'value' => $username]];
         }
 
-        if ($newC && $newC !== $oldC) {
-            $c = Carrera::with('modulos')->find($newC);
-            if ($c) {
-                foreach ($c->modulos as $m) {
-                    if ($m->moodle_id)
-                        $cohortsToAdd[] = ['cohorttype' => ['type' => 'id', 'value' => $m->moodle_id], 'usertype' => ['type' => 'username', 'value' => $uname]];
+        if ($newCarreraId && $newCarreraId !== $oldCarreraId) {
+            $carrera = Carrera::with('modulos')->find($newCarreraId);
+            if ($carrera) {
+                foreach ($carrera->modulos as $modulo) {
+                    if ($modulo->moodle_id)
+                        $cohortsToAdd[] = ['cohorttype' => ['type' => 'id', 'value' => $modulo->moodle_id], 'usertype' => ['type' => 'username', 'value' => $username]];
                 }
             }
         }
